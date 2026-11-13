@@ -19,6 +19,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 JsonDict = JSON().with_variant(JSONB(), "postgresql")
 EMBEDDING_DIM = 1024
+LABEL_MAX = 256  # ingest clips longer values to fit (app/ingest/persist.py)
+NAME_MAX = 512
 
 
 class Base(DeclarativeBase):
@@ -75,8 +77,8 @@ class Element(Base):
     )
     kind: Mapped[str] = mapped_column(String(32), index=True)
     text: Mapped[str | None] = mapped_column(Text)  # raw text as found in the source
-    label: Mapped[str | None] = mapped_column(String(256))  # normalized, e.g. "MH", "09"
-    name: Mapped[str | None] = mapped_column(String(512))  # human-readable
+    label: Mapped[str | None] = mapped_column(String(LABEL_MAX))  # normalized, e.g. "MH", "09"
+    name: Mapped[str | None] = mapped_column(String(NAME_MAX))  # human-readable
     value_mm: Mapped[float | None] = mapped_column(Float)
     bbox: Mapped[list[float] | None] = mapped_column(JsonDict)  # [x0, y0, x1, y1] page px
     footprint_mm: Mapped[list[list[float]] | None] = mapped_column(JsonDict)  # plan polygon
