@@ -12,6 +12,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-006 | 2026-11-14 | Q&A agent answers only from tools, with server-checked citations | Accepted |
 | D-007 | 2026-11-14 | UI follows DESIGN.md; highlights by dimming, not colour | Accepted |
 | D-008 | 2026-11-14 | CI enforces RULES.md; local git hooks come later | Accepted |
+| D-009 | 2026-11-14 | Kimi K3.1 Pro on Verda as a secondary LLM; keys in keyrings | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -96,3 +97,13 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 **Decision:** GitHub Actions runs format, lint, type check, tests and build for both apps, the 600-line file check, conventional commit messages on PRs, and a Docker build. `make check` runs the same checks locally.
 
 **Consequences:** Local pre-commit hooks (secret scan, formatting, commit-message check) are still to do; until then run `make check` before pushing.
+
+## D-009: Kimi K3.1 Pro on Verda as a secondary LLM; keys in keyrings
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** The Q&A agent runs on Claude Opus 5.5 through the Anthropic SDK (D-006). Every team also gets Verda credits, and Verda's inference API serves Kimi K3.1 Pro. Verda speaks only the OpenAI Chat Completions and Responses APIs: `POST /v1/messages` returns 404, so the Anthropic client can't be pointed at it. A test call to Kimi K3.1 Pro worked (HTTP 200, about 1.2 s).
+
+**Decision:** Claude stays the Q&A agent. Kimi K3.1 Pro on Verda (`kimi-k3-1-pro`, `https://inference.verda.com/v1`, via an OpenAI SDK) is available for side tasks where the Anthropic-only features of D-006 aren't needed, such as cheap bulk calls or experiments, and for the Verda prize. Each person creates their own Verda key in our project and keeps it in their OS keyring, passing it to one process at a time. The deployed app reads any key from the host's secret settings. No key goes in the repo, a `.env` file or chat. Setup in `docs/verda-setup.md`.
+
+**Consequences:** Code that uses Verda has its own OpenAI-compatible client, separate from the Anthropic one; moving the Q&A agent itself to Verda would mean a rewrite and a new decision superseding D-006. Verda lists no embedding model, so embeddings need a separate decision.
