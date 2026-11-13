@@ -2,7 +2,7 @@
 
 LOCAL_ENV = DATABASE_URL=postgresql://bob:bob@postgres:5432/bob VALKEY_URL=redis://valkey:6379/0
 
-.PHONY: help up up-local down logs check backend-check frontend-check size-check fmt dev-api dev-worker dev-web
+.PHONY: help up up-local down logs check backend-check frontend-check size-check scripts-check fmt dev-api dev-worker dev-web
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -20,7 +20,7 @@ down: ## Stop all containers
 logs: ## Follow API and worker logs
 	docker compose logs -f backend worker
 
-check: backend-check frontend-check size-check ## Everything CI runs
+check: backend-check frontend-check size-check scripts-check ## Everything CI runs
 
 backend-check: ## Format check, lint, type check, tests
 	cd backend && uv run ruff format --check . && uv run ruff check . && uv run mypy app eval && uv run pytest -q
@@ -30,6 +30,9 @@ frontend-check: ## Format check, lint, type check, tests, build
 
 size-check: ## No source file over 600 lines
 	scripts/check-file-size.sh
+
+scripts-check: ## Tests for the helper scripts
+	scripts/bulk-issues-test.sh
 
 fmt: ## Auto-format everything
 	cd backend && uv run ruff format . && uv run ruff check --fix .

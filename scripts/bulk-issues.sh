@@ -6,7 +6,8 @@ set -euo pipefail
 repo="slowTake/bobBuilder"
 file="${1:?usage: $0 <tasks.tsv>}"
 
-while IFS=$'\t' read -r title label done_when; do
+# `|| [[ -n "$title" ]]`: read fails on a last line without a newline, but still fills the fields.
+while IFS=$'\t' read -r title label done_when || [[ -n "$title" ]]; do
   [[ -z "$title" || "$title" == \#* ]] && continue
   gh issue create --repo "$repo" --title "$title" --label "$label" \
     --body "$(printf '## Done when\n\n- [ ] %s' "$done_when")"
