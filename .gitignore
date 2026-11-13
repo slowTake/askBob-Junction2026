@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+.venv/
+__pycache__/
+
+# build and test output
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# local databases
+*.db
+*.db-journal
+
+# secrets
+.env
+.env*.local
+
+# misc
+.DS_Store
+npm-debug.log*
+
+# personal scratch notes, never committed
+/.local/
