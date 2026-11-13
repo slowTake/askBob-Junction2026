@@ -1,6 +1,6 @@
 # Verda setup
 
-How to get access to our LLM on Verda and call it. Verda's inference API is OpenAI-compatible, so any OpenAI SDK works with a different base URL and key.
+How to get access to Kimi K3.1 Pro on Verda and call it. This is our **secondary** LLM for side tasks; the Q&A agent runs on Claude (see [D-006 and D-009](decisions.md)). Verda's inference API is OpenAI-compatible, so any OpenAI SDK works with a different base URL and key. It does not speak the Anthropic Messages API.
 
 ## What we use
 

@@ -6,7 +6,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | ----- | ---------- | --------------------------------------------------- | -------- |
 | D-001 | 2026-11-14 | Adopt the Lease Loop engineering rules, stack-neutral | Accepted |
 | D-002 | 2026-11-14 | Track work in GitHub issues with one board            | Accepted |
-| D-003 | 2026-11-14 | Use Kimi K3.1 Pro on Verda; LLM keys stay in keyrings | Accepted |
+| D-009 | 2026-11-14 | Kimi K3.1 Pro on Verda as a secondary LLM; keys in keyrings | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -28,12 +28,12 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 
 **Consequences:** Blank issues are disabled, so every issue needs a form. The board's built-in workflows are set up by hand in the UI and are not versioned in the repo.
 
-## D-003: Use Kimi K3.1 Pro on Verda; LLM keys stay in keyrings
+## D-009: Kimi K3.1 Pro on Verda as a secondary LLM; keys in keyrings
 
 **Date:** 2026-11-14 · **Status:** Accepted
 
-**Context:** We need an LLM API. Every team gets Verda credits, and Verda's inference API is OpenAI-compatible. We had no reply yet about a Gemini key, and DeepSeek V4.1 Flash wasn't available to us. A test call to Kimi K3.1 Pro worked (HTTP 200, about 1.2 s).
+**Context:** The Q&A agent runs on Claude Opus 5.5 through the Anthropic SDK (D-006). Every team also gets Verda credits, and Verda's inference API serves Kimi K3.1 Pro. Verda speaks only the OpenAI Chat Completions and Responses APIs: `POST /v1/messages` returns 404, so the Anthropic client can't be pointed at it. A test call to Kimi K3.1 Pro worked (HTTP 200, about 1.2 s).
 
-**Decision:** Use `kimi-k3-1-pro` through `https://inference.verda.com/v1` with an OpenAI SDK. Each person creates their own API key in our Verda project and keeps it in their OS keyring, passing it to one process at a time. The deployed app reads its key from the host's secret settings. No key goes in the repo, a `.env` file or chat. Setup in `docs/verda-setup.md`.
+**Decision:** Claude stays the Q&A agent. Kimi K3.1 Pro on Verda (`kimi-k3-1-pro`, `https://inference.verda.com/v1`, via an OpenAI SDK) is available for side tasks where the Anthropic-only features of D-006 aren't needed, such as cheap bulk calls or experiments, and for the Verda prize. Each person creates their own Verda key in our project and keeps it in their OS keyring, passing it to one process at a time. The deployed app reads any key from the host's secret settings. No key goes in the repo, a `.env` file or chat. Setup in `docs/verda-setup.md`.
 
-**Consequences:** Code talks to a generic OpenAI-compatible client, so switching to Gemini or another provider later is a base URL, key and model ID change. Verda lists no embedding model, so embeddings need a separate decision.
+**Consequences:** Code that uses Verda has its own OpenAI-compatible client, separate from the Anthropic one; moving the Q&A agent itself to Verda would mean a rewrite and a new decision superseding D-006. Verda lists no embedding model, so embeddings need a separate decision.
