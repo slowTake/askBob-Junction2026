@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { Citation, DocumentDetail, ElementInfo } from "../api/types";
 import { scrollToCenter } from "../lib/viewport";
+import { focusZoom, stepZoom } from "../lib/zoom";
 
 interface Props {
   documentId: string;
@@ -12,13 +13,13 @@ interface Props {
 }
 
 const FOCUS_PAD_PX = 12;
-const ZOOMS = [1, 1.5, 2, 3, 4];
 
 /** Page image with an SVG overlay in page-pixel coordinates: bboxes need no conversion. */
 export function DrawingViewer(props: Props) {
   const { documentId, pageIndex, onPageChange, focus, onClearFocus } = props;
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [zoomedFor, setZoomedFor] = useState<Citation | null>(null);
   const [showElements, setShowElements] = useState(false);
   const [elements, setElements] = useState<ElementInfo[]>([]);
   const scroller = useRef<HTMLDivElement>(null);
@@ -47,7 +48,12 @@ export function DrawingViewer(props: Props) {
   }, [documentId, pageIndex, showElements]);
 
   const page = detail?.pages.find((p) => p.index === pageIndex) ?? null;
-  const effectiveZoom = focus?.bbox ? Math.max(zoom, 2) : zoom;
+  // A newly focused citation zooms in once; after that − and + move freely.
+  if (focus !== zoomedFor) {
+    setZoomedFor(focus);
+    if (focus?.bbox) setZoom(focusZoom);
+  }
+  const effectiveZoom = zoom;
 
   useEffect(() => {
     const el = scroller.current;
@@ -67,7 +73,6 @@ export function DrawingViewer(props: Props) {
   const w = page.width_px;
   const h = page.height_px;
   const box = focus?.bbox ?? null;
-  const zoomIndex = ZOOMS.indexOf(effectiveZoom);
 
   return (
     <div className="viewer">
@@ -104,7 +109,7 @@ export function DrawingViewer(props: Props) {
           <button
             type="button"
             className="btn btn-subtle btn-sm"
-            onClick={() => setZoom(ZOOMS[Math.max(0, zoomIndex - 1)] ?? 1)}
+            onClick={() => setZoom(stepZoom(effectiveZoom, -1))}
           >
             −
           </button>
@@ -112,7 +117,7 @@ export function DrawingViewer(props: Props) {
           <button
             type="button"
             className="btn btn-subtle btn-sm"
-            onClick={() => setZoom(ZOOMS[Math.min(ZOOMS.length - 1, zoomIndex + 1)] ?? 4)}
+            onClick={() => setZoom(stepZoom(effectiveZoom, 1))}
           >
             +
           </button>
