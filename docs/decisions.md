@@ -6,6 +6,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | ----- | ---------- | --------------------------------------------------- | -------- |
 | D-001 | 2026-11-14 | Adopt the Lease Loop engineering rules, stack-neutral | Accepted |
 | D-002 | 2026-11-14 | Track work in GitHub issues with one board            | Accepted |
+| D-003 | 2026-11-14 | Use Kimi K3.1 Pro on Verda; LLM keys stay in keyrings | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -26,3 +27,13 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 **Decision:** Every chunk of work is a GitHub issue with a "Done when" list, created from a form or in bulk from a task file. People claim issues by assigning themselves (at most two in progress each), branch with `gh issue develop`, and close them with `Closes #n` in the PR. One GitHub Project board owned by slowTake, linked to the repo, shows status. Assignment and status moves are not automated. Details in `docs/issues.md`.
 
 **Consequences:** Blank issues are disabled, so every issue needs a form. The board's built-in workflows are set up by hand in the UI and are not versioned in the repo.
+
+## D-003: Use Kimi K3.1 Pro on Verda; LLM keys stay in keyrings
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** We need an LLM API. Every team gets Verda credits, and Verda's inference API is OpenAI-compatible. We had no reply yet about a Gemini key, and DeepSeek V4.1 Flash wasn't available to us. A test call to Kimi K3.1 Pro worked (HTTP 200, about 1.2 s).
+
+**Decision:** Use `kimi-k3-1-pro` through `https://inference.verda.com/v1` with an OpenAI SDK. Each person creates their own API key in our Verda project and keeps it in their OS keyring, passing it to one process at a time. The deployed app reads its key from the host's secret settings. No key goes in the repo, a `.env` file or chat. Setup in `docs/verda-setup.md`.
+
+**Consequences:** Code talks to a generic OpenAI-compatible client, so switching to Gemini or another provider later is a base URL, key and model ID change. Verda lists no embedding model, so embeddings need a separate decision.
