@@ -22,7 +22,7 @@ from app.models import Element, Page
 from app.storage import page_image_path
 
 KINDS = ["room", "wall", "door", "window", "dimension", "scale", "area", "fixture", "text",
-         "slab", "column", "beam", "stair", "storey", "element"]  # fmt: skip
+         "slab", "roof", "column", "beam", "stair", "railing", "storey", "element"]  # fmt: skip
 MAX_RESULTS = 50
 VIEW_MAX_SIDE = 1568  # longest image side Claude reads without downscaling
 VIEW_MIN_SIDE = 768

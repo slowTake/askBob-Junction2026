@@ -23,8 +23,12 @@ _KINDS = {
 }
 
 
+OTHER_KIND = "element"
+IFC_KINDS = frozenset(_KINDS.values()) | {OTHER_KIND}  # every kind an IFC file can produce
+
+
 def ifc_kind(ifc_class: str) -> str:
-    return _KINDS.get(ifc_class, "element")
+    return _KINDS.get(ifc_class, OTHER_KIND)
 
 
 def flatten_psets(psets: dict[str, dict[str, Any]], limit: int = 60) -> dict[str, Any]:
