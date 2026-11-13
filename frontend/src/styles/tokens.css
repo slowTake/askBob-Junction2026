@@ -1,0 +1,48 @@
+/* Design tokens from DESIGN.md (repo root). Change values there first, then here.
+   Fonts: the display/text faces in DESIGN.md are proprietary; Inter is the substitute
+   DESIGN.md itself recommends. */
+
+:root {
+  /* colors */
+  --primary: #000000;
+  --on-primary: #ffffff;
+  --ink: #000000;
+  --body: #5e5e5e;
+  --mute: #afafaf;
+  --hairline-mid: #4b4b4b;
+  --canvas: #ffffff;
+  --canvas-soft: #efefef;
+  --canvas-softer: #f3f3f3;
+  --surface-pressed: #e2e2e2;
+  --link: #0000ee;
+  --on-dark: #ffffff;
+  --black-elevated: #282828;
+
+  /* typography */
+  --font-display: "Inter", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-text: "Inter", system-ui, "Helvetica Neue", Arial, sans-serif;
+
+  /* radius */
+  --r-none: 0px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-pill: 999px;
+  --r-pill-tab: 36px;
+  --r-full: 9999px;
+
+  /* spacing (4 px base) */
+  --s-xxs: 4px;
+  --s-xs: 6px;
+  --s-sm: 8px;
+  --s-md: 12px;
+  --s-lg: 16px;
+  --s-xl: 20px;
+  --s-2xl: 24px;
+  --s-3xl: 32px;
+
+  /* elevation */
+  --shadow-1: rgba(0, 0, 0, 0.12) 0px 4px 16px 0px;
+  --shadow-2: rgba(0, 0, 0, 0.16) 0px 4px 16px 0px;
+  --shadow-3: rgba(0, 0, 0, 0.16) 0px 2px 8px 0px;
+}
