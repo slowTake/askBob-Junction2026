@@ -1,0 +1,77 @@
+# bobBuilder: UI (nginx) -> API (FastAPI) -> worker (RQ), with
+# Aiven for PostgreSQL and Aiven for Valkey as the data services.
+#
+#   Aiven (default):  source scripts/aiven-env.sh && docker compose up --build
+#   Fully offline:    make up-local   (adds local postgres + valkey containers)
+#
+# Secrets are passed through from your shell environment, never written to a file.
+
+name: bobbuilder
+
+x-backend: &backend
+  build: ./backend
+  environment:
+    - DATABASE_URL
+    - VALKEY_URL
+    - ANTHROPIC_API_KEY
+    - CLAUDE_MODEL
+    - CLAUDE_EFFORT
+    - DATA_DIR=/data
+  volumes:
+    - data:/data
+  depends_on:
+    postgres: { condition: service_healthy, required: false }
+    valkey: { condition: service_healthy, required: false }
+  restart: unless-stopped
+
+services:
+  backend:
+    <<: *backend
+    ports: ["8000:8000"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')",
+        ]
+      interval: 10s
+      retries: 6
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+
+  frontend:
+    build: ./frontend
+    ports: ["8080:80"]
+    depends_on: [backend]
+    restart: unless-stopped
+
+  # ---- offline fallback only (profile "local"); the shared setup uses Aiven ----
+  postgres:
+    image: pgvector/pgvector:pg17
+    profiles: [local]
+    environment:
+      POSTGRES_USER: bob
+      POSTGRES_PASSWORD: bob
+      POSTGRES_DB: bob
+    volumes:
+      - pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "bob"]
+      interval: 5s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    profiles: [local]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  data:
+  pg:
