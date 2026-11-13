@@ -53,7 +53,9 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           pattern='^(feat|fix|test|refactor|docs|style|chore|ci|perf)(\([a-z0-9-]+\))?!?: .+'
-          bad=$(git log --format=%s "origin/${{ github.base_ref }}..HEAD" | grep -Ev "$pattern" || true)
+          # Check the PR's own commits, not the merge commit GitHub creates for the run.
+          range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          bad=$(git log --no-merges --format=%s "$range" | grep -Ev "$pattern" || true)
           if [ -n "$bad" ]; then echo "Not conventional:"; echo "$bad"; exit 1; fi
 
   containers:
