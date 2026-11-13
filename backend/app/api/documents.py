@@ -1,6 +1,7 @@
 """Upload, list and inspect documents; serve page images, the IFC model and its mesh."""
 
 import hashlib
+import logging
 import shutil
 import uuid
 from pathlib import Path
@@ -18,11 +19,12 @@ from app.envelope import AppError, ok
 from app.models import Document, Element, Page
 from app.schemas import DocumentDetailOut, DocumentOut, ElementOut
 from app.storage import document_dir, mesh_path, model_ifc_path, original_path, page_image_path
-from app.valkey import enqueue_ingest, publish_event
+from app.valkey import QueueError, enqueue_ingest, publish_event
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 DB = Annotated[Session, Depends(get_db)]
 CHUNK = 1024 * 1024
+log = logging.getLogger(__name__)
 
 
 @router.get("")
@@ -66,7 +68,15 @@ def upload_document(file: UploadFile, db: DB) -> dict[str, Any]:
     )
     db.add(doc)
     db.commit()
-    _queue(doc)
+    try:
+        _queue(doc)
+    except QueueError:
+        # D-010: never leave a document "queued" without a job. Undo the upload.
+        log.warning("upload %s: queue unavailable, rolling back", doc_id, exc_info=True)
+        db.delete(doc)
+        db.commit()
+        shutil.rmtree(document_dir(doc_id), ignore_errors=True)
+        raise _queue_unavailable() from None
     return ok(DocumentOut.model_validate(doc).model_dump(mode="json"))
 
 
@@ -83,9 +93,16 @@ def get_document(document_id: uuid.UUID, db: DB) -> dict[str, Any]:
 @router.post("/{document_id}/reingest")
 def reingest(document_id: uuid.UUID, db: DB) -> dict[str, Any]:
     doc = _document(db, document_id)
+    previous = doc.status
     doc.status = "queued"
     db.commit()
-    _queue(doc)
+    try:
+        _queue(doc)
+    except QueueError:
+        log.warning("reingest %s: queue unavailable", document_id, exc_info=True)
+        doc.status = previous
+        db.commit()
+        raise _queue_unavailable() from None
     return ok(DocumentOut.model_validate(doc).model_dump(mode="json"))
 
 
@@ -155,6 +172,12 @@ def _existing(path: Path) -> Path:
     if not path.is_file():
         raise AppError("not_found", "File not available", 404)
     return path
+
+
+def _queue_unavailable() -> AppError:
+    return AppError(
+        "queue_unavailable", "Processing is unavailable right now. Try again in a minute.", 503
+    )
 
 
 def _queue(doc: Document) -> None:

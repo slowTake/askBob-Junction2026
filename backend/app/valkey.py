@@ -21,6 +21,10 @@ INGEST_QUEUE = "ingest"
 INGEST_JOB = "app.ingest.jobs.ingest_document"
 
 
+class QueueError(Exception):
+    """The ingest job could not be enqueued (Valkey unreachable)."""
+
+
 @lru_cache
 def get_redis() -> redis.Redis:
     return redis.Redis.from_url(get_settings().valkey_url, health_check_interval=30)
@@ -31,9 +35,13 @@ def ingest_queue() -> Queue:
 
 
 def enqueue_ingest(document_id: str) -> None:
-    ingest_queue().enqueue_call(
-        INGEST_JOB, args=(document_id,), timeout=1800, result_ttl=3600, failure_ttl=86_400
-    )
+    """Raises QueueError when Valkey cannot take the job."""
+    try:
+        ingest_queue().enqueue_call(
+            INGEST_JOB, args=(document_id,), timeout=1800, result_ttl=3600, failure_ttl=86_400
+        )
+    except redis.RedisError as exc:
+        raise QueueError("could not enqueue the ingest job") from exc
 
 
 def publish_event(event: dict[str, Any]) -> None:
