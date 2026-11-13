@@ -1,0 +1,3 @@
+{"question": "How many bedrooms does the apartment have?", "expected": "3", "document_ids": []}
+{"question": "How wide is the bathroom door?", "expected": "800", "document_ids": []}
+{"question": "What is the total floor area of the apartment?", "expected": "80", "document_ids": []}
