@@ -79,8 +79,8 @@ the prompt. The key is never written to the repository. For Aiven, run
 Changing a key requires recreating the backend (`docker compose restart` keeps
 the old environment); the `make up-*` commands apply environment changes.
 
-Every `make up-*` builds the images, starts the stack in the background, waits
-for the healthchecks and then runs `make smoke`: it fails, saying what to look at,
+Every `make up-*` builds the images, starts the stack in the background and
+then runs `make smoke`, which waits up to 3 minutes and fails, saying what to look at,
 unless the API is healthy, an ingest worker listens, nginx proxies `/api` and the
 UI page is served on :8080. Follow the logs with `make logs`; run `make smoke`
 again at any time to check a running stack.
@@ -88,7 +88,9 @@ again at any time to check a running stack.
 The UI container's nginx sends `/api` to `BACKEND_URL` (default
 `http://backend:8000`, the Compose service), so the same image can run on its own,
 for example on Aiven Runtime, pointed at a backend elsewhere. Without a reachable
-backend it still serves the UI and answers `/api` with 502.
+backend it still serves the UI and answers `/api` with 502. `BACKEND_URL` is
+`http(s)://host[:port]` with no path, and outside Compose the host must be a full
+name (`api.example.com`); the container refuses to start otherwise and says why.
 
 Raster ingest reports OCR, geometry and annotation progress. The optional vision
 model has a 90-second wait budget per page, then ingest continues with pixel

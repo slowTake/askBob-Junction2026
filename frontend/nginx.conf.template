@@ -4,6 +4,16 @@
 #   NGINX_LOCAL_RESOLVERS  the container's DNS servers, read from /etc/resolv.conf
 # With the address in a variable nginx resolves it per request (cached 10 s), so it
 # starts without a backend and follows a recreated backend container (#64).
+# docker-entrypoint.d/16-check-proxy.envsh refuses a BACKEND_URL with a path. nginx's
+# resolver ignores resolv.conf search domains, so outside Docker Compose the host must be
+# a full name (api.example.com), not a short one.
+
+# Keep the scheme the browser used when a TLS-terminating router sits in front of us.
+map $http_x_forwarded_proto $forwarded_proto {
+  default $http_x_forwarded_proto;
+  "" $scheme;
+}
+
 server {
   listen 80;
   root /usr/share/nginx/html;
@@ -15,10 +25,13 @@ server {
     # A variable with no path after the host passes the request URI through unchanged.
     proxy_pass $backend;
     proxy_http_version 1.1;
-    # The backend's own host name, so an HTTPS backend behind a router gets its request.
+    # An HTTPS backend: send its own host name (SNI) and check its certificate.
     proxy_ssl_server_name on;
+    proxy_ssl_verify on;
+    proxy_ssl_verify_depth 3;
+    proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
     proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto $forwarded_proto;
     proxy_set_header Connection "";
     # Server-sent events (/api/events, /api/ask) must not be buffered.
     proxy_buffering off;
