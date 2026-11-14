@@ -7,11 +7,13 @@ Codes are the abbreviations printed inside rooms and next to fixtures, e.g.
 import re
 from dataclasses import dataclass
 
+from app.domain.kinds import CodeKind
+
 
 @dataclass(frozen=True)
 class Code:
     code: str
-    kind: str  # "room" or "fixture"
+    kind: CodeKind
     local_name: str
     english: str
 
