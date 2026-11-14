@@ -85,3 +85,5 @@ jobs:
       - run: docker compose build
       - name: Frontend image starts alone and follows the backend (D-033)
         run: scripts/frontend-image-test.sh
+      - name: Single-container Runtime image passes smoke (D-034)
+        run: scripts/runtime-image-test.sh
