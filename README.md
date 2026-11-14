@@ -41,8 +41,8 @@ Every format goes through the same pipeline and ends up as an IFC model plus the
 | IFC (IFC2X3, IFC4) | indexed directly, exact | its own geometry |
 | DXF | named layers (walls, doors, rooms…); vision on the rendered page when layer names mean nothing | from footprints |
 | DWG | converted to DXF (needs LibreDWG `dwg2dxf` or ODA File Converter on the server) | from footprints |
-| PDF, SVG | text, vector walls and printed labels; OCR for scanned pages | when the scale is printed |
-| PNG, JPEG, TIFF (multi-page), WebP, BMP, GIF | OCR + computer vision | when DPI and scale are known |
+| PDF, SVG | text, vector walls and printed labels; doors, windows and fixtures from the floor-plan model; OCR and the model for scanned pages | when the scale is printed |
+| PNG, JPEG, TIFF (multi-page), WebP, BMP, GIF | OCR + the floor-plan model (rooms, walls, doors, windows, fixtures), pixel heuristics when the model is off | when DPI and scale are known |
 
 ## Run it
 
@@ -83,6 +83,7 @@ backend/app/
   qa/          agent loop, tools, prompt, /api/ask service (cache + log)
   api/         HTTP routes: documents, events (SSE), ask, health
   envelope.py  the one response shape: {ok, data, error}
+vision/        floor-plan model service (CubiCasa5k, CPU PyTorch, D-022): page image in, polygons out
 backend/eval/  eval set from the dataset, and a runner: accuracy per source and type, verified rate
 frontend/src/
   api/         typed client, SSE parser, types mirroring backend/app/schemas.py
@@ -103,7 +104,7 @@ frontend/src/
 | A new agent capability | add a tool in `backend/app/qa/tools.py` and record its evidence |
 | Measuring accuracy | against `make up-local`, in `backend/`: `uv run python -m eval.build_eval_set <dataset-dir> --out ../.local/eval.jsonl`, then `uv run python -m eval.run_eval ../.local/eval.jsonl` (scoring rules: D-019) |
 
-**Current limits:** for raster images, wall detection and room regions are heuristics with low confidence (the agent is told to check them visually). Raster pages without DPI metadata have no scale yet, so they get no 3D model. Schema changes rely on `create_all` (no migrations).
+**Current limits:** for raster images, rooms, walls, doors, windows and fixtures come from the floor-plan model (`vision`, D-022): usually right but not exact, and a large sheet takes minutes on CPU. Without the `vision` service, walls and room regions fall back to low-confidence heuristics (the agent is told to check them visually). The model's code and weights are CC BY-NC 4.0: non-commercial use only. Raster pages without DPI metadata have no scale yet, so they get no 3D model. Schema changes rely on `create_all` (no migrations).
 
 ## Checks
 

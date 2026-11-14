@@ -2,7 +2,7 @@
 
 LOCAL_ENV = DATABASE_URL=postgresql://bob:bob@postgres:5432/bob VALKEY_URL=redis://valkey:6379/0
 
-.PHONY: help up up-aiven up-local down logs check backend-check frontend-check size-check scripts-check fmt dev-api dev-worker dev-web
+.PHONY: help up up-aiven up-local down logs check backend-check vision-check frontend-check size-check scripts-check fmt dev-api dev-worker dev-web
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -23,10 +23,13 @@ down: ## Stop all containers
 logs: ## Follow API and worker logs
 	docker compose logs -f backend worker
 
-check: backend-check frontend-check size-check scripts-check ## Everything CI runs
+check: backend-check vision-check frontend-check size-check scripts-check ## Everything CI runs
 
 backend-check: ## Format check, lint, type check, tests
 	cd backend && uv run ruff format --check . && uv run ruff check . && uv run mypy app eval && uv run pytest -q
+
+vision-check: ## Floor-plan model service: format check, lint, type check, tests
+	cd vision && uv run ruff format --check . && uv run ruff check . && uv run mypy app && uv run pytest -q
 
 frontend-check: ## Format check, lint, type check, tests, build
 	cd frontend && npm run format:check && npm run lint && npm run typecheck && npm test && npm run build
@@ -40,6 +43,7 @@ scripts-check: ## Tests for the helper scripts
 
 fmt: ## Auto-format everything
 	cd backend && uv run ruff format . && uv run ruff check --fix .
+	cd vision && uv run ruff format . && uv run ruff check --fix .
 	cd frontend && npm run format
 
 dev-api: ## API with reload, outside Docker (needs DATABASE_URL, VALKEY_URL, DATA_DIR)
