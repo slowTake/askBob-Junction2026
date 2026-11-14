@@ -49,6 +49,8 @@ jobs:
           fetch-depth: 0
       - name: File size (RULES.md §5)
         run: scripts/check-file-size.sh
+      - name: Helper script tests
+        run: scripts/bulk-issues-test.sh
       - name: Conventional commits (RULES.md §1)
         if: github.event_name == 'pull_request'
         run: |
