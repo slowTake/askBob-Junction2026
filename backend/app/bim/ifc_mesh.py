@@ -1,6 +1,7 @@
 """Triangulate an IFC model into plain JSON meshes for the three.js viewer.
 
 Each mesh keeps its GlobalId, so a citation can highlight the exact element in 3D.
+Very large models are trimmed to a triangle budget (domain/mesh_budget.py).
 Coordinates are metres, converted to three.js Y-up.
 """
 
@@ -12,6 +13,7 @@ import ifcopenshell
 import ifcopenshell.geom
 
 from app.domain.ifc_mapping import zup_to_yup
+from app.domain.mesh_budget import within_budget
 
 EXCLUDED = ["IfcOpeningElement"]
 
@@ -25,7 +27,7 @@ def ifc_to_mesh(path: Path) -> dict[str, Any]:
     )
     meshes: list[dict[str, Any]] = []
     if not iterator.initialize():
-        return {"meshes": meshes}
+        return {"meshes": meshes, "omitted": 0}
     while True:
         shape = iterator.get()
         element = model.by_id(shape.id)
@@ -44,4 +46,5 @@ def ifc_to_mesh(path: Path) -> dict[str, Any]:
         )
         if not iterator.next():
             break
-    return {"meshes": meshes}
+    kept = within_budget([(m["ifc_class"], len(m["indices"]) // 3) for m in meshes])
+    return {"meshes": [meshes[i] for i in kept], "omitted": len(meshes) - len(kept)}
