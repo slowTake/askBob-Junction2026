@@ -153,7 +153,21 @@ def test_usage_counts_cache_reads_and_writes_apart(claude: FakeClaude) -> None:
         "cache_read_tokens": 900,
         "cache_write_tokens": 900,
         "requests": 2,
+        "fallback_requests": 0,
     }
+
+
+def test_usage_counts_requests_a_fallback_model_answered(claude: FakeClaude) -> None:
+    first, second = _tool_turn("t1"), _answer_turn()
+    # The API reports the attempt that served a declined request as a fallback_message.
+    second.usage.iterations = [
+        SimpleNamespace(type="message"),
+        SimpleNamespace(type="fallback_message"),
+    ]
+    claude.responses = [first, second]
+    ctx = _ctx()
+    _loop(ctx)
+    assert (ctx.usage.requests, ctx.usage.fallback_requests) == (2, 1)
 
 
 def test_step_limit_when_the_last_turn_still_gives_no_answer(claude: FakeClaude) -> None:

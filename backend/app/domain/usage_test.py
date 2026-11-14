@@ -11,7 +11,15 @@ def test_adds_up_requests() -> None:
         "cache_read_tokens": 100,
         "cache_write_tokens": 30,
         "requests": 2,
+        "fallback_requests": 0,
     }
+
+
+def test_counts_requests_a_fallback_model_answered() -> None:
+    usage = Usage()
+    usage.add(input_tokens=100, output_tokens=10)
+    usage.add(input_tokens=100, output_tokens=10, fallback=True)
+    assert (usage.requests, usage.fallback_requests) == (2, 1)
 
 
 def test_total_input_counts_cached_tokens_too() -> None:
@@ -26,4 +34,5 @@ def test_a_new_usage_is_empty() -> None:
         "cache_read_tokens": 0,
         "cache_write_tokens": 0,
         "requests": 0,
+        "fallback_requests": 0,
     }

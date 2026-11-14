@@ -43,6 +43,14 @@ def test_unknown_model_has_no_cost() -> None:
     assert result.cost_usd is None
 
 
+def test_no_cost_when_a_fallback_model_answered_part_of_it() -> None:
+    # The fallback model has its own price and we don't know which one ran.
+    stats = {**STATS, "fallback_requests": 1}
+    result = outcome(ROW, {"answer": "4", "value": 4, "verified": True}, stats, PRICES)
+    assert result.cost_usd is None
+    assert result.tokens_in == 10_000  # tokens are still reported
+
+
 def test_a_backend_without_stats_still_scores() -> None:
     # An API from before #98 sends an empty `done` event.
     result = outcome(ROW, {"answer": "4", "value": 4, "verified": True, "cached": True}, {}, PRICES)
