@@ -52,3 +52,15 @@ def test_unit_labels() -> None:
     assert unit_label("Whg. B") == "B"
     assert unit_label("Apartment 12") == "12"
     assert unit_label("Appartement") is None
+
+
+def test_room_names_match_without_accents() -> None:
+    # RapidOCR's recogniser has no accented letters: "Pièce" is read as "Piece" (D-024).
+    assert lookup_room_name("Piece") == lookup_room_name("Pièce") == ("room", False)
+    assert lookup_room_name("Kuche") == ("kitchen", False)
+    assert lookup_room_name("Sejour/repas") == ("living room", False)
+    assert lookup_room_name("Reduit") == ("storage", False)
+
+
+def test_accent_folding_doesnt_invent_matches() -> None:
+    assert lookup_room_name("Kuchen") is None
