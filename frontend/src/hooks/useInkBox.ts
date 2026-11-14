@@ -18,7 +18,14 @@ export function useInkBox(src: string, page: Size | null): BBox | null {
     const img = new Image(); // same origin as the app, so the canvas can be read
     img.onload = () => {
       if (!live) return;
-      setFound({ src, box: sample(img, page) });
+      let box: BBox | null = null;
+      try {
+        box = sample(img, page);
+      } catch {
+        // e.g. SecurityError: an image from another origin taints the canvas. Fit then
+        // frames the whole sheet.
+      }
+      setFound({ src, box });
     };
     img.onerror = () => live && setFound({ src, box: null });
     img.src = src;

@@ -45,7 +45,9 @@ export function AskPanel(props: Props) {
     const jump = seen.current !== milestone;
     seen.current = milestone;
     if (jump || atEnd.current) {
-      el.scrollTo({ top: el.scrollHeight, behavior: jump ? "smooth" : "auto" });
+      // Instant: a smooth scroll fires scroll events on its way down, which read as the
+      // reader leaving the end and switched following off (PR #92 review).
+      el.scrollTop = el.scrollHeight;
       atEnd.current = true;
     }
   }, [turns, milestone]);

@@ -66,13 +66,9 @@ function inkPieces(lum: ArrayLike<number>, width: number, height: number): Piece
       const i = Math.floor(y / CELL) * cw + Math.floor(x / CELL);
       const cell = cells[i];
       if (cell) {
+        // In place: this runs for every dark pixel, so no new arrays (PR #92 review).
         cell.ink++;
-        cell.box = [
-          Math.min(cell.box[0], x),
-          Math.min(cell.box[1], y),
-          Math.max(cell.box[2], x + 1),
-          Math.max(cell.box[3], y + 1),
-        ];
+        grow(cell.box, x, y, x + 1, y + 1);
       } else cells[i] = { ink: 1, box: [x, y, x + 1, y + 1] };
     }
   }
@@ -88,12 +84,7 @@ function inkPieces(lum: ArrayLike<number>, width: number, height: number): Piece
       const i = stack.pop() as number;
       const cell = cells[i] as Piece;
       piece.ink += cell.ink;
-      piece.box = [
-        Math.min(piece.box[0], cell.box[0]),
-        Math.min(piece.box[1], cell.box[1]),
-        Math.max(piece.box[2], cell.box[2]),
-        Math.max(piece.box[3], cell.box[3]),
-      ];
+      grow(piece.box, ...cell.box);
       const cx = i % cw;
       const cy = (i - cx) / cw;
       for (let dy = -1; dy <= 1; dy++) {
@@ -112,4 +103,12 @@ function inkPieces(lum: ArrayLike<number>, width: number, height: number): Piece
     pieces.push(piece);
   }
   return pieces;
+}
+
+/** Widen `box` in place to cover x0..x1, y0..y1. */
+function grow(box: BBox, x0: number, y0: number, x1: number, y1: number): void {
+  if (x0 < box[0]) box[0] = x0;
+  if (y0 < box[1]) box[1] = y0;
+  if (x1 > box[2]) box[2] = x1;
+  if (y1 > box[3]) box[3] = y1;
 }

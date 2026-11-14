@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import {
   clampPan,
@@ -79,7 +79,10 @@ export function useCamera(page: Size | null, pageKey: string, content: BBox | nu
   }, []);
 
   // The Fit scale: 100 % on the zoom label, and the zoom limits are relative to it.
-  const fitted = page && viewport ? fitContent(content, page, viewport).scale : null;
+  const fitted = useMemo(
+    () => (page && viewport ? fitContent(content, page, viewport).scale : null),
+    [content, page, viewport],
+  );
 
   useEffect(() => {
     const el = viewportRef.current;
