@@ -68,7 +68,7 @@ jobs:
       - name: File size (RULES.md §5)
         run: scripts/check-file-size.sh
       - name: Helper script tests
-        run: scripts/bulk-issues-test.sh && scripts/aiven-env-test.sh && bash scripts/claude-env-test.sh
+        run: scripts/bulk-issues-test.sh && scripts/aiven-env-test.sh && bash scripts/claude-env-test.sh && scripts/smoke-test.sh
       - name: Conventional commits (RULES.md §1)
         if: github.event_name == 'pull_request'
         run: |
