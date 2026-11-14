@@ -3,7 +3,8 @@
 Returns the parsed result and a status for the page's metadata:
 - "used": the service answered;
 - "unavailable": not configured, or nothing is listening;
-- "failed": it answered with an error, garbage, or took too long.
+- "failed": it answered with an error, garbage, or took too long;
+- "skipped": the page is too large or dense to read within its budget (D-023).
 """
 
 import json
@@ -17,7 +18,7 @@ from app.config import Settings
 from app.domain.vision import Parsed, parse
 
 log = logging.getLogger(__name__)
-Status = Literal["used", "unavailable", "failed"]
+Status = Literal["used", "unavailable", "failed", "skipped"]
 
 
 def analyse_page(png: bytes, settings: Settings) -> tuple[Parsed | None, Status]:
@@ -50,4 +51,7 @@ def analyse_page(png: bytes, settings: Settings) -> tuple[Parsed | None, Status]
     if not isinstance(body, dict) or body.get("ok") is not True:
         log.warning("vision service could not read the page")
         return None, "failed"
-    return parse(body.get("data")), "used"
+    data = body.get("data")
+    if isinstance(data, dict) and data.get("method") == "skipped_too_large":
+        return None, "skipped"
+    return parse(data), "used"
