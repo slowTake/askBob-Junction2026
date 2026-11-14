@@ -165,6 +165,16 @@ def test_cached_prompt_tokens_are_counted_apart(fake: FakeClient) -> None:
     assert (ctx.usage.input_tokens, ctx.usage.cache_read_tokens) == (40, 60)
 
 
+def test_a_response_without_usage_still_counts_as_a_request(fake: FakeClient) -> None:
+    silent = _response([_call("c1", "find_elements", "{}")])
+    silent.usage = None
+    fake.responses = [silent, _response([_call("c2", "final_answer", json.dumps(ANSWER))])]
+    ctx = _ctx()
+    _events(ctx=ctx)
+    # Two requests; only the second reported its 100 prompt + 10 completion tokens.
+    assert (ctx.usage.requests, ctx.usage.input_tokens, ctx.usage.output_tokens) == (2, 100, 10)
+
+
 def test_a_failed_run_still_reports_its_usage(fake: FakeClient) -> None:
     fake.responses = [_response([_call(f"c{i}", "find_elements", "{}")]) for i in range(3)]
     ctx = _ctx()

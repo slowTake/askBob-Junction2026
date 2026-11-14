@@ -89,6 +89,8 @@ def run_verda_agent(
                 output_tokens=response.usage.completion_tokens,
                 cache_read_tokens=cached,
             )
+        else:  # still a request, with token counts we don't know
+            ctx.usage.add(input_tokens=0, output_tokens=0)
 
         choice = response.choices[0]
         if choice.finish_reason == "length":
