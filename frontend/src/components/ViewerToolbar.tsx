@@ -1,4 +1,5 @@
 import { LAYERS, type LayerKey } from "../lib/planLayer";
+import type { SheetMode } from "../lib/redraw";
 
 interface Props {
   pageIndex: number;
@@ -7,11 +8,19 @@ interface Props {
   onPage: (index: number) => void;
   layers: Set<LayerKey>;
   onToggleLayer: (key: LayerKey) => void;
+  sheet: SheetMode;
+  onSheet: (mode: SheetMode) => void;
+  added: number | null; // elements the upscale pass added to this page, once it ran
 }
 
-/** Page navigation and layer toggles. Fixed height, so nothing below it ever shifts. */
+const SHEETS: { mode: SheetMode; label: string }[] = [
+  { mode: "original", label: "Original" },
+  { mode: "redrawn", label: "Redrawn" },
+];
+
+/** Page navigation, Original / Redrawn and layer toggles. Fixed height, so nothing below it ever shifts. */
 export function ViewerToolbar(props: Props) {
-  const { pageIndex, pageCount, pageLabel, onPage, layers, onToggleLayer } = props;
+  const { pageIndex, pageCount, pageLabel, onPage, layers, onToggleLayer, sheet, onSheet } = props;
   return (
     <div className="viewer-toolbar">
       <div className="chip-row">
@@ -36,6 +45,25 @@ export function ViewerToolbar(props: Props) {
         >
           ›
         </button>
+      </div>
+      <div className="chip-row" role="tablist" aria-label="Page view">
+        {SHEETS.map(({ mode, label }) => (
+          <button
+            key={mode}
+            type="button"
+            role="tab"
+            aria-selected={sheet === mode}
+            className={`chip chip-toggle${sheet === mode ? " is-on" : ""}`}
+            onClick={() => onSheet(mode)}
+          >
+            {label}
+          </button>
+        ))}
+        {sheet === "redrawn" && props.added !== null && (
+          <span className="body-sm muted" title="Elements the upscale pass added to this page">
+            +{props.added} found
+          </span>
+        )}
       </div>
       <div className="chip-row" role="group" aria-label="Show on the plan">
         <span className="body-sm muted">Show</span>

@@ -50,6 +50,13 @@
   --paper-mark-soft: rgba(15, 98, 254, 0.05);
   --paper-mark-strong: rgba(15, 98, 254, 0.28);
 
+  /* the redrawn page (#82): paper like the original, so overlay marks read the same */
+  --redraw-line: #161616; /* walls, door and window symbols, scale bar */
+  --redraw-text: #393939;
+  --redraw-faint: #c6c6c6; /* room outlines */
+  --redraw-room: #f6f8fb; /* room fill */
+  --redraw-added: #8a3ffc; /* what the upscale pass added: dashed, never mistaken for ingest */
+
   /* type */
   --font-text: "IBM Plex Sans", system-ui, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;

@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
-import type { DocumentDetail, ElementInfo } from "../api/types";
+import type { DocumentDetail, ElementInfo, UpscaleResult } from "../api/types";
 import { useCamera } from "../hooks/useCamera";
 import { useInkBox } from "../hooks/useInkBox";
+import { useUpscale } from "../hooks/useUpscale";
 import { zoomPercent } from "../lib/camera";
 import type { LayerKey } from "../lib/planLayer";
+import { buildCleanSheet, scaleBar, type SheetMode } from "../lib/redraw";
 import { selectElement } from "../lib/selection";
 import { onPage, type PlanTarget, type TargetOnPage } from "../lib/target";
+import { CleanSheet } from "./CleanSheet";
 import { ElementCard } from "./ElementCard";
 import { PlanCanvas } from "./PlanCanvas";
 import { ViewerToolbar } from "./ViewerToolbar";
@@ -32,6 +35,8 @@ export function DrawingViewer(props: Props) {
   const [selected, setSelected] = useState<ElementInfo[]>([]); // click, or Shift+click for more
   const [imageLoaded, setImageLoaded] = useState<string | null>(null);
   const [framed, setFramed] = useState<PlanTarget | null>(null);
+  const [sheetMode, setSheetMode] = useState<SheetMode>("original");
+  const [elementsVersion, setElementsVersion] = useState(0); // bumped when upscale adds some
 
   useEffect(() => {
     let live = true;
@@ -53,7 +58,17 @@ export function DrawingViewer(props: Props) {
     return () => {
       live = false;
     };
-  }, [documentId, pageIndex]);
+  }, [documentId, pageIndex, elementsVersion]);
+
+  const upscaled = useCallback((result: UpscaleResult) => {
+    setDetail((d) =>
+      d && d !== "missing"
+        ? { ...d, pages: d.pages.map((p) => (p.index === result.page.index ? result.page : p)) }
+        : d,
+    );
+    if (!result.cached) setElementsVersion((v) => v + 1); // a rerun also drops old ones
+  }, []);
+  const upscale = useUpscale(documentId, pageIndex, upscaled);
 
   const doc = detail && detail !== "missing" ? detail : null;
   const page = doc?.pages.find((p) => p.index === pageIndex) ?? null;
@@ -82,6 +97,21 @@ export function DrawingViewer(props: Props) {
   const ready = loaded?.page === pageIndex;
   const elements = ready && loaded ? loaded.elements : NO_ELEMENTS;
   const shown = onPage(target, pageIndex, elements);
+  const added = page?.upscale?.added ?? null;
+  const redrawn = sheetMode === "redrawn" && added !== null;
+  const mmPerPx = page?.mm_per_px ?? null;
+  const redraw = useMemo(
+    () =>
+      redrawn && ready && w && h ? (
+        <CleanSheet
+          sheet={buildCleanSheet(elements, { width: w, height: h })}
+          width={w}
+          height={h}
+          bar={scaleBar({ width: w, height: h }, mmPerPx)}
+        />
+      ) : null,
+    [redrawn, ready, elements, w, h, mmPerPx],
+  );
   const litKey = (shown?.highlightIds ?? []).join(" ");
   // One Set per change of highlight, not per render: the element layer is memoised, and
   // panning must not redraw hundreds of shapes.
@@ -145,6 +175,9 @@ export function DrawingViewer(props: Props) {
           }}
           layers={layers}
           onToggleLayer={toggleLayer}
+          sheet={sheetMode}
+          onSheet={setSheetMode}
+          added={added}
         />
       )}
       <div
@@ -170,7 +203,11 @@ export function DrawingViewer(props: Props) {
             onHover={pointAt}
             onSelect={select}
             onLoad={() => setImageLoaded(src)}
+            redraw={redraw}
           />
+        )}
+        {sheetMode === "redrawn" && page && added === null && (
+          <UpscalePrompt busy={upscale.busy} error={upscale.error} onUpscale={upscale.run} />
         )}
         {detail === "missing" ? (
           <div className="viewer-note">The drawing could not be loaded.</div>
@@ -254,6 +291,35 @@ function TargetBanner({ shown, onClear }: { shown: TargetOnPage; onClear: () => 
       <button type="button" className="btn btn-subtle btn-sm" onClick={onClear}>
         Clear
       </button>
+    </div>
+  );
+}
+
+interface UpscalePromptProps {
+  busy: boolean;
+  error: string | null;
+  onUpscale: () => void;
+}
+
+/** The Redrawn view of a page that has not been upscaled yet: one button, in the middle. */
+function UpscalePrompt({ busy, error, onUpscale }: UpscalePromptProps) {
+  return (
+    <div className="upscale-prompt" data-no-pan>
+      <div className="upscale-card">
+        <p className="body-sm">
+          Redraw this page with uniform lines and one font. One vision pass first checks the page
+          for walls, doors, windows and room names that were missed; what it adds is marked and
+          dashed.
+        </p>
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={onUpscale}>
+          {busy ? "Upscaling…" : "Upscale"}
+        </button>
+        {error && (
+          <p className="body-sm upscale-error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
