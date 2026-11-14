@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     vision_timeout_s: int = 600  # a large sheet takes minutes on CPU
 
     render_dpi: int = 150
-    ocr_langs: str = "fin+swe+eng"
+    ocr_langs: str = "fin+swe+eng"  # Tesseract only
+    ocr_engine: Literal["rapid", "tesseract"] = "rapid"  # D-024; Tesseract is also the fallback
     max_upload_mb: int = 200
     answer_cache_ttl_s: int = 86_400
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8080"]

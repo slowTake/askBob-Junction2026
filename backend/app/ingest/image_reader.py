@@ -54,7 +54,7 @@ def _page(index: int, image: Image.Image, dpi: float | None, settings: Settings)
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
     png = buffer.getvalue()
-    words = ocr_words(gray, settings.ocr_langs)
+    words = ocr_words(gray, settings.ocr_langs, settings.ocr_engine)
     vision, status = analyse_page(png, settings)
     elements, scale_mm, meta = annotate_page(gray, words, "ocr", dpi, vision=vision)
     meta["vision"] = status
