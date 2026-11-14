@@ -20,12 +20,11 @@ from app.domain.labels import (
     unnumbered_are_legend,
 )
 from app.domain.polygons import polygon_bbox
+from app.domain.room_boundaries import holds_one_room
 from app.domain.tokens import Word, classify, merge_split_numbers
 from app.domain.vision import (
     Parsed,
     object_findings,
-    outline_for,
-    unlabelled_rooms,
     wall_findings,
 )
 from app.ingest.dimension_lines import fit_dimension_scale
@@ -35,9 +34,6 @@ from app.ingest.types import ExtractedElement
 from app.ingest.vision_elements import to_element
 
 WALL_CONFIDENCE = 0.3  # heuristic wall detection: the agent must verify visually
-# A model room without a printed name must cover this share of the page: smaller
-# ones are slivers between walls, not rooms.
-MIN_MODEL_ROOM_PX = 0.0005
 VECTOR_WALL_CONFIDENCE = 0.95  # hatched regions from the PDF's vector layer
 WALL: DrawingKind = "wall"
 
@@ -59,8 +55,9 @@ def annotate_page(
     `known_mm_per_px` is an exact scale (e.g. a rendered CAD drawing), which wins
     over a printed scale note.
     `vision` is the floor-plan model's reading of the page (D-022). It always adds
-    doors, windows and fixtures; unless `vision_objects_only`, its rooms outline the
-    printed room labels and its walls replace the pixel heuristic.
+    doors, windows and fixtures; unless `vision_objects_only`, its walls replace
+    the pixel heuristic. Room highlights always use the drawing's
+    traced boundaries; segmentation fragments are not room boundaries.
     """
     words = merge_split_numbers(words)
     elements: list[ExtractedElement] = []
@@ -85,10 +82,6 @@ def annotate_page(
 
     _link_printed_labels(elements)
 
-    # A rendered CAD page is cropped to the drawing, so one room may fill almost all
-    # of it; there only the page-edge check in room_region guards against leaks. On
-    # scans and sheets, a room over a quarter of the page means the fill leaked.
-    max_room_frac = 1.0 if known_mm_per_px else 0.25
     height = float(gray.shape[0])
     ink = ink_mask(gray)
     text_boxes = [w.bbox for w in words]
@@ -126,21 +119,32 @@ def annotate_page(
     ]
     traced = traced_outlines(gray, words, label_points + other_rooms, dpi)[: len(rooms)]
     sources: Counter[str] = Counter()
-    for el, centre, from_lines in zip(rooms, label_points, traced, strict=True):
-        # Outline sources in order (D-024): the drawing's own lines, the floor-plan
-        # model's room, a flood fill. The first that agrees with a printed area wins.
+    for index, (el, centre, from_lines) in enumerate(zip(rooms, label_points, traced, strict=True)):
+        # Only a boundary traced from the drawing can outline a printed room.
+        # Model masks can cover an apartment or just a patch of a corridor; flood
+        # fills can run through doors. Neither is evidence of this room's extent.
         candidates: list[tuple[str, list[Point] | None]] = [("traced", from_lines)]
-        if model_rooms and vision is not None:
-            candidates.append(("model", outline_for(centre, vision.rooms)))
-        else:
-            filled = room_region(
-                ink, centre, erase=text_boxes, close_px=3, max_area_frac=max_room_frac
-            )
-            candidates.append(("flood_fill", filled[0] if filled else None))
-        chosen = _first_agreeing(candidates, el.properties.get("printed_area_m2"), scale_mm)
+        if known_mm_per_px and from_lines is None:
+            # A CAD rendering has an exact scale and closed native geometry.
+            # Keep its existing region fallback, with the same label checks.
+            filled = room_region(ink, centre, erase=text_boxes, close_px=3, max_area_frac=1.0)
+            candidates.append(("cad_region", filled[0] if filled else None))
+        neighbours = label_points[:index] + label_points[index + 1 :] + other_rooms
+        safe: list[tuple[str, list[Point] | None]] = [
+            (origin, polygon)
+            for origin, polygon in candidates
+            if polygon and holds_one_room(polygon, centre, neighbours)
+        ]
+        chosen = _first_agreeing(safe, el.properties.get("printed_area_m2"), scale_mm)
         if chosen is None:
             closed = any(polygon for _, polygon in candidates)
-            el.properties["region"] = "disagrees_with_printed_area" if closed else "not_closed"
+            el.properties["region"] = (
+                "multiple_room_labels"
+                if closed and not safe
+                else "disagrees_with_printed_area"
+                if closed
+                else "not_closed"
+            )
             continue
         source, polygon = chosen
         sources[source] += 1
@@ -174,10 +178,6 @@ def annotate_page(
             elements.append(wall)
 
     if vision is not None:
-        if model_rooms:
-            min_area = MIN_MODEL_ROOM_PX * (gray.shape[0] * gray.shape[1])
-            new_rooms = unlabelled_rooms(vision.rooms, label_points, min_area)
-            elements += [to_element(r, scale_mm, height) for r in new_rooms]
         elements += [to_element(o, scale_mm, height) for o in object_findings(vision)]
 
     meta = {
