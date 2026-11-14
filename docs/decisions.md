@@ -31,6 +31,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-028 | 2026-11-14 | IFC base quantities are stored in SI units and totalled by the server | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
 | D-027 | 2026-11-14 | Every question reports what it used; the eval turns that into cost | Accepted |
+| D-029 | 2026-11-14 | Recognised count and area questions are answered by the server, not the agent loop | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -405,3 +406,29 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - **`run_eval` prints** tokens, tool calls, seconds and cost per question, averages per source and type, and errors by code. Answers served from the answer cache made no model call and are left out of the averages. `--out` writes one line per question, so two runs can be compared.
 
 **Consequences:** A run now gives accuracy and cost side by side: on DeepSeek, eight questions about four preview drawings averaged 62,000 input tokens and 10 tool calls each. Prices are a hand-kept table and go stale when a provider changes them. No schema change: steps and cached tokens are in the event and the eval file, not in `qa_log`.
+
+## D-029: Recognised count and area questions are answered by the server, not the agent loop
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-006, D-025, D-028
+
+**Context:** Low inference cost is a quarter of the judging. In the preview, 76% of the questions are counts and 20% are areas, and most follow a few patterns in several languages ("How many doors are shown on the floor plan of '4. Sal'?", "net floor area of apartment A"). The agent loop spent 16,000–210,000 input tokens and up to 12 tool calls on each of them, and answered the same question differently from run to run (#97).
+
+**Decision:**
+- **One small model call sorts the question** (`app/qa/router.py`). It fills an intent (`count`, `room_area`, `area_total`, `quantity_total` or `other`) and the slots the question names: kind, fixture subtype, room category, printed label, room number, apartment, storey, IFC quantity. It answers nothing itself. With Verda it is a forced `route` tool call; with Claude a JSON-schema output at effort `low`. `ROUTER_MODEL` can name a cheaper model than the agent's.
+- **The server answers from the agent's own tools** (`count_elements`, `sum_room_areas`, `sum_quantity`, `get_element`), so every element used is evidence and the answer's citations go through the same check (D-006). The answer highlights the elements on the plan when they are on one, and says `method: "server"`; the UI shows "computed by the server".
+- **The agent answers instead** whenever the router says `other` or fails, a slot is missing or unknown, the question points at a selection ("this room"), more than one document is in scope, a count is 0 (the reader may have missed them), no single room matches, or a quantity total leaves out elements without that quantity. When a label finds nothing, the label is tried once as a storey: the router files "the floor plan of 'Grundplan'" both ways.
+- **`FAST_PATH=exact` is the default:** the server answers only from elements with confidence 0.95 or more (IFC, DXF, PDF text). `all` also answers from floor-plan-model and OCR elements, with medium confidence and a caveat; `off` sends everything to the agent.
+
+**Consequences:** On 30 preview questions about 10 drawings (DeepSeek, two per source, vision service on):
+
+| | Before (agent only) | `FAST_PATH=all` | `FAST_PATH=exact` |
+|---|---|---|---|
+| Scored correct | 12 / 24 | 12 / 24 | 11 / 24 |
+| Answered by the server | 0 | 11 (5 right) | 8 (8 right) |
+| Input tokens per question | 80,500 | 52,300 | 62,900 |
+| Seconds per question | 50 | 13 | 31 |
+
+- A server answer costs about 1,190 input tokens (the router call), against 16,000–212,000 for the same question through the agent, and gives the same answer every time.
+- With `all`, raster counts from floor-plan-model detections were wrong on 6 of 6 (windows 1 for 17, doors 10 for 4), hence `exact`.
+- The agent path got worse on door schedules in this run (5 of 6 right before, 2 of 6 after): with `count_elements` in the prompt (D-025) the agent counts drawn door tags instead of reading the schedule. That is a prompt fix for `count_elements`, not part of this decision. One run per setting, so single-question differences on the agent path are noise.
+- The fast path covers single-document questions only; counting across several drawings stays with the agent.
