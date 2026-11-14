@@ -7,6 +7,21 @@ afterEach(() => {
 });
 
 describe("API requests", () => {
+  it("allows main's bounded sketch redraw to run longer than a normal document request", async () => {
+    vi.useFakeTimers();
+    let finish!: (response: Response) => void;
+    const response = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    const fetch = vi.fn().mockReturnValue(response);
+    vi.stubGlobal("fetch", fetch);
+    const work = api.upscale("doc", 0);
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect((fetch.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(false);
+    finish(Response.json({ ok: true, data: { added: 0, cached: true } }));
+    await expect(work).resolves.toMatchObject({ added: 0, cached: true });
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it("unwraps successful responses", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, data: [] })));
     await expect(api.listDocuments()).resolves.toEqual([]);

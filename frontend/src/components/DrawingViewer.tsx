@@ -1,14 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../api/client";
-import type { DocumentDetail, ElementInfo } from "../api/types";
+import type { DocumentDetail, ElementInfo, UpscaleResult } from "../api/types";
 import { useCamera } from "../hooks/useCamera";
 import { useInkBox } from "../hooks/useInkBox";
+import { useUpscale } from "../hooks/useUpscale";
 import { zoomPercent } from "../lib/camera";
 import type { LayerKey } from "../lib/planLayer";
+import { buildCleanSheet, type SheetMode } from "../lib/redraw";
+import { exportFilename, standaloneSvg } from "../lib/sheetExport";
+import {
+  buildSketchSheet,
+  isSketchDocument,
+  planElements,
+  redrawScaleBar,
+  SKETCH_MODE,
+} from "../lib/sketchSheet";
 import { selectElement } from "../lib/selection";
 import { onPage, type PlanTarget, type TargetOnPage } from "../lib/target";
+import { CleanSheet, SketchSheetSvg } from "./CleanSheet";
 import { ElementCard } from "./ElementCard";
 import { PlanCanvas } from "./PlanCanvas";
+import { UpscalePrompt } from "./UpscalePrompt";
 import { ViewerToolbar } from "./ViewerToolbar";
 
 const NO_ELEMENTS: ElementInfo[] = [];
@@ -34,6 +47,9 @@ export function DrawingViewer(props: Props) {
   const [imageFailed, setImageFailed] = useState<string | null>(null);
   const [imageAttempt, setImageAttempt] = useState(0);
   const [framed, setFramed] = useState<PlanTarget | null>(null);
+  const [sheetMode, setSheetMode] = useState<SheetMode>("original");
+  const [elementsVersion, setElementsVersion] = useState(0); // bumped when upscale adds some
+  const [printing, setPrinting] = useState<string | null>(null); // the sheet being printed
 
   useEffect(() => {
     let live = true;
@@ -55,7 +71,17 @@ export function DrawingViewer(props: Props) {
     return () => {
       live = false;
     };
-  }, [documentId, pageIndex]);
+  }, [documentId, pageIndex, elementsVersion]);
+
+  const upscaled = useCallback((result: UpscaleResult) => {
+    setDetail((d) =>
+      d && d !== "missing"
+        ? { ...d, pages: d.pages.map((p) => (p.index === result.page.index ? result.page : p)) }
+        : d,
+    );
+    if (!result.cached) setElementsVersion((v) => v + 1); // a rerun also drops old ones
+  }, []);
+  const upscale = useUpscale(documentId, pageIndex, upscaled);
 
   const doc = detail && detail !== "missing" ? detail : null;
   const page = doc?.pages.find((p) => p.index === pageIndex) ?? null;
@@ -89,6 +115,35 @@ export function DrawingViewer(props: Props) {
   const ready = loaded?.page === pageIndex;
   const elements = ready && loaded ? loaded.elements : NO_ELEMENTS;
   const shown = onPage(target, pageIndex, elements);
+  const added = page?.upscale?.added ?? null;
+  const cadRooms = doc?.meta.companion_status === "matched";
+  const availableRedraw = cadRooms || added !== null;
+  const redrawn = sheetMode === "redrawn" && availableRedraw;
+  const mmPerPx = page?.mm_per_px ?? null;
+  // A raster image is redrawn whole by the model; its redraw shows only the model's plan.
+  const sketchDoc = doc ? isSketchDocument(doc.kind, cadRooms) : false;
+  const sketch = redrawn && !cadRooms && page?.upscale?.mode === SKETCH_MODE;
+  const redraw = useMemo(() => {
+    if (!redrawn || !ready || !w || !h) return null;
+    if (sketch) return <SketchSheetSvg sheet={buildSketchSheet(elements)} width={w} height={h} />;
+    return (
+      <CleanSheet
+        sheet={buildCleanSheet(elements, { width: w, height: h })}
+        width={w}
+        height={h}
+        bar={redrawScaleBar({ width: w, height: h }, mmPerPx, sketch)}
+      />
+    );
+  }, [redrawn, sketch, ready, elements, w, h, mmPerPx]);
+  const layerElements = useMemo(() => planElements(elements, sketch), [elements, sketch]);
+
+  useEffect(() => {
+    if (printing === null) return;
+    const done = () => setPrinting(null);
+    window.addEventListener("afterprint", done, { once: true });
+    window.print(); // the print stylesheet shows only .print-sheet
+    return () => window.removeEventListener("afterprint", done);
+  }, [printing]);
   const litKey = (shown?.highlightIds ?? []).join(" ");
   // One Set per change of highlight, not per render: the element layer is memoised, and
   // panning must not redraw hundreds of shapes.
@@ -152,6 +207,12 @@ export function DrawingViewer(props: Props) {
           }}
           layers={layers}
           onToggleLayer={toggleLayer}
+          sheet={sheetMode}
+          onSheet={setSheetMode}
+          onDownload={
+            redraw ? () => downloadSheet(viewportRef.current, w, h, doc.filename, pageIndex) : null
+          }
+          onPrint={redraw ? () => setPrinting(sheetFile(viewportRef.current, w, h)) : null}
         />
       )}
       <div
@@ -169,7 +230,7 @@ export function DrawingViewer(props: Props) {
             height={h}
             camera={camera}
             animated={animated}
-            elements={elements}
+            elements={layerElements}
             layers={layers}
             highlighted={highlighted}
             shown={shown}
@@ -181,6 +242,15 @@ export function DrawingViewer(props: Props) {
               setImageLoaded(src);
             }}
             onError={() => setImageFailed(src)}
+            redraw={redraw}
+          />
+        )}
+        {sheetMode === "redrawn" && page && !availableRedraw && (
+          <UpscalePrompt
+            busy={upscale.busy}
+            error={upscale.error}
+            sketch={sketchDoc}
+            onUpscale={upscale.run}
           />
         )}
         {detail === "missing" ? (
@@ -253,8 +323,37 @@ export function DrawingViewer(props: Props) {
         onClose={() => setSelected([])}
         onAsk={() => onAskAbout(pinned)}
       />
+      {printing &&
+        createPortal(
+          // Our own serialized svg: element text was escaped by XMLSerializer.
+          <div className="print-sheet" dangerouslySetInnerHTML={{ __html: printing }} />,
+          document.body,
+        )}
     </div>
   );
+}
+
+/** The redrawn sheet as drawn on screen, made into a file that stands alone. */
+function sheetFile(viewport: HTMLElement | null, width: number, height: number): string | null {
+  const svg = viewport?.querySelector("svg.clean-sheet");
+  return svg ? standaloneSvg(new XMLSerializer().serializeToString(svg), { width, height }) : null;
+}
+
+function downloadSheet(
+  viewport: HTMLElement | null,
+  width: number,
+  height: number,
+  filename: string,
+  index: number,
+) {
+  const file = sheetFile(viewport, width, height);
+  if (!file) return;
+  const url = URL.createObjectURL(new Blob([file], { type: "image/svg+xml" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = exportFilename(filename, index);
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 /** For a source the user clicked: whether it's verified, and a way to clear it. */

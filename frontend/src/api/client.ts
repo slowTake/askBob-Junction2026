@@ -13,6 +13,7 @@ import type {
   HealthInfo,
   MeshData,
   PlanView,
+  UpscaleResult,
 } from "./types";
 
 export class ApiError extends Error {
@@ -87,6 +88,16 @@ export const api = {
       120_000,
     );
   },
+
+  upscale: (id: string, index: number) =>
+    // Sketch redraws use main's bounded multi-round model loop, rather than a normal
+    // document request. Match the default server claim budget (600 + 3 * 300 s).
+    request<UpscaleResult>(
+      `/api/documents/${id}/pages/${index}/upscale`,
+      { method: "POST" },
+      undefined,
+      1_500_000,
+    ),
 
   pageImageUrl: (id: string, index: number) => `/api/documents/${id}/pages/${index}/image`,
   modelIfcUrl: (id: string) => `/api/documents/${id}/model.ifc`,

@@ -1,4 +1,4 @@
-import { useId, type CSSProperties } from "react";
+import { useId, type CSSProperties, type ReactNode } from "react";
 import type { ElementInfo, PlanView } from "../api/types";
 import type { BBox, Camera } from "../lib/camera";
 import type { LayerKey } from "../lib/planLayer";
@@ -21,6 +21,8 @@ interface Props {
   onSelect: (el: ElementInfo | null, additive: boolean) => void; // null: the empty plan
   onLoad: () => void;
   onError: () => void;
+  /** The redrawn page (#82), drawn over the image and under the same overlay. */
+  redraw: ReactNode | null;
 }
 
 const SPOTLIGHT_PAD_PX = 10;
@@ -37,11 +39,12 @@ export function PlanCanvas(props: Props) {
     shown && shown.highlightIds.length > 1 ? readingOrder(props.elements, props.highlighted) : [];
   return (
     <div
-      className={`plan-sheet${props.animated ? " is-animated" : ""}`}
+      className={`plan-sheet${props.animated ? " is-animated" : ""}${props.redraw ? " is-redrawn" : ""}`}
       style={{
         width,
         height,
         transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})`,
+        ["--u" as string]: u, // read by the overlay and the redraw
       }}
     >
       <img
@@ -53,6 +56,7 @@ export function PlanCanvas(props: Props) {
         onLoad={props.onLoad}
         onError={props.onError}
       />
+      {props.redraw}
       <svg
         className="sheet-overlay"
         viewBox={`0 0 ${width} ${height}`}

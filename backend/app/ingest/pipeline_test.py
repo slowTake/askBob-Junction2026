@@ -64,6 +64,12 @@ def test_dxf(tmp_path: Path) -> None:
     assert room.text == "Zimmer" and room.properties["number"] == "2.01"
     assert room.properties["area_m2"] == 12.0  # 4 m x 3 m outline
     assert len(room.properties["polygon_px"]) == 4  # exact outline for the interactive plan
+    (wall,) = [e for e in built.elements if e.kind == "wall"]
+    # The wall keeps its own outline for the redraw (#82): an L-shaped wall is not its box.
+    outline = wall.properties["polygon_px"]
+    assert len(outline) == 4  # the 4 m x 0.2 m strip under the room
+    xs, ys = [p[0] for p in outline], [p[1] for p in outline]
+    assert wall.bbox == pytest.approx((min(xs), min(ys), max(xs), max(ys)), abs=0.1)
     assert built.mesh is None  # floor plans get no 3D view (D-016); the IFC still has geometry
 
 

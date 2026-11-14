@@ -1,4 +1,5 @@
 import { LAYERS, type LayerKey } from "../lib/planLayer";
+import type { SheetMode } from "../lib/redraw";
 
 interface Props {
   pageIndex: number;
@@ -7,11 +8,20 @@ interface Props {
   onPage: (index: number) => void;
   layers: Set<LayerKey>;
   onToggleLayer: (key: LayerKey) => void;
+  sheet: SheetMode;
+  onSheet: (mode: SheetMode) => void;
+  onDownload: (() => void) | null; // set while the redrawn sheet is on screen
+  onPrint: (() => void) | null;
 }
 
-/** Page navigation and layer toggles. Fixed height, so nothing below it ever shifts. */
+const SHEETS: { mode: SheetMode; label: string }[] = [
+  { mode: "original", label: "Original" },
+  { mode: "redrawn", label: "Redrawn" },
+];
+
+/** Page navigation, Original / Redrawn and layer toggles. Fixed height, so nothing below it ever shifts. */
 export function ViewerToolbar(props: Props) {
-  const { pageIndex, pageCount, pageLabel, onPage, layers, onToggleLayer } = props;
+  const { pageIndex, pageCount, pageLabel, onPage, layers, onToggleLayer, sheet, onSheet } = props;
   return (
     <div className="viewer-toolbar">
       <div className="chip-row">
@@ -37,6 +47,25 @@ export function ViewerToolbar(props: Props) {
           ›
         </button>
       </div>
+      <div className="chip-row">
+        {/* Always laid out, hidden on the original: switching views moves nothing. */}
+        <SheetAction label="Download SVG" onClick={sheet === "redrawn" ? props.onDownload : null} />
+        <SheetAction label="Print" onClick={sheet === "redrawn" ? props.onPrint : null} />
+        <div className="chip-row" role="tablist" aria-label="Page view">
+          {SHEETS.map(({ mode, label }) => (
+            <button
+              key={mode}
+              type="button"
+              role="tab"
+              aria-selected={sheet === mode}
+              className={`chip chip-toggle${sheet === mode ? " is-on" : ""}`}
+              onClick={() => onSheet(mode)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="chip-row" role="group" aria-label="Show on the plan">
         <span className="body-sm muted">Show</span>
         {LAYERS.map((layer) => (
@@ -52,5 +81,19 @@ export function ViewerToolbar(props: Props) {
         ))}
       </div>
     </div>
+  );
+}
+
+function SheetAction({ label, onClick }: { label: string; onClick: (() => void) | null }) {
+  return (
+    <button
+      type="button"
+      className={`btn btn-subtle btn-sm${onClick === null ? " is-placeholder" : ""}`}
+      disabled={onClick === null}
+      aria-hidden={onClick === null}
+      onClick={onClick ?? undefined}
+    >
+      {label}
+    </button>
   );
 }
