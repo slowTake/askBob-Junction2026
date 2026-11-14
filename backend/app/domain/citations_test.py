@@ -1,7 +1,13 @@
-from app.domain.citations import Citation, EvidenceItem, check_citations, citation_payload
+from app.domain.citations import (
+    Citation,
+    EvidenceItem,
+    check_citations,
+    citation_payload,
+    element_evidence,
+)
 
-ROOM = EvidenceItem("el-1", "doc-1", "page-1", 0, (10, 10, 30, 20), None)
-REGION = EvidenceItem(None, "doc-1", "page-1", 0, (0, 0, 100, 100), None)
+ROOM = EvidenceItem("el-1", "doc-1", "page-1", 0, (10, 10, 30, 20), None, target="element")
+REGION = EvidenceItem(None, "doc-1", "page-1", 0, (0, 0, 100, 100), None, target="region")
 
 
 def test_element_citation_is_verified() -> None:
@@ -86,3 +92,59 @@ def test_empty_box_is_not_a_region() -> None:
     cite = Citation(None, "page-1", (20, 20, 20, 40), "empty")
     _, ok = check_citations([cite], {}, [REGION])
     assert not ok
+
+
+ROOM_WITH_OUTLINE = EvidenceItem(
+    "el-2", "doc-1", "page-1", 0, (400, 300, 700, 500), None,
+    polygon=((400, 300), (700, 300), (700, 500), (400, 500)),
+    label_bbox=(500, 390, 539, 424), target="element",
+)  # fmt: skip
+
+
+def test_payload_for_room_carries_its_outline_and_label() -> None:
+    # #70: the spotlight must cover the room, with the label box kept as the fallback.
+    cite = Citation("el-2", None, None, "bathroom")
+    checked, _ = check_citations([cite], {"el-2": ROOM_WITH_OUTLINE}, [])
+    payload = citation_payload(checked[0])
+    assert payload["bbox"] == [400, 300, 700, 500]
+    assert payload["polygon"] == [[400, 300], [700, 300], [700, 500], [400, 500]]
+    assert payload["label_bbox"] == [500, 390, 539, 424]
+    assert payload["target"] == "element"
+
+
+def test_payload_for_region_and_unverified_citations_has_no_outline() -> None:
+    region, _ = check_citations([Citation(None, "page-1", (20, 20, 40, 40), "door")], {}, [REGION])
+    payload = citation_payload(region[0])
+    assert payload["target"] == "region"
+    assert payload["polygon"] is None
+    unknown, _ = check_citations([Citation("el-x", None, None, "guess")], {}, [])
+    assert citation_payload(unknown[0])["target"] is None
+
+
+def test_element_evidence_is_the_room_whichever_tool_recorded_it() -> None:
+    # #70 review: find_elements and highlight both record evidence through this one builder.
+    ev = element_evidence(
+        "el-3", "doc-1", "page-1", 0, "room", (500, 390, 539, 424),
+        {"polygon_px": [[400, 300], [700, 300], [700, 500], [400, 500]]}, None,
+    )  # fmt: skip
+    assert ev.bbox == (400, 300, 700, 500)
+    assert ev.label_bbox == (500, 390, 539, 424)
+    assert ev.target == "element"
+
+
+def test_element_evidence_has_no_label_box_when_the_box_is_already_the_outline() -> None:
+    # DXF and IFC plan rooms store the outline's bounds as their bbox: there is no label.
+    square = [[400, 300], [700, 300], [700, 500], [400, 500]]
+    outline = {"polygon_px": square}
+    ev = element_evidence("el-4", "d", "p", 0, "room", (400, 300, 700, 500), outline, None)
+    assert ev.label_bbox is None
+    wall = element_evidence("el-5", "d", "p", 0, "wall", (0, 0, 10, 200), {}, None)
+    assert wall.label_bbox is None
+    assert wall.target == "element"
+
+
+def test_room_without_outline_is_evidence_for_its_label() -> None:
+    ev = element_evidence("el-6", "d", "p", 0, "room", (500, 390, 539, 424), {}, None)
+    assert ev.bbox == (500, 390, 539, 424)
+    assert ev.label_bbox is None
+    assert ev.target == "label"

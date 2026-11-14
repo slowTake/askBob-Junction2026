@@ -24,7 +24,8 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-018 | 2026-11-14 | The plan is a pan/zoom canvas; nothing that appears moves it | Accepted |
 | D-019 | 2026-11-14 | Answers carry a numeric value; the eval scores it by question type | Accepted |
 | D-020 | 2026-11-14 | The Q&A agent can run on Kimi K3.1 Pro on Verda (`LLM_PROVIDER`) | Accepted |
-| D-021 | 2026-11-14 | DeepSeek on Verda can run on the same loop (`VERDA_MODEL`); Kimi stays the default | Accepted |
+| D-021 | 2026-11-14 | A citation's box is the element's extent; the printed name is the fallback | Accepted |
+| D-024 | 2026-11-14 | DeepSeek on Verda can run on the same loop (`VERDA_MODEL`); Kimi stays the default | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -283,7 +284,17 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 **Consequences:** Claude stays the default and the agent we demo. Eval scores on Kimi measure Kimi, not Claude. Behaviour the probe didn't cover, such as long multi-step runs and large images, is unknown until the eval runs on real drawings. The conversion code (`app/qa/openai_format.py`) is tested without network; a change in the answer schema reaches both loops through `ANSWER_SCHEMA`.
 
-## D-021: DeepSeek on Verda can run on the same loop (`VERDA_MODEL`); Kimi stays the default
+## D-021: A citation's box is the element's extent; the printed name is the fallback
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** Clicking a citation about a room spotlit and framed only the room's printed name. In a walkthrough, 22 of 22 room citations were label-only, even for rooms whose outline the reader had found (#70). The room element's `bbox` is the box of its name, and the citation payload sent that box. The plan layer (D-016) already draws a cited room's outline by element id, but the spotlight and the camera frame still used the name's box.
+
+**Decision:** A pure `element_extent` (`app/domain/extent.py`) decides where an element is: for rooms, the outline's bounds and polygon when `polygon_px` exists, otherwise the name's box; other kinds keep their own box. Every tool records element evidence through one builder, `element_evidence`, so `find_elements`, `get_element`, `highlight` and `measure_between` all give the same shape. The citation payload's `bbox` is the extent, and it adds `polygon`, `label_bbox` (only when the box is a name inside an outline) and `target` (`element`, `label` or `region`). The viewer cuts the spotlight out of the room's polygon, frames agent views and citations by the extent, and tags a label-only highlight as "Label only". `ANSWER_FORMAT` goes to 3 so cached answers in the old shape aren't served.
+
+**Consequences:** Rooms with a found outline are framed as rooms with no re-ingest. Rooms without one stay "Label only" until their outline is found (#34).
+
+## D-024: DeepSeek on Verda can run on the same loop (`VERDA_MODEL`); Kimi stays the default
 
 **Date:** 2026-11-14 · **Status:** Accepted
 

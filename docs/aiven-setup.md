@@ -6,8 +6,10 @@ How to get access to our Aiven services and connect to them. We use Aiven for ou
 
 | Service | Name in console | Plan | Status |
 |---|---|---|---|
-| PostgreSQL | `<pg-service>` _(TODO: fill in)_ | _TODO_ | Running |
-| Valkey | `<valkey-service>` _(TODO: create on the free plan, then fill in)_ | Free | Not created yet |
+| PostgreSQL | `pg-2c3baae` (project `junction-stoa-winners`, do-fra) | developer-1 | Running |
+| Valkey | `valkey-bobbuilder` (project `junction-stoa-winners`, do-fra) | free-1 | Running |
+
+The app connects to PostgreSQL as its own user `app` (not `avnadmin`), which has `CREATE` on database `defaultdb` and schema `public` so it can create its extensions and tables on first start.
 
 Ask before creating new services: see [Credits and cost](#credits-and-cost). What each service is for is recorded in [decisions.md](decisions.md) (D-005).
 
@@ -66,13 +68,20 @@ If we use vector search, the extension is enabled once per database with `CREATE
 
 ## 5. Run the app against Aiven
 
-`scripts/aiven-env.sh` fetches the PostgreSQL and Valkey service URIs with your own token and exports them as `DATABASE_URL` and `VALKEY_URL` for the current shell only. Nothing is written to disk.
+The Aiven API masks service passwords for our tokens: the password inside `avn service get … --format '{service_uri}'` is a placeholder that can't log in. So keep the two app passwords in your keyring once. Copy each from the console (service → **Users** → show password):
 
 ```bash
-export AIVEN_PROJECT=<project> AIVEN_PG_SERVICE=<pg-service> AIVEN_VALKEY_SERVICE=<valkey-service>   # names, not secrets
-source scripts/aiven-env.sh
-make up            # docker compose up --build, against Aiven
+secret-tool store --label="Aiven PostgreSQL app" service aiven-pg-app      # pg-2c3baae, user app
+secret-tool store --label="Aiven Valkey default" service aiven-valkey      # valkey-bobbuilder, user default
 ```
+
+Then start everything against Aiven:
+
+```bash
+make up-aiven      # docker compose up --build, against Aiven
+```
+
+`make up-aiven` sources `scripts/aiven-env.sh` in a subshell, which builds `DATABASE_URL` and `VALKEY_URL` from the host and port `avn` reports (with your own token) and the passwords from your keyring. They exist only for that one `docker compose` process; nothing is written to disk. The script defaults to the team's project and services; override `AIVEN_PROJECT`, `AIVEN_PG_SERVICE`, `AIVEN_VALKEY_SERVICE` or `AIVEN_PG_USER` (keyring entry `aiven-pg-<user>`) if you need others. To get the variables in your own shell instead, `source scripts/aiven-env.sh`, then `make up`.
 
 If you also keep an Anthropic API key in the keyring (`secret-tool store --label="Anthropic API key" service anthropic`), the script exports it as `ANTHROPIC_API_KEY` too.
 

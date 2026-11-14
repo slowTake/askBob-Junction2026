@@ -1,6 +1,6 @@
 # Verda setup
 
-How to get access to Kimi K3.1 Pro and DeepSeek on Verda and call them. The Q&A agent runs on Claude by default, on Kimi with `LLM_PROVIDER=verda`, and on DeepSeek with `VERDA_MODEL=deepseek-4-1-flash-1017` added (see [D-006, D-009, D-020 and D-021](decisions.md)). Verda's inference API is OpenAI-compatible, so any OpenAI SDK works with a different base URL and key. It does not speak the Anthropic Messages API.
+How to get access to Kimi K3.1 Pro and DeepSeek on Verda and call them. The Q&A agent runs on Claude by default, on Kimi with `LLM_PROVIDER=verda`, and on DeepSeek with `VERDA_MODEL=deepseek-4-1-flash-1017` added (see [D-006, D-009, D-020 and D-024](decisions.md)). Verda's inference API is OpenAI-compatible, so any OpenAI SDK works with a different base URL and key. It does not speak the Anthropic Messages API.
 
 ## What we use
 

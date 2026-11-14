@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import func, or_, select
 
 from app.domain.areas import RoomArea, net_area
-from app.domain.citations import EvidenceItem
+from app.domain.citations import EvidenceItem, element_evidence
 from app.domain.geometry import BBox, distance
 from app.models import Element, Page
 from app.qa.context import ToolContext, ToolInputError, parse_id
@@ -197,7 +197,7 @@ def _view(args: RegionIn, ctx: ToolContext) -> list[dict[str, Any]]:
     buffer = io.BytesIO()
     crop.convert("RGB").save(buffer, format="PNG")
     ctx.regions.append(
-        EvidenceItem(None, str(page.document_id), str(page.id), page.index, box, None)
+        EvidenceItem(None, str(page.document_id), str(page.id), page.index, box, None, "region")
     )
     scale = f"{page.mm_per_px:.3f} mm per page pixel" if page.mm_per_px else "scale unknown"
     note = f"Page {page.index} region {[round(v) for v in box]} ({scale})."
@@ -220,7 +220,7 @@ def _measure(args: RegionIn, ctx: ToolContext) -> str:
         max(args.y0, args.y1),
     )
     ctx.regions.append(
-        EvidenceItem(None, str(page.document_id), str(page.id), page.index, box, None)
+        EvidenceItem(None, str(page.document_id), str(page.id), page.index, box, None, "region")
     )
     return json.dumps({"distance_mm": round(px * page.mm_per_px), "distance_px": round(px, 1)})
 
@@ -249,9 +249,9 @@ def _areas(args: AreaIn, ctx: ToolContext) -> str:
 
 def _describe(el: Element, page_index: int | None, ctx: ToolContext) -> dict[str, Any]:
     bbox: BBox | None = tuple(el.bbox) if el.bbox else None  # type: ignore[assignment]
-    ctx.elements[str(el.id)] = EvidenceItem(
+    ctx.elements[str(el.id)] = element_evidence(
         str(el.id), str(el.document_id), str(el.page_id) if el.page_id else None,
-        page_index, bbox, el.ifc_guid,
+        page_index, el.kind, bbox, el.properties, el.ifc_guid,
     )  # fmt: skip
     out: dict[str, Any] = {
         "id": str(el.id), "kind": el.kind, "label": el.label, "name": el.name,

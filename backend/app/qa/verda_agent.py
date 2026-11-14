@@ -1,4 +1,4 @@
-"""The question-answering agent on Verda's OpenAI-compatible API (D-020, D-021).
+"""The question-answering agent on Verda's OpenAI-compatible API (D-020, D-024).
 
 Runs Kimi K3.1 Pro by default. DeepSeek (`VERDA_MODEL=deepseek-4-1-flash-1017`) passes
 the #86 probe on everything below, but often hits the step limit on real drawings.

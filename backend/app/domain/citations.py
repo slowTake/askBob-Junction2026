@@ -5,9 +5,15 @@ show. A citation counts as verified only when it points at that evidence, so the
 UI can tell a grounded answer from a guess.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Literal
 
-from app.domain.geometry import BBox, bbox_iou
+from app.domain.extent import Target as ExtentTarget
+from app.domain.extent import element_extent
+from app.domain.geometry import BBox, Point, bbox_iou
+
+EvidenceTarget = ExtentTarget | Literal["region"]
 
 
 @dataclass(frozen=True)
@@ -16,8 +22,35 @@ class EvidenceItem:
     document_id: str
     page_id: str | None
     page_index: int | None
-    bbox: BBox | None
+    bbox: BBox | None  # for elements: the element's extent (see domain/extent.py)
     ifc_guid: str | None
+    target: EvidenceTarget  # what bbox shows: the element, only its label, or a viewed region
+    polygon: tuple[Point, ...] | None = None
+    label_bbox: BBox | None = None
+
+
+def element_evidence(
+    element_id: str,
+    document_id: str,
+    page_id: str | None,
+    page_index: int | None,
+    kind: str,
+    bbox: BBox | None,
+    properties: Mapping[str, object],
+    ifc_guid: str | None,
+) -> EvidenceItem:
+    """Evidence for an element a tool returned or showed, located by its extent.
+
+    Every tool records elements through this, so a citation shows the same shape
+    whichever tool the agent used. `label_bbox` is set only when the extent is an
+    outline and the stored box is the printed name inside it.
+    """
+    extent = element_extent(kind, bbox, properties)
+    label = bbox if extent.polygon is not None and extent.bbox != bbox else None
+    return EvidenceItem(
+        element_id, document_id, page_id, page_index, extent.bbox, ifc_guid,
+        extent.target, extent.polygon, label,
+    )  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -53,13 +86,16 @@ def check_citations(
 
 
 def citation_payload(checked: CheckedCitation) -> dict[str, object]:
-    """What the browser needs to highlight a citation: document, page, box, 3D id.
+    """What the browser needs to highlight a citation: document, page, shape, 3D id.
 
-    Element citations take their location from the evidence (not from the model);
-    region citations keep the cited box, which lies within what the agent viewed.
+    Element citations take their location from the evidence (not from the model):
+    the element's outline when known, else its label (`target` says which). Region
+    citations keep the cited box, which lies within what the agent viewed.
     """
     c, ev = checked.citation, checked.evidence
-    bbox = ev.bbox if ev is not None and ev.element_id is not None else c.bbox
+    is_element = ev is not None and ev.element_id is not None
+    bbox = ev.bbox if ev is not None and is_element else c.bbox
+    target = ev.target if ev is not None else None
     return {
         "element_id": c.element_id,
         "document_id": ev.document_id if ev else None,
@@ -67,6 +103,9 @@ def citation_payload(checked: CheckedCitation) -> dict[str, object]:
         "page_index": ev.page_index if ev else None,
         "bbox": list(bbox) if bbox else None,
         "ifc_guid": ev.ifc_guid if ev else None,
+        "polygon": [list(p) for p in ev.polygon] if ev and ev.polygon else None,
+        "label_bbox": list(ev.label_bbox) if ev and ev.label_bbox else None,
+        "target": target,
         "note": c.note,
         "verified": checked.verified,
     }

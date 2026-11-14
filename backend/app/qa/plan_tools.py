@@ -11,7 +11,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
-from app.domain.citations import EvidenceItem
+from app.domain.citations import element_evidence
 from app.domain.geometry import BBox, measure_boxes
 from app.models import Element, Page
 from app.qa.context import ToolContext, ToolInputError, parse_id
@@ -136,7 +136,7 @@ def _box(el: Element) -> BBox:
 
 def _evidence(el: Element, page: Page, ctx: ToolContext) -> None:
     """Shown elements count as evidence, so the answer may cite them."""
-    ctx.elements[str(el.id)] = EvidenceItem(
+    ctx.elements[str(el.id)] = element_evidence(
         str(el.id), str(el.document_id), str(page.id), page.index,
-        _box(el) if el.bbox else None, el.ifc_guid,
+        el.kind, _box(el) if el.bbox else None, el.properties, el.ifc_guid,
     )  # fmt: skip

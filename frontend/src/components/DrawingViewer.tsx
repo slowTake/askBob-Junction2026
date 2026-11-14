@@ -214,6 +214,14 @@ function TargetBanner({ shown, onClear }: { shown: TargetOnPage; onClear: () => 
           {shown.verified ? "✓ Verified source" : "! Unverified source"}
         </span>
       )}
+      {shown.labelOnly && (
+        <span
+          className="badge badge-plain"
+          title="The room's outline wasn't found on the drawing, so only its name is marked"
+        >
+          Label only
+        </span>
+      )}
       <span className="target-caption">{shown.caption}</span>
       <button type="button" className="btn btn-subtle btn-sm" onClick={onClear}>
         Clear

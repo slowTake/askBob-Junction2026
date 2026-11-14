@@ -49,10 +49,8 @@ Every format goes through the same pipeline and ends up as an IFC model plus the
 **With Aiven** (shared setup; first follow [docs/aiven-setup.md](docs/aiven-setup.md)):
 
 ```bash
-export AIVEN_PROJECT=<project> AIVEN_PG_SERVICE=<pg-service> AIVEN_VALKEY_SERVICE=<valkey-service>
-source scripts/aiven-env.sh        # exports DATABASE_URL / VALKEY_URL for this shell only
-export ANTHROPIC_API_KEY=...       # or keep it in the keyring; see aiven-setup.md
-make up                            # UI on http://localhost:8080, API on :8000
+make up-aiven      # UI on http://localhost:8080, API on :8000
+                   # URLs from avn + your keyring (aiven-pg-app, aiven-valkey); see aiven-setup.md step 5
 ```
 
 **Offline**, with local Postgres and Valkey containers: `make up-local`.
@@ -63,7 +61,7 @@ make up                            # UI on http://localhost:8080, API on :8000
 LLM_PROVIDER=verda VERDA_API_KEY=$(secret-tool lookup service verda) make up-local
 ```
 
-Add `VERDA_MODEL=deepseek-4-1-flash-1017` to try DeepSeek instead (D-021, same key; not yet usable on real drawings).
+Add `VERDA_MODEL=deepseek-4-1-flash-1017` to try DeepSeek instead (D-024, same key; not yet usable on real drawings).
 
 **Without Docker** (fastest edit loop; needs `uv`, Node 22 and `tesseract` installed):
 
