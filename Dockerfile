@@ -1,6 +1,8 @@
 # The whole app in one container for Aiven Runtime (D-034): nginx serves the UI on :8080
 # and proxies /api to the API on 127.0.0.1:8000; the ingest worker runs beside them.
-# Build from the repo root: docker build -f deploy/runtime/Dockerfile .
+# It sits at the repo root so Aiven Runtime's manifest scan uses the root as build
+# context (it takes each Dockerfile's own folder). Build: docker build .
+# The Compose stack uses backend/, frontend/ and vision/Dockerfile instead.
 # No vision service (ingest uses pixel heuristics), and /data is the container's own
 # disk, so a redeploy or restart loses uploaded files.
 

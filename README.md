@@ -49,7 +49,7 @@ Every format goes through the same pipeline and ends up as an IFC model plus the
 **Aiven** runs our data services ([D-005](docs/decisions.md), setup in [docs/aiven-setup.md](docs/aiven-setup.md)):
 - **Aiven for PostgreSQL** holds the building model (documents, pages, elements with provenance) and `qa_log`: every question and answer with whether it verified, the model, latency and tokens. `pg_trgm` powers fuzzy label search; `pgvector` is enabled for embeddings.
 - **Aiven for Valkey** is the ingest job queue (RQ), the pub/sub channel for live progress that the browser gets over SSE, and the answer cache, keyed by question and document version.
-- **Aiven Runtime** hosts the demo: one app, `askBob`, runs the UI's nginx, the API and the ingest worker in one container built from `deploy/runtime/Dockerfile` ([D-034](docs/decisions.md)). See [Deploy on Aiven Runtime](#deploy-on-aiven-runtime).
+- **Aiven Runtime** hosts the demo: one app, `askBob`, runs the UI's nginx, the API and the ingest worker in one container built from the root `Dockerfile` ([D-034](docs/decisions.md)). See [Deploy on Aiven Runtime](#deploy-on-aiven-runtime).
 - Connection details come from `avn` and your OS keyring at start-up (`make up-aiven`) and are never written to a file. `make up-local` runs the same app against local containers when offline.
 
 **The Claude API** does the reasoning:
@@ -130,8 +130,9 @@ In the Aiven Console, project `junction-stoa-winners` → **Runtime** → the ap
 | Setting | Value |
 |---|---|
 | Repository, branch | `slowTake/bobBuilder`, `main` |
+| Manifest | `Dockerfile` (the root one; not `docker-compose.yml`, which would create extra Postgres and Valkey services) |
 | Build context directory | `/` (the repo root) |
-| Containerfile path | `/deploy/runtime/Dockerfile` |
+| Containerfile path | `/Dockerfile` |
 | Port | `8080`, HTTP |
 | Cloud, plan | `aws-eu-central-1`, at least `startup-50-2560` (OCR needs the memory) |
 
