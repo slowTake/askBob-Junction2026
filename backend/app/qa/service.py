@@ -21,6 +21,8 @@ from app.valkey import cache_get, cache_set
 
 log = logging.getLogger(__name__)
 
+ANSWER_FORMAT = 2  # bump when the answer payload changes, so old cached answers are not served
+
 MESSAGES = {
     "no_documents": "Upload a drawing and wait until it has been processed.",
     "refused": "The model declined to answer this question.",
@@ -45,7 +47,7 @@ def answer_stream(question: str, document_ids: list[str]) -> Iterator[str]:
             if not docs:
                 raise AgentError("no_documents")
             versions = [f"{d.id}@{d.version}" for d in docs]
-            key = answer_cache_key(question, versions, settings.claude_model)
+            key = answer_cache_key(question, versions, settings.claude_model, ANSWER_FORMAT)
             cached = cache_get(key)
             if cached is not None:
                 record.update(answer=cached, verified=cached.get("verified", False), cached=True)
@@ -102,6 +104,8 @@ def _payload(answer: FinalAnswer, ctx: ToolContext) -> dict[str, Any]:
     checked, verified = check_citations(citations, ctx.elements, ctx.regions)
     return {
         "answer": answer.answer,
+        "value": answer.value,
+        "unit": answer.unit,
         "confidence": answer.confidence,
         "caveats": answer.caveats,
         "verified": verified,

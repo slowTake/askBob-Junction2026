@@ -10,8 +10,11 @@ def sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
 
 
-def answer_cache_key(question: str, document_versions: list[str], model: str) -> str:
-    """Same question (ignoring case and spacing) over the same document versions."""
+def answer_cache_key(
+    question: str, document_versions: list[str], model: str, answer_format: int
+) -> str:
+    """Same question (ignoring case and spacing) over the same document versions,
+    model and answer format (bump the format when the answer payload changes)."""
     normalized = " ".join(question.lower().split())
-    payload = json.dumps([normalized, sorted(document_versions), model])
+    payload = json.dumps([normalized, sorted(document_versions), model, answer_format])
     return "answer:" + hashlib.sha256(payload.encode()).hexdigest()
