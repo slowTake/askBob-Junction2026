@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../api/client";
 import type { DocumentDetail, ElementInfo, UpscaleResult } from "../api/types";
 import { useCamera } from "../hooks/useCamera";
@@ -6,12 +7,21 @@ import { useInkBox } from "../hooks/useInkBox";
 import { useUpscale } from "../hooks/useUpscale";
 import { zoomPercent } from "../lib/camera";
 import type { LayerKey } from "../lib/planLayer";
-import { buildCleanSheet, scaleBar, type SheetMode } from "../lib/redraw";
+import { buildCleanSheet, type SheetMode } from "../lib/redraw";
+import { exportFilename, standaloneSvg } from "../lib/sheetExport";
+import {
+  buildSketchSheet,
+  isSketchDocument,
+  planElements,
+  redrawScaleBar,
+  SKETCH_MODE,
+} from "../lib/sketchSheet";
 import { selectElement } from "../lib/selection";
 import { onPage, type PlanTarget, type TargetOnPage } from "../lib/target";
-import { CleanSheet } from "./CleanSheet";
+import { CleanSheet, SketchSheetSvg } from "./CleanSheet";
 import { ElementCard } from "./ElementCard";
 import { PlanCanvas } from "./PlanCanvas";
+import { UpscalePrompt } from "./UpscalePrompt";
 import { ViewerToolbar } from "./ViewerToolbar";
 
 const NO_ELEMENTS: ElementInfo[] = [];
@@ -37,6 +47,7 @@ export function DrawingViewer(props: Props) {
   const [framed, setFramed] = useState<PlanTarget | null>(null);
   const [sheetMode, setSheetMode] = useState<SheetMode>("original");
   const [elementsVersion, setElementsVersion] = useState(0); // bumped when upscale adds some
+  const [printing, setPrinting] = useState<string | null>(null); // the sheet being printed
 
   useEffect(() => {
     let live = true;
@@ -100,18 +111,30 @@ export function DrawingViewer(props: Props) {
   const added = page?.upscale?.added ?? null;
   const redrawn = sheetMode === "redrawn" && added !== null;
   const mmPerPx = page?.mm_per_px ?? null;
-  const redraw = useMemo(
-    () =>
-      redrawn && ready && w && h ? (
-        <CleanSheet
-          sheet={buildCleanSheet(elements, { width: w, height: h })}
-          width={w}
-          height={h}
-          bar={scaleBar({ width: w, height: h }, mmPerPx)}
-        />
-      ) : null,
-    [redrawn, ready, elements, w, h, mmPerPx],
-  );
+  // A raster image is redrawn whole by the model; its redraw shows only the model's plan.
+  const sketchDoc = doc ? isSketchDocument(doc.kind) : false;
+  const sketch = redrawn && page?.upscale?.mode === SKETCH_MODE;
+  const redraw = useMemo(() => {
+    if (!redrawn || !ready || !w || !h) return null;
+    if (sketch) return <SketchSheetSvg sheet={buildSketchSheet(elements)} width={w} height={h} />;
+    return (
+      <CleanSheet
+        sheet={buildCleanSheet(elements, { width: w, height: h })}
+        width={w}
+        height={h}
+        bar={redrawScaleBar({ width: w, height: h }, mmPerPx, sketch)}
+      />
+    );
+  }, [redrawn, sketch, ready, elements, w, h, mmPerPx]);
+  const layerElements = useMemo(() => planElements(elements, sketch), [elements, sketch]);
+
+  useEffect(() => {
+    if (printing === null) return;
+    const done = () => setPrinting(null);
+    window.addEventListener("afterprint", done, { once: true });
+    window.print(); // the print stylesheet shows only .print-sheet
+    return () => window.removeEventListener("afterprint", done);
+  }, [printing]);
   const litKey = (shown?.highlightIds ?? []).join(" ");
   // One Set per change of highlight, not per render: the element layer is memoised, and
   // panning must not redraw hundreds of shapes.
@@ -177,7 +200,11 @@ export function DrawingViewer(props: Props) {
           onToggleLayer={toggleLayer}
           sheet={sheetMode}
           onSheet={setSheetMode}
-          added={added}
+          upscale={page?.upscale ?? null}
+          onDownload={
+            redraw ? () => downloadSheet(viewportRef.current, w, h, doc.filename, pageIndex) : null
+          }
+          onPrint={redraw ? () => setPrinting(sheetFile(viewportRef.current, w, h)) : null}
         />
       )}
       <div
@@ -195,7 +222,7 @@ export function DrawingViewer(props: Props) {
             height={h}
             camera={camera}
             animated={animated}
-            elements={elements}
+            elements={layerElements}
             layers={layers}
             highlighted={highlighted}
             shown={shown}
@@ -207,7 +234,12 @@ export function DrawingViewer(props: Props) {
           />
         )}
         {sheetMode === "redrawn" && page && added === null && (
-          <UpscalePrompt busy={upscale.busy} error={upscale.error} onUpscale={upscale.run} />
+          <UpscalePrompt
+            busy={upscale.busy}
+            error={upscale.error}
+            sketch={sketchDoc}
+            onUpscale={upscale.run}
+          />
         )}
         {detail === "missing" ? (
           <div className="viewer-note">The drawing could not be loaded.</div>
@@ -268,8 +300,37 @@ export function DrawingViewer(props: Props) {
         onClose={() => setSelected([])}
         onAsk={() => onAskAbout(pinned)}
       />
+      {printing &&
+        createPortal(
+          // Our own serialized svg: element text was escaped by XMLSerializer.
+          <div className="print-sheet" dangerouslySetInnerHTML={{ __html: printing }} />,
+          document.body,
+        )}
     </div>
   );
+}
+
+/** The redrawn sheet as drawn on screen, made into a file that stands alone. */
+function sheetFile(viewport: HTMLElement | null, width: number, height: number): string | null {
+  const svg = viewport?.querySelector("svg.clean-sheet");
+  return svg ? standaloneSvg(new XMLSerializer().serializeToString(svg), { width, height }) : null;
+}
+
+function downloadSheet(
+  viewport: HTMLElement | null,
+  width: number,
+  height: number,
+  filename: string,
+  index: number,
+) {
+  const file = sheetFile(viewport, width, height);
+  if (!file) return;
+  const url = URL.createObjectURL(new Blob([file], { type: "image/svg+xml" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = exportFilename(filename, index);
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 /** For a source the user clicked: whether it's verified, and a way to clear it. */
@@ -291,35 +352,6 @@ function TargetBanner({ shown, onClear }: { shown: TargetOnPage; onClear: () => 
       <button type="button" className="btn btn-subtle btn-sm" onClick={onClear}>
         Clear
       </button>
-    </div>
-  );
-}
-
-interface UpscalePromptProps {
-  busy: boolean;
-  error: string | null;
-  onUpscale: () => void;
-}
-
-/** The Redrawn view of a page that has not been upscaled yet: one button, in the middle. */
-function UpscalePrompt({ busy, error, onUpscale }: UpscalePromptProps) {
-  return (
-    <div className="upscale-prompt" data-no-pan>
-      <div className="upscale-card">
-        <p className="body-sm">
-          Redraw this page with uniform lines and one font. One vision pass first checks the page
-          for walls, doors, windows and room names that were missed; what it adds is marked and
-          dashed.
-        </p>
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={onUpscale}>
-          {busy ? "Upscaling…" : "Upscale"}
-        </button>
-        {error && (
-          <p className="body-sm upscale-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
     </div>
   );
 }

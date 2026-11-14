@@ -158,6 +158,20 @@
   dominant-baseline: central;
 }
 
+/* The redrawn sketch: filled walls, the door leaf open with its swing, windows as a thin
+   double line. Page-relative wall widths come from the shapes themselves. */
+.sketch-leaf {
+  fill: none;
+  stroke: var(--redraw-line);
+  stroke-width: calc(2px * var(--u));
+}
+.sketch-arc,
+.sketch-window {
+  fill: none;
+  stroke: var(--redraw-line);
+  stroke-width: calc(1px * var(--u));
+}
+
 .upscale-prompt {
   position: absolute;
   inset: 0;
@@ -178,4 +192,34 @@
 }
 .upscale-error {
   color: var(--danger-ink);
+}
+
+/* Print: only the redrawn sheet, fitted to the paper (DrawingViewer puts a copy of it in
+   .print-sheet). */
+.print-sheet {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 10mm;
+  }
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+  body > *:not(.print-sheet) {
+    display: none !important;
+  }
+  .print-sheet {
+    display: block;
+  }
+  .print-sheet svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 100vh;
+  }
 }

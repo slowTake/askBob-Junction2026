@@ -1,5 +1,6 @@
 import { memo } from "react";
 import type { CleanSheet as Sheet, ScaleBar } from "../lib/redraw";
+import type { SketchSheet } from "../lib/sketchSheet";
 
 interface Props {
   sheet: Sheet;
@@ -70,6 +71,57 @@ export const CleanSheet = memo(function CleanSheet({ sheet, width, height, bar }
           </text>
         </g>
       )}
+    </svg>
+  );
+});
+
+interface SketchProps {
+  sheet: SketchSheet;
+  width: number;
+  height: number;
+}
+
+/**
+ * The redrawn sketch (#82): the model's plan only, drawn from the shapes the server
+ * rendered for the model's own check. Same viewBox as the page image, so the overlay fits.
+ * No scale bar and no areas: a sketch has no scale.
+ */
+export const SketchSheetSvg = memo(function SketchSheetSvg({ sheet, width, height }: SketchProps) {
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width={width}
+      height={height}
+      className="clean-sheet is-sketch"
+      aria-hidden="true"
+    >
+      <rect width={width} height={height} className="clean-bg" />
+      {sheet.walls.map((w) =>
+        w.pieces.map((points, i) => (
+          <polygon key={`${w.id}:${i}`} points={points} className="clean-wall sketch-wall" />
+        )),
+      )}
+      {sheet.windows.map((w) =>
+        w.lines.map((points, i) => (
+          <polyline key={`${w.id}:${i}`} points={points} className="sketch-window" />
+        )),
+      )}
+      {sheet.doors.map((d) => (
+        <g key={d.id}>
+          <polyline points={d.leaf} className="sketch-leaf" />
+          <polyline points={d.arc} className="sketch-arc" />
+        </g>
+      ))}
+      {sheet.rooms.map((r) => (
+        <text key={r.id} x={r.x} y={r.y} fontSize={r.size} className="clean-text clean-room-name">
+          {r.name}
+        </text>
+      ))}
+      {sheet.texts.map((t) => (
+        <text key={t.id} x={t.x} y={t.y} fontSize={t.size} className="clean-text">
+          {t.text}
+        </text>
+      ))}
     </svg>
   );
 });
