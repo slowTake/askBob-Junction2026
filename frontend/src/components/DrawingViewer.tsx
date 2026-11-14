@@ -27,7 +27,11 @@ export function DrawingViewer(props: Props) {
   const [zoom, setZoom] = useState(1);
   const [zoomedFor, setZoomedFor] = useState<Citation | null>(null);
   const [showElements, setShowElements] = useState(false);
-  const [loaded, setLoaded] = useState<{ page: number; elements: ElementInfo[] } | null>(null);
+  const [loaded, setLoaded] = useState<{
+    page: number;
+    elements: ElementInfo[];
+    failed: boolean;
+  } | null>(null);
   const [cleanPages, setCleanPages] = useState<ReadonlySet<number>>(new Set());
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -48,22 +52,25 @@ export function DrawingViewer(props: Props) {
     if (!needElements) return;
     let live = true;
     api.elements(documentId, pageIndex).then(
-      (els) => live && setLoaded({ page: pageIndex, elements: els }),
-      () => live && setLoaded({ page: pageIndex, elements: [] }),
+      (els) => live && setLoaded({ page: pageIndex, elements: els, failed: false }),
+      () => live && setLoaded({ page: pageIndex, elements: [], failed: true }),
     );
     return () => {
       live = false;
     };
   }, [documentId, pageIndex, needElements]);
   // Elements of another page are never drawn while this page's are on their way.
-  const elements = loaded?.page === pageIndex ? loaded.elements : null;
+  const here = loaded?.page === pageIndex ? loaded : null;
+  const elements = here?.elements ?? null;
+  const failed = here?.failed ?? false;
   const sheet = useMemo(
-    () => (clean && elements ? buildCleanSheet(elements) : null),
-    [clean, elements],
+    () => (clean && elements && !failed ? buildCleanSheet(elements) : null),
+    [clean, elements, failed],
   );
   const tooFew = sheet !== null && !hasEnoughForClean(sheet);
-  // The scroller is replaced by a note while the redraw loads or has too little to show.
-  const sheetShown = !clean || (sheet !== null && !tooFew);
+  // While the redraw loads the original stays in place, so the scroll position survives.
+  // Only a failed load or a redraw with too little to show replaces the scroller with a note.
+  const sheetShown = !(clean && (failed || tooFew));
 
   const setClean = (on: boolean) =>
     setCleanPages((pages) => {
@@ -182,23 +189,25 @@ export function DrawingViewer(props: Props) {
       )}
       {!sheetShown ? (
         <div className="viewer-empty">
-          {elements === null ? (
-            "Redrawing the page…"
-          ) : (
-            <div className="clean-note">
-              <p>
-                Too little was extracted from this page for a clean redraw (walls found:{" "}
-                {sheet?.walls.length}, needed: {MIN_WALLS}).
-              </p>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setClean(false)}
-              >
-                Show the original
-              </button>
-            </div>
-          )}
+          <div className="clean-note">
+            <p>
+              {failed ? (
+                "Couldn't load the extracted elements for a clean redraw."
+              ) : (
+                <>
+                  Too little was extracted from this page for a clean redraw (walls found:{" "}
+                  {sheet?.walls.length}, needed: {MIN_WALLS}).
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setClean(false)}
+            >
+              Show the original
+            </button>
+          </div>
         </div>
       ) : (
         <div className="sheet-scroller" ref={scroller}>
