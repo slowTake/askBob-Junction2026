@@ -18,6 +18,7 @@ class Result:
     cost_usd: float | None = None  # None: the model's price is unknown
     cached: bool = False  # served from the answer cache: no model call
     error: str | None = None  # the API's error code, when there was no answer
+    method: str = "agent"  # "server": answered without the agent loop (#97)
 
 
 def _pct(part: int, whole: int) -> str:

@@ -34,4 +34,5 @@ def outcome(
         cost_usd=cost_usd(stats, prices.get(model)) if model else None,
         cached=bool(stats.get("cached") or reply.get("cached")),
         error=None if answered else str(reply.get("code") or "no_answer"),
+        method=str(stats.get("method") or reply.get("method") or "agent"),
     )

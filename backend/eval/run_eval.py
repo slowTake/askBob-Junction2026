@@ -21,7 +21,7 @@ from typing import Any
 
 import httpx
 
-from eval.cost_report import cost_lines, error_line
+from eval.cost_report import cost_lines, error_line, method_line
 from eval.outcome import outcome
 from eval.prices import PRICES, parse_price
 from eval.report import Result, summarize
@@ -83,7 +83,11 @@ def main() -> None:
             args.out.parent.mkdir(parents=True, exist_ok=True)
             args.out.write_text("\n".join(written) + "\n")
     print()
-    print("\n".join([*summarize(results), *cost_lines(results), error_line(results)]))
+    print(
+        "\n".join(
+            [*summarize(results), *cost_lines(results), method_line(results), error_line(results)]
+        )
+    )
 
 
 if __name__ == "__main__":

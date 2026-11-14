@@ -102,6 +102,7 @@ export interface Answer {
   citations: Citation[];
   views?: PlanView[]; // what the agent showed on the plan, in order
   cached: boolean;
+  method?: "server" | "agent"; // "server": counted or added up without the agent loop
 }
 
 /** An agent instruction for the plan: light up elements, maybe draw a measured line. */
