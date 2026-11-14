@@ -5,6 +5,7 @@ import { useCamera } from "../hooks/useCamera";
 import { useInkBox } from "../hooks/useInkBox";
 import { zoomPercent } from "../lib/camera";
 import type { LayerKey } from "../lib/planLayer";
+import { selectElement } from "../lib/selection";
 import { onPage, type PlanTarget, type TargetOnPage } from "../lib/target";
 import { ElementCard } from "./ElementCard";
 import { PlanCanvas } from "./PlanCanvas";
@@ -18,7 +19,7 @@ interface Props {
   onPageChange: (index: number) => void;
   target: PlanTarget | null; // what the assistant or a citation asked to show
   onClearTarget: () => void;
-  onAskAbout: (element: ElementInfo) => void;
+  onAskAbout: (elements: ElementInfo[]) => void;
 }
 
 /** One plan page: pan and zoom, an interactive element layer, and what the agent shows. */
@@ -28,7 +29,7 @@ export function DrawingViewer(props: Props) {
   const [loaded, setLoaded] = useState<{ page: number; elements: ElementInfo[] } | null>(null);
   const [layers, setLayers] = useState<Set<LayerKey>>(() => new Set());
   const [hovered, setHovered] = useState<ElementInfo | null>(null);
-  const [selected, setSelected] = useState<ElementInfo | null>(null);
+  const [selected, setSelected] = useState<ElementInfo[]>([]); // click, or Shift+click for more
   const [imageLoaded, setImageLoaded] = useState<string | null>(null);
   const [framed, setFramed] = useState<PlanTarget | null>(null);
 
@@ -98,6 +99,12 @@ export function DrawingViewer(props: Props) {
     else if (target?.kind === "view") fit();
   }
 
+  const select = useCallback(
+    (el: ElementInfo | null, additive: boolean) =>
+      setSelected((current) => selectElement(current, el, additive)),
+    [],
+  );
+
   // Pointing at nothing (a wall, a gap between rooms) keeps the last element in the bar.
   const pointAt = useCallback((el: ElementInfo | null) => {
     if (el) setHovered(el);
@@ -114,9 +121,14 @@ export function DrawingViewer(props: Props) {
     [],
   );
 
-  const pinned = selected && page && selected.page_id === page.id ? selected : null;
+  const pinned = useMemo(
+    () => (page ? selected.filter((e) => e.page_id === page.id) : []),
+    [selected, page],
+  );
+  // One Set per change of selection: the element layer is memoised.
+  const selectedIds = useMemo(() => new Set(pinned.map((e) => e.id)), [pinned]);
   const hover = hovered && page && hovered.page_id === page.id ? hovered : null;
-  const card = pinned ?? hover;
+  const shownInBar = pinned.length > 0 ? pinned : hover ? [hover] : [];
   const percent = camera && fitted ? zoomPercent(camera, fitted) : 100;
 
   return (
@@ -127,7 +139,7 @@ export function DrawingViewer(props: Props) {
           pageCount={doc.pages.length}
           pageLabel={page?.label ?? null}
           onPage={(i) => {
-            setSelected(null);
+            setSelected([]);
             onPageChange(i);
           }}
           layers={layers}
@@ -153,9 +165,9 @@ export function DrawingViewer(props: Props) {
             layers={layers}
             highlighted={highlighted}
             shown={shown}
-            selectedId={pinned?.id ?? null}
+            selectedIds={selectedIds}
             onHover={pointAt}
-            onSelect={setSelected}
+            onSelect={select}
             onLoad={() => setImageLoaded(src)}
           />
         )}
@@ -201,10 +213,10 @@ export function DrawingViewer(props: Props) {
         </div>
       </div>
       <ElementCard
-        element={card}
-        pinned={card !== null && card === pinned}
-        onClose={() => setSelected(null)}
-        onAsk={() => card && onAskAbout(card)}
+        elements={shownInBar}
+        pinned={pinned.length > 0}
+        onClose={() => setSelected([])}
+        onAsk={() => onAskAbout(pinned)}
       />
     </div>
   );

@@ -14,7 +14,7 @@ import { useStoredFlag } from "./hooks/useStoredFlag";
 import { useTheme } from "./hooks/useTheme";
 import { conversationShown } from "./lib/conversations";
 import { pageIndexFor, type PageRef } from "./lib/pages";
-import { describe } from "./lib/planLayer";
+import { aboutLabel } from "./lib/selection";
 import type { PlanTarget } from "./lib/target";
 import { availableViews, pickView, type View } from "./lib/views";
 import { viewerErrorMessage } from "./lib/webgl";
@@ -32,7 +32,7 @@ export function App() {
   const [view, setView] = useState<View>("drawing");
   const [page, setPage] = useState<PageRef | null>(null);
   const [target, setTarget] = useState<PlanTarget | null>(null);
-  const [about, setAbout] = useState<ElementInfo | null>(null);
+  const [about, setAbout] = useState<ElementInfo[]>([]); // selected on the plan to ask about
   const [focusSignal, setFocusSignal] = useState(0);
 
   // The agent drives the plan: open its document and page, then frame what it shows.
@@ -66,7 +66,7 @@ export function App() {
     setSelectedId(id);
     setPage(null);
     setTarget(null);
-    setAbout(null);
+    setAbout([]);
   };
 
   const upload = (files: File[]) => {
@@ -90,8 +90,8 @@ export function App() {
     }
   };
 
-  const askAbout = (el: ElementInfo) => {
-    setAbout(el);
+  const askAbout = (elements: ElementInfo[]) => {
+    setAbout(elements);
     setFocusSignal((n) => n + 1);
   };
 
@@ -106,12 +106,13 @@ export function App() {
         ? {
             document_id: selected.id,
             page_index: onPlan ? pageIndex : null,
-            element_id: about?.document_id === selected.id ? about.id : null,
+            element_id: null,
+            element_ids: about.filter((e) => e.document_id === selected.id).map((e) => e.id),
           }
         : null,
-      about: about ? `${about.kind.replaceAll("_", " ")} ${describe(about).title}` : null,
+      about: aboutLabel(about),
     });
-    setAbout(null);
+    setAbout([]);
   };
 
   const toast = docs.error && (
@@ -217,9 +218,9 @@ export function App() {
           busy={asker.busyFor(chatKey)}
           canAsk={ready.length > 0}
           scopeLabel={selected?.status === "ready" ? selected.filename : null}
-          about={about ? `${about.kind.replaceAll("_", " ")} ${describe(about).title}` : null}
+          about={aboutLabel(about)}
           focusSignal={focusSignal}
-          onClearAbout={() => setAbout(null)}
+          onClearAbout={() => setAbout([])}
           onAsk={ask}
           onCitation={showCitation}
           onShowView={showView}
