@@ -6,11 +6,14 @@ Aiven URIs use `rediss://` (TLS), which redis-py handles from the URL.
 
 import json
 import logging
+from contextlib import suppress
 from functools import lru_cache
 from typing import Any
 
 import redis
 from rq import Callback, Queue, Worker
+from rq.command import send_stop_job_command
+from rq.exceptions import InvalidJobOperation
 from rq.job import Job
 from rq.registry import StartedJobRegistry
 
@@ -63,6 +66,29 @@ def in_flight_document_ids() -> set[str]:
     job_ids = [*queue.get_job_ids(), *StartedJobRegistry(queue=queue).get_job_ids()]
     jobs = Job.fetch_many(job_ids, connection=queue.connection)
     return {str(job.args[0]) for job in jobs if job is not None and job.args}
+
+
+def cancel_ingest(document_id: str) -> None:
+    """Drop the document's waiting ingest job and stop a running one (#120). Never raises.
+
+    The worker kills the job's process at once and takes the next job, instead of
+    finishing work for a deleted document for up to the job timeout.
+    """
+    try:
+        queue = ingest_queue()
+        queued = queue.get_job_ids()
+        started = set(StartedJobRegistry(queue=queue).get_job_ids())
+        jobs = Job.fetch_many([*queued, *started], connection=queue.connection)
+        for job in jobs:
+            if job is None or not job.args or str(job.args[0]) != document_id:
+                continue
+            if job.id in started:
+                with suppress(InvalidJobOperation):  # it finished or failed meanwhile
+                    send_stop_job_command(queue.connection, job.id)
+            else:
+                job.cancel()
+    except Exception:
+        log.warning("could not cancel the ingest job of %s", document_id, exc_info=True)
 
 
 def ingest_worker_count() -> int:

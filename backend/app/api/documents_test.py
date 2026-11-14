@@ -31,6 +31,7 @@ class Harness:
         self.data_dir = data_dir
         self.enqueued: list[str] = []
         self.queue_up = True
+        self.cancelled: list[str] = []
 
     def enqueue(self, document_id: str) -> None:
         if not self.queue_up:
@@ -69,6 +70,7 @@ def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Harness
     h = Harness(TestClient(app, raise_server_exceptions=False), sessions, tmp_path)
     monkeypatch.setattr(documents, "enqueue_ingest", h.enqueue)
     monkeypatch.setattr(documents, "publish_event", lambda event: None)
+    monkeypatch.setattr(documents, "cancel_ingest", h.cancelled.append)
     yield h
     get_settings.cache_clear()
 
@@ -113,3 +115,12 @@ def test_reingest_keeps_the_old_status_when_the_job_cannot_be_enqueued(harness: 
     assert response.json()["error"]["code"] == "queue_unavailable"
     [after] = harness.documents()
     assert after.status == "ready"  # still usable; not stuck in "queued"
+
+
+def test_delete_cancels_the_documents_ingest_job(harness: Harness) -> None:
+    _upload(harness)
+    [doc] = harness.documents()
+    response = harness.client.delete(f"/api/documents/{doc.id}")
+    assert response.status_code == 200 and response.json()["ok"] is True
+    assert harness.cancelled == [str(doc.id)]
+    assert harness.documents() == []
