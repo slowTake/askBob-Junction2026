@@ -9,7 +9,16 @@ from app.domain.counting import Countable
 from app.domain.ifc_mapping import IFC_KINDS
 from app.domain.kinds import DRAWING_KINDS
 from app.models import Element
-from app.qa.tools import KINDS, TOOLS, AreaIn, CountIn, FindIn, countable, shown_properties
+from app.qa.tools import (
+    KINDS,
+    TOOLS,
+    AreaIn,
+    CountIn,
+    FindIn,
+    countable,
+    pages_counted,
+    shown_properties,
+)
 
 
 def test_every_ifc_kind_can_be_filtered() -> None:
@@ -66,20 +75,40 @@ def test_count_tool_rejects_a_missing_kind() -> None:
 
 
 def test_stored_element_becomes_countable() -> None:
+    doc = uuid.UUID(int=9)
     fixture = Element(
-        id=uuid.UUID(int=1), kind="fixture", properties={"subtype": "wc", "storey": "1. Sal"}
-    )
+        id=uuid.UUID(int=1), document_id=doc, kind="fixture",
+        properties={"subtype": "wc", "storey": "1. Sal"},
+    )  # fmt: skip
     room = Element(
-        id=uuid.UUID(int=2), kind="room", label="Küche", text="Küche 2.01",
-        properties={"local_name": "Küche", "category": "kitchen"},
+        id=uuid.UUID(int=2), document_id=doc, kind="room", label="Küche", text="Küche 2.01",
+        name="room (Küche) 2.01", properties={"local_name": "Küche", "category": "kitchen"},
+    )  # fmt: skip
+    space = Element(
+        id=uuid.UUID(int=3), document_id=doc, kind="room", label="005", name="Kitchen",
+        properties={"storey": "EG"},
     )  # fmt: skip
     assert countable(fixture, None) == Countable(
-        str(uuid.UUID(int=1)), "fixture", None, "1. Sal", "wc", None, None
+        str(uuid.UUID(int=1)), "fixture", None, "1. Sal", "wc", None, None, None, str(doc)
     )
     # The printed label is the room's local name.
     assert countable(room, 0) == Countable(
-        str(uuid.UUID(int=2)), "room", 0, None, None, "kitchen", "Küche"
+        str(uuid.UUID(int=2)), "room", 0, None, None, "kitchen", "Küche", "room (Küche) 2.01",
+        str(doc),
+    )  # fmt: skip
+    # An IFC space: the label is its number, the name its LongName (bim/ifc_index.py).
+    assert countable(space, None) == Countable(
+        str(uuid.UUID(int=3)), "room", None, "EG", None, None, "005", "Kitchen", str(doc)
     )
+
+
+def test_pages_are_reported_per_document() -> None:
+    a, b = str(uuid.UUID(int=1)), str(uuid.UUID(int=2))
+    assert pages_counted({(b, 0): 13, (a, 1): 2, (a, 0): 42}) == [
+        {"document_id": a, "page_index": 0, "count": 42},
+        {"document_id": a, "page_index": 1, "count": 2},
+        {"document_id": b, "page_index": 0, "count": 13},
+    ]
 
 
 def test_search_results_show_fixture_subtype_and_room_category() -> None:

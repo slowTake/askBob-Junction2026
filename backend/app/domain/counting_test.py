@@ -69,7 +69,7 @@ def test_filters_combine() -> None:
 def test_breaks_counts_down_by_page() -> None:
     result = count(PLAN, kind="room")
     # Page 0: r1, r2, r3; page 1: r4, r5.
-    assert result.by_page == {0: 3, 1: 2}
+    assert result.by_page == {("", 0): 3, ("", 1): 2}
     assert result.by_storey == {}
 
 
@@ -95,3 +95,52 @@ def test_elements_without_the_property_do_not_match_its_filter() -> None:
     items = [Countable("d", "door", 0, None, None, None, None)]
     assert count(items, kind="door", storey="1. Sal").total == 0
     assert count(items, kind="door").total == 1
+
+
+# An IFC model's spaces: the label is the room number, the name is IfcSpace.LongName.
+SPACES = [
+    Countable("s1", "room", None, "EG", None, None, "005", "Kitchen"),
+    Countable("s2", "room", None, "1.OG", None, None, "105", "Kitchen"),
+    Countable("s3", "room", None, "EG", None, None, "006", "Meeting room 1"),
+]
+
+
+def test_name_matches_an_ifc_space_by_its_name_or_its_number() -> None:
+    # 'Kitchen' is s1 and s2, by name; '005' is s1, by label.
+    assert count(SPACES, kind="room", name="Kitchen").total == 2
+    assert count(SPACES, kind="room", name="kitchen", storey="EG").total == 1
+    assert count(SPACES, kind="room", name="005").total == 1
+    assert count(SPACES, kind="room", name="Meeting room").total == 0  # still exact
+
+
+def test_an_element_whose_label_and_name_both_match_counts_once() -> None:
+    rooms = [Countable("x", "room", 0, None, None, None, "Küche", "Küche")]
+    assert count(rooms, kind="room", name="Küche").total == 1
+
+
+def test_pages_of_different_documents_are_counted_apart() -> None:
+    # Page 0 of document A: a1, a2; page 0 of document B: b1. Never one "page 0" of 3.
+    rooms = [
+        Countable("a1", "room", 0, None, None, None, None, None, "doc-a"),
+        Countable("b1", "room", 0, None, None, None, None, None, "doc-b"),
+        Countable("a2", "room", 0, None, None, None, None, None, "doc-a"),
+    ]
+    result = count(rooms, kind="room")
+    assert result.total == 3
+    assert result.by_page == {("doc-a", 0): 2, ("doc-b", 0): 1}
+
+
+def test_listing_order_does_not_depend_on_the_input_order() -> None:
+    # Document, then page (elements without a page last), then id.
+    items = [
+        Countable("e", "door", None, None, None, None, None, None, "doc-a"),
+        Countable("d", "door", 0, None, None, None, None, None, "doc-b"),
+        Countable("c", "door", 1, None, None, None, None, None, "doc-a"),
+        Countable("b", "door", 0, None, None, None, None, None, "doc-a"),
+        Countable("a", "door", 0, None, None, None, None, None, "doc-a"),
+    ]
+    expected = ["a", "b", "c", "e", "d"]
+    assert [c.element_id for c in count(items, kind="door").listed] == expected
+    assert [c.element_id for c in count(items[::-1], kind="door").listed] == expected
+    # The cap keeps the first of that order: a, b.
+    assert [c.element_id for c in count(items, kind="door", list_max=2).listed] == ["a", "b"]
