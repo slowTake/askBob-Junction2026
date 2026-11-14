@@ -45,6 +45,12 @@ make up                            # UI on http://localhost:8080, API on :8000
 
 **Offline**, with local Postgres and Valkey containers: `make up-local`.
 
+**On Kimi instead of Claude** (D-014; needs your own Verda key, see [docs/verda-setup.md](docs/verda-setup.md)): pass the provider and key to the one command that starts the app.
+
+```bash
+LLM_PROVIDER=verda VERDA_API_KEY=$(secret-tool lookup service verda) make up-local
+```
+
 **Without Docker** (fastest edit loop; needs `uv`, Node 22 and `tesseract` installed):
 
 ```bash

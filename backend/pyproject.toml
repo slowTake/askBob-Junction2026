@@ -21,6 +21,7 @@ dependencies = [
   "opencv-python-headless>=5.0,<6",
   "pillow>=13,<14",
   "pytesseract>=0.3.13,<0.4",
+  "openai>=3.51,<4",
 ]
 
 [dependency-groups]

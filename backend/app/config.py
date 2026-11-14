@@ -12,6 +12,7 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
+Provider = Literal["anthropic", "verda"]
 
 
 class Settings(BaseSettings):
@@ -19,8 +20,11 @@ class Settings(BaseSettings):
     valkey_url: str
     data_dir: Path = Path("/data")
 
+    llm_provider: Provider = "anthropic"
     claude_model: str = "claude-opus-5-5"
     claude_effort: Effort = "high"
+    verda_model: str = "kimi-k3-1-pro"
+    verda_base_url: str = "https://inference.verda.com/v1"
     max_agent_turns: int = 12
 
     render_dpi: int = 150
@@ -35,6 +39,11 @@ class Settings(BaseSettings):
         if not value.strip():
             raise ValueError("is empty: run `source scripts/aiven-env.sh` or `make up-local`")
         return value
+
+    @property
+    def llm_model(self) -> str:
+        """The model answering questions, for the answer-cache key and `qa_log`."""
+        return self.verda_model if self.llm_provider == "verda" else self.claude_model
 
     @property
     def sqlalchemy_url(self) -> str:
