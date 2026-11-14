@@ -1,6 +1,8 @@
 """The agent refuses to start without Anthropic credentials (#10)."""
 
+import os
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
@@ -14,9 +16,13 @@ SETTINGS = Settings(database_url="postgresql://unused", valkey_url="redis://unus
 
 
 @pytest.fixture
-def no_credentials(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
-        monkeypatch.delenv(name, raising=False)
+def no_credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
+    # The SDK also finds credentials in ANTHROPIC_PROFILE, workload identity variables
+    # and a profile saved under ~/.config/anthropic. Hide all of them, or a developer's
+    # real credentials would let the test send a real request.
+    for name in [n for n in os.environ if n.startswith("ANTHROPIC_")]:
+        monkeypatch.delenv(name)
+    monkeypatch.setenv("HOME", str(tmp_path))
     agent._client.cache_clear()
     yield
     agent._client.cache_clear()
