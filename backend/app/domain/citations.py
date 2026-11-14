@@ -55,11 +55,11 @@ def check_citations(
 def citation_payload(checked: CheckedCitation) -> dict[str, object]:
     """What the browser needs to highlight a citation: document, page, box, 3D id.
 
-    Verified citations take their location from the evidence (not from the model).
+    Element citations take their location from the evidence (not from the model);
+    region citations keep the cited box, which lies within what the agent viewed.
     """
     c, ev = checked.citation, checked.evidence
-    use_evidence = ev is not None and c.element_id is not None
-    bbox = ev.bbox if use_evidence and ev else c.bbox
+    bbox = ev.bbox if ev is not None and ev.element_id is not None else c.bbox
     return {
         "element_id": c.element_id,
         "document_id": ev.document_id if ev else None,
@@ -75,13 +75,19 @@ def citation_payload(checked: CheckedCitation) -> dict[str, object]:
 def _check(
     c: Citation, elements: dict[str, EvidenceItem], regions: list[EvidenceItem]
 ) -> CheckedCitation:
-    if c.element_id and c.element_id in elements:
-        return CheckedCitation(c, True, elements[c.element_id])
-    if c.page_id and c.bbox:
+    if c.element_id:
+        # An element id must be one a tool returned; a viewed region never rescues it.
+        found = elements.get(c.element_id)
+        return CheckedCitation(c, found is not None, found)
+    if c.page_id and c.bbox and _is_box(c.bbox):
         for region in regions:
             if region.page_id == c.page_id and region.bbox and _same_area(region.bbox, c.bbox):
                 return CheckedCitation(c, True, region)
     return CheckedCitation(c, False, None)
+
+
+def _is_box(b: BBox) -> bool:
+    return b[2] > b[0] and b[3] > b[1]
 
 
 def _same_area(seen: BBox, cited: BBox) -> bool:

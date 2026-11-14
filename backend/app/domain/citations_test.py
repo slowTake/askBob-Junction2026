@@ -61,3 +61,28 @@ def test_one_bad_citation_fails_the_answer() -> None:
     checked, ok = check_citations(cites, {"el-1": ROOM}, [])
     assert not ok
     assert [c.verified for c in checked] == [True, False]
+
+
+def test_made_up_element_id_is_not_rescued_by_a_viewed_region() -> None:
+    # D-006: a citation must point at something a tool returned. "el-404" was never
+    # returned, so the citation fails even though its box lies inside a viewed region (#11).
+    cite = Citation("el-404", "page-1", (20, 20, 40, 40), "made up")
+    checked, ok = check_citations([cite], {"el-1": ROOM}, [REGION])
+    assert not ok
+    payload = citation_payload(checked[0])
+    assert payload["verified"] is False
+    assert payload["bbox"] == [20, 20, 40, 40]  # the cited box, not the whole viewed region
+
+
+def test_inverted_box_is_not_a_region() -> None:
+    # x1 < x0 and y1 < y0: not a rectangle, so it cannot lie "inside" what was viewed.
+    cite = Citation(None, "page-1", (40, 40, 20, 20), "inverted")
+    _, ok = check_citations([cite], {}, [REGION])
+    assert not ok
+
+
+def test_empty_box_is_not_a_region() -> None:
+    # Zero width (x0 == x1): nothing to look at.
+    cite = Citation(None, "page-1", (20, 20, 20, 40), "empty")
+    _, ok = check_citations([cite], {}, [REGION])
+    assert not ok
