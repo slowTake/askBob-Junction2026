@@ -18,6 +18,14 @@ class PageOut(BaseModel):
     height_px: int
     dpi: float | None
     mm_per_px: float | None
+    meta: dict[str, Any] = Field(default_factory=dict, exclude=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def label(self) -> str | None:
+        """What the page shows, when known: the storey of an IFC floor plan."""
+        storey = self.meta.get("storey")
+        return str(storey) if storey else None
 
 
 class DocumentOut(BaseModel):
