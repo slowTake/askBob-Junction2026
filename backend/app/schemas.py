@@ -27,6 +27,18 @@ class PageOut(BaseModel):
         storey = self.meta.get("storey")
         return str(storey) if storey else None
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def upscale(self) -> dict[str, Any] | None:
+        """Set once the page had its vision pass (#82): how many elements it added.
+
+        Re-ingest replaces the pages, so a page that carries this is up to date.
+        """
+        entry = self.meta.get("upscale")
+        if not isinstance(entry, dict):
+            return None
+        return {"added": int(entry.get("added", 0)), "model": str(entry.get("model", ""))}
+
 
 class DocumentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

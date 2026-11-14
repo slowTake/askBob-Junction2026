@@ -58,3 +58,13 @@ def test_too_many_selected_elements_are_refused() -> None:
     with pytest.raises(ValidationError):
         AskContextIn(element_ids=ids)
     assert len(AskContextIn(element_ids=ids[:MAX_SELECTED]).selected_ids()) == MAX_SELECTED
+
+
+def test_page_says_whether_it_was_upscaled() -> None:
+    page = {"id": uuid.uuid4(), "index": 0, "width_px": 10, "height_px": 10, "dpi": None,
+            "mm_per_px": None, "meta": {}}  # fmt: skip
+    assert PageOut.model_validate(page).model_dump()["upscale"] is None
+    page["meta"] = {"upscale": {"document_version": 2, "format": 1, "model": "m", "added": 4,
+                                "input_tokens": 3000, "output_tokens": 400}}  # fmt: skip
+    # Only what the UI shows; the token counts stay on the server.
+    assert PageOut.model_validate(page).model_dump()["upscale"] == {"added": 4, "model": "m"}

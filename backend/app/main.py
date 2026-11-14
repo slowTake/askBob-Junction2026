@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ask, documents, events, health
+from app.api import ask, documents, events, health, upscale
 from app.config import get_settings
 from app.db import init_db
 from app.envelope import install_error_handlers
@@ -29,5 +29,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 install_error_handlers(app)
-for module in (health, documents, events, ask):
+for module in (health, documents, upscale, events, ask):
     app.include_router(module.router)

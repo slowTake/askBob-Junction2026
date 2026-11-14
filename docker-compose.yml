@@ -19,6 +19,7 @@ x-backend: &backend
     - LLM_PROVIDER
     - VERDA_API_KEY
     - VERDA_MODEL
+    - UPSCALE_MODEL
     - DATA_DIR=/data
   volumes:
     - data:/data
