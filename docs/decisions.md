@@ -17,6 +17,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-011 | 2026-11-14 | Demo video pipeline in `demo-video/`, outside tests and CI | Accepted |
 | D-012 | 2026-11-14 | Drafting-table theme with a dark mode; drawings stay paper | Accepted |
 | D-013 | 2026-11-14 | Fit a missing page scale from printed dimensions; two must agree | Accepted |
+| D-014 | 2026-11-14 | Exact CAD/vector geometry first; pixel heuristics last | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -151,3 +152,35 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 **Decision:** When a page has no DPI and scale note, `annotate_page` fits the scale from its dimension labels: for each label it finds the dimension line beside it, measures the line between the ticks either side (extension lines, slashes or dots), and divides the printed millimetres by that length. A scale is kept only when **at least two labels agree within 3%**; the median of the agreeing group is used. One label alone is never trusted, because a single OCR misread would give confidently wrong areas, and an unknown scale is safer than a wrong one. The fallback runs on every page, PDFs included. Page meta records `scale_method` (`dpi`, `dimension_fit` or none) and, for a fit, `scale_support` (how many labels agreed). Scale bars are not handled yet.
 
 **Consequences:** Plans with dimension chains get areas and footprints; plans without printed dimensions (many CubiCasa sheets, some marked "not to scale") still have no scale. Upside-down sheets are not read, because OCR only tries 0° and 90°. The 3% and two-label thresholds are constants in `app/domain/scale_fit.py` and may need tuning on real plans.
+
+## D-014: Exact CAD/vector geometry first; pixel heuristics last
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** The 3D model from a Swiss PDF was unusable: walls were guessed from pixels (hatched, rotated walls broke the heuristic) and Swiss room names weren't recognised. The dataset ships most Swiss drawings as DXF too, with named layers (`WALL`, `DOOR`, `WINDOW`, `ROOM_OUTLINE`, `ROOM_TEXT`, `UNIT_OUTLINE`), and its PDFs draw hatched walls as clip paths.
+
+**Decision:** Read geometry from the most exact source available, in this order:
+1. **DXF:** layers by name, in real units.
+2. **PDF vector layer:** hatched clip paths become walls, and the printed room number and area are linked to each room name.
+3. **Pixels:** only when neither of the above exists.
+
+Counting and area rules found in the data live in tested pure functions:
+- A door is a swing arc, and a double door's two arcs share one endpoint.
+- A window is a closed frame.
+- A shaft is an unnamed room under 0.55 m mean width.
+- Net area covers numbered rooms, excluding shafts and outdoor spaces.
+
+The agent gets these rules as the `sum_room_areas` tool. A traced room outline is dropped when it disagrees with the printed area by more than 15%, or when it reaches the page edge.
+
+**Consequences:** Scored against the dataset's English swiss_dwellings questions:
+
+| Question type | DXF | PDF |
+|---|---|---|
+| Room-name counts | 99.5% | 99% |
+| Room areas | 100% | 35% |
+| Apartments | 100% | 100% |
+| Doors | 97% | 0% |
+| Windows | 100% | 0% |
+| Area totals | 92–100% | 34–37% |
+
+The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, washbasin, bathtub, shower) are not classified yet.

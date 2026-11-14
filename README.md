@@ -25,7 +25,7 @@ Ask construction drawings questions in plain language and get answers you can ch
                          └────────────────────────────┘
 ```
 
-1. **Readers** turn each file into **elements** (rooms, walls, doors, dimensions, scale notes, IFC products). Each element keeps its **provenance**: a bounding box on the rendered page or an IFC GlobalId, plus `source` and `confidence`.
+1. **Readers** (IFC, DXF, PDF, image; exact CAD/vector geometry first, pixels last) turn each file into **elements** (rooms, walls, doors, dimensions, scale notes, IFC products). Each element keeps its **provenance**: a bounding box on the rendered page or an IFC GlobalId, plus `source` and `confidence`.
 2. When a drawing's scale is known, the worker also writes an **IFC model** (with a `Bob_Provenance` property set on each product) and a **3D mesh** for the viewer. IFC uploads are meshed directly.
 3. The **agent** answers only through read-only tools over those elements. It can look at regions of the drawing as images to check OCR or computer-vision results. Its answer is structured JSON with citations, and the server marks it **verified** only if every citation points at evidence a tool returned.
 4. The **UI** shows the answer. Clicking a citation spotlights the region on the drawing or highlights the element in 3D.
@@ -79,14 +79,15 @@ frontend/src/
 | To improve | Start in |
 | --- | --- |
 | Vocabulary (new room or fixture codes, Swedish/English drawings) | `backend/app/domain/vocab.py` |
-| Exact walls and doors from vector PDFs (`page.get_drawings()`) | `backend/app/ingest/pdf_reader.py` (TODO) |
+| Doors, windows and apartments from vector PDFs | `backend/app/ingest/pdf_vector.py` (walls done) |
+| Fixture types (WC, washbasin, bathtub, shower) from DXF symbols | `backend/app/ingest/dxf_reader.py` |
 | Scale for raster plans (fit dimension strings to dimension lines) | `backend/app/ingest/annotate.py` (TODO) |
 | Rooms whose door openings leak the flood fill | `backend/app/ingest/rooms.py` (TODO) |
 | A new file format (DXF, DWG via converter) | write a reader, register it in `backend/app/ingest/registry.py` |
 | A new agent capability | add a tool in `backend/app/qa/tools.py` and record its evidence |
 | Measuring accuracy | put Stoa's example questions in a JSONL file and run `uv run python -m eval.run_eval file.jsonl` |
 
-**Current limits:** wall detection and room regions are heuristics with low confidence (the agent is told to check them visually). Raster pages without DPI metadata have no scale yet, so they get no 3D model. Schema changes rely on `create_all` (no migrations).
+**Current limits:** for raster images, wall detection and room regions are heuristics with low confidence (the agent is told to check them visually). Raster pages without DPI metadata have no scale yet, so they get no 3D model. Schema changes rely on `create_all` (no migrations).
 
 ## Checks
 
