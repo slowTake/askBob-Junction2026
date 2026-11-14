@@ -5,6 +5,7 @@ show. A citation counts as verified only when it points at that evidence, so the
 UI can tell a grounded answer from a guess.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -35,7 +36,7 @@ def element_evidence(
     page_index: int | None,
     kind: str,
     bbox: BBox | None,
-    properties: dict[str, object],
+    properties: Mapping[str, object],
     ifc_guid: str | None,
 ) -> EvidenceItem:
     """Evidence for an element a tool returned or showed, located by its extent.
