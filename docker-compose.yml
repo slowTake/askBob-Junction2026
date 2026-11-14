@@ -16,6 +16,9 @@ x-backend: &backend
     - ANTHROPIC_API_KEY
     - CLAUDE_MODEL
     - CLAUDE_EFFORT
+    - LLM_PROVIDER
+    - VERDA_API_KEY
+    - VERDA_MODEL
     - DATA_DIR=/data
   volumes:
     - data:/data
