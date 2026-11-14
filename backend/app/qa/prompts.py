@@ -62,14 +62,33 @@ you viewed. Citations you did not get from tools are rejected.
 - `caveats`: what could make the answer wrong, or an empty string.
 """
 
+# Sent with the last request of a run, which accepts only the final answer (#95).
+LAST_STEP_NOTE = (
+    "That was your last round of tool calls. Give your final answer now, from what you "
+    "have found. If it is not enough to answer, say what is missing in `caveats` and set "
+    "`confidence` to low; do not guess."
+)
+
+
+def budget_note(tool_rounds: int) -> str:
+    """How many rounds of tool calls the agent gets before it has to answer."""
+    rounds = "1 round" if tool_rounds == 1 else f"{tool_rounds} rounds"
+    return (
+        f"You have at most {rounds} of tool calls, and one round can hold several calls. "
+        "Answer as soon as you have the evidence. If two or three searches find nothing "
+        "about the question, the documents do not contain it: say so instead of searching on."
+    )
+
 
 def scope_message(
     question: str,
     documents: list[dict[str, object]],
     viewing: str | None = None,
     selected: str | None = None,
+    tool_rounds: int | None = None,
 ) -> str:
-    """The user turn: documents in scope, what the user is looking at, then the question."""
+    """The user turn: documents in scope, what the user is looking at, the step budget,
+    then the question."""
     lines = [
         f"- {d['id']}: {d['filename']} ({d['kind']}, {d['page_count']} pages)" for d in documents
     ]
@@ -83,6 +102,8 @@ def scope_message(
             '"This", "here" and "it" refer to it: call get_element for its details.'
         )
     parts = [f"Documents in scope:\n{listing}", *(["\n".join(context)] if context else [])]
+    if tool_rounds is not None:
+        parts.append(budget_note(tool_rounds))
     return "\n\n".join([*parts, f"Question: {question}"])
 
 
