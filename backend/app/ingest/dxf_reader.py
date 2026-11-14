@@ -117,6 +117,9 @@ def _areas(
                 continue
             if _apply_label(el, t.text or ""):
                 used.add(i)
+                if classify(t.text or "").kind == "room_number":
+                    el.properties["number_anchor_px"] = list(frame.to_px(t.points[0]))
+                    el.properties["number_alignment"] = [t.text_halign, t.text_valign]
         if role == "room":
             width_m = mean_width(outline.points) / 1000
             el.properties["shaft"] = is_shaft(el.text, width_m)

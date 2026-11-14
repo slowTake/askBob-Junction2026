@@ -15,6 +15,7 @@ export interface StatusLine {
 interface DocStatus {
   status: string;
   error_message: string | null;
+  meta?: Record<string, unknown>;
 }
 
 const STAGES: Record<string, string> = {
@@ -24,6 +25,7 @@ const STAGES: Record<string, string> = {
   ocr: "Reading text (OCR)",
   vision: "Reading drawing geometry",
   annotating: "Finding rooms and labels",
+  aligning: "Aligning CAD room boundaries",
   modelling: "Building the model",
   indexing: "Indexing elements",
   meshing: "Building the 3D view",
@@ -41,7 +43,15 @@ export function statusLine(
   progress: IngestProgress | undefined,
   workers: number | null,
 ): StatusLine {
-  if (doc.status === "ready") return { label: "Ready", detail: null, percent: null, tone: "ok" };
+  if (doc.status === "ready") {
+    const matched = doc.meta?.companion_status === "matched";
+    return {
+      label: matched ? "Ready · CAD rooms" : "Ready",
+      detail: matched ? "Room boundaries from the matching DXF drawing." : null,
+      percent: null,
+      tone: "ok",
+    };
+  }
   if (doc.status === "failed") {
     const detail = doc.error_message ?? "Processing failed.";
     return { label: "Failed", detail, percent: null, tone: "danger" };

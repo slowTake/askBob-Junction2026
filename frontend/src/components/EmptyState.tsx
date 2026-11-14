@@ -39,6 +39,10 @@ export function EmptyState({ onFiles }: Props) {
           ))}
         </div>
         <UploadButton onFiles={onFiles} label="Choose files" />
+        <p className="body-sm muted">
+          Have a matching DXF? Upload it with the PNG using the same filename to get exact room
+          boundaries.
+        </p>
       </div>
     </section>
   );

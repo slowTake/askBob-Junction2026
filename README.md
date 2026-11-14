@@ -68,6 +68,14 @@ Raster ingest reports OCR, geometry and annotation progress. The optional vision
 model has a 90-second wait budget per page, then ingest continues with pixel
 heuristics. Set `VISION_TIMEOUT_S` when starting Docker to allow a longer wait.
 
+**Exact room boundaries with a matching DXF:** upload `floor.png` and `floor.dxf`
+(the filename before the extension must match). Either upload order works. The PNG
+keeps its original appearance, while the native DXF supplies every room's identity,
+polygon and area, including open-plan kitchens and rooms OCR missed. Registration
+uses the shared printed room numbers and rejects poor or ambiguous matches. The
+document shows **Ready · CAD rooms** when this succeeds. Uploads without a valid
+companion keep their raster reading; uncertain room boundaries are label-only.
+
 **On Kimi instead of Claude** (D-020; needs your own Verda key, see [docs/verda-setup.md](docs/verda-setup.md)): pass the provider and key to the one command that starts the app.
 
 ```bash
