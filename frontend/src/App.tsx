@@ -44,16 +44,20 @@ export function App() {
   const asker = useAsk(showView);
 
   const selected = docs.documents.find((d) => d.id === selectedId) ?? docs.documents[0] ?? null;
+  // The conversation on screen: the document the user picked, else the open one.
+  const [chatFor, setChatFor] = useState<string | null>(null);
+  const chatKey =
+    (chatFor && docs.documents.some((d) => d.id === chatFor) ? chatFor : selected?.id) ?? null;
   const ready = docs.documents.filter((d) => d.status === "ready");
   const views = selected ? availableViews(selected) : [];
   const activeView = pickView(view, views);
   const pageIndex = pageIndexFor(page, selected?.id ?? null);
 
-  // Picking another document starts a fresh conversation: the old answers are about
-  // a different drawing. When the agent or a citation opens a document, it's the same
-  // conversation, so showView and showCitation keep it.
+  // Each document has its own conversation. Picking one in the list (or uploading one)
+  // shows its conversation; a new upload starts empty. When the agent or a citation opens
+  // another document, the conversation stays: showView and showCitation don't change it.
   const select = (id: string) => {
-    if (id !== selected?.id) asker.clear();
+    setChatFor(id);
     setSelectedId(id);
     setPage(null);
     setTarget(null);
@@ -87,8 +91,9 @@ export function App() {
   };
 
   const ask = (question: string, onlySelected: boolean) => {
+    if (!chatKey) return;
     const onPlan = selected?.status === "ready" && activeView === "drawing";
-    void asker.ask(question, {
+    void asker.ask(chatKey, question, {
       documentIds: onlySelected && selected ? [selected.id] : [],
       context: selected
         ? {
@@ -140,7 +145,7 @@ export function App() {
             selectedId={selected?.id ?? null}
             ifcUrl={selected?.has_ifc ? api.modelIfcUrl(selected.id) : null}
             onSelect={select}
-            onDelete={(id) => void docs.remove(id)}
+            onDelete={(id) => void docs.remove(id).then((removed) => removed && asker.clear(id))}
           />
         )}
         <section className="stage">
@@ -201,8 +206,8 @@ export function App() {
           )}
         </section>
         <AskPanel
-          turns={asker.turns}
-          busy={asker.busy}
+          turns={asker.turnsFor(chatKey)}
+          busy={asker.busyFor(chatKey)}
           canAsk={ready.length > 0}
           scopeLabel={selected?.status === "ready" ? selected.filename : null}
           about={about ? `${about.kind.replaceAll("_", " ")} ${describe(about).title}` : null}
@@ -210,7 +215,7 @@ export function App() {
           onClearAbout={() => setAbout(null)}
           onAsk={ask}
           onClear={() => {
-            asker.clear();
+            if (chatKey) asker.clear(chatKey);
             setTarget(null);
           }}
           onCitation={showCitation}

@@ -12,7 +12,7 @@ const EXAMPLES = [
 ];
 
 interface Props {
-  turns: Turn[];
+  turns: readonly Turn[];
   busy: boolean;
   canAsk: boolean;
   scopeLabel: string | null; // selected document name, if it can be asked about alone
