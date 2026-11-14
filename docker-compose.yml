@@ -65,7 +65,8 @@ services:
       - FAST_PATH
       - ROUTER_MODEL
       - DATA_DIR=/data
-      - VISION_URL=http://vision:8001
+      # Override to use a vision service elsewhere, e.g. on a Verda GPU (`make up-verda`).
+      - VISION_URL=${VISION_URL:-http://vision:8001}
       - VISION_TIMEOUT_S=${VISION_TIMEOUT_S:-90}
     depends_on:
       postgres: { condition: service_healthy, required: false }

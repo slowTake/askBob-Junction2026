@@ -55,7 +55,7 @@ def decode(body: bytes) -> np.ndarray | None:
 
 def create_app(load: Callable[[], Analyser]) -> FastAPI:
     """`load` builds the analyser once, at startup (the model takes a few seconds)."""
-    lock = threading.Lock()  # one page at a time: the model uses all CPU cores
+    lock = threading.Lock()  # one page at a time: the model uses all CPU cores or the GPU
     state: dict[str, Analyser] = {}
 
     @asynccontextmanager
@@ -100,11 +100,17 @@ def create_app(load: Callable[[], Analyser]) -> FastAPI:
 
 
 def _load_model() -> Analyser:
+    import torch
+
     from app.analyse import analyse
+    from app.device import pick_device
     from app.model import FloorplanModel
 
     weights = Path(os.environ.get("VISION_WEIGHTS", "/opt/weights/cubicasa.pt"))
-    model = FloorplanModel(weights, rotations=int(os.environ.get("VISION_ROTATIONS", "1")))
+    device = pick_device(os.environ.get("VISION_DEVICE", "auto"), torch.cuda.is_available())
+    log.warning("vision model runs on %s", device)
+    rotations = int(os.environ.get("VISION_ROTATIONS", "1"))
+    model = FloorplanModel(weights, rotations=rotations, device=device)
     return lambda rgb: analyse(model, rgb)
 
 

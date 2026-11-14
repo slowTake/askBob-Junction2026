@@ -64,6 +64,27 @@ OPENAI_API_KEY=$(secret-tool lookup service verda) \
 
 The deployed app gets the key from the host's secret settings (for example the **Secrets** tab of an Aiven Runtime app), never from the repo.
 
+## 6. Run the floor-plan model on a Verda GPU
+
+The `vision` service (CubiCasa5k, D-022) can run on a rented Verda GPU instead of your CPU ([D-039](decisions.md)). Ingest still runs on your machine and sends each page image there.
+
+1. **Rent the instance.** Console → **GPU instances**: 1× Tesla V100, the Docker image (Ubuntu with CUDA and Docker), **Public IP**, and your SSH public key (`cat ~/.ssh/id_ed25519.pub`). Note the IP once it is running.
+2. **Copy and build** (a few minutes; it downloads PyTorch and the model weights):
+
+   ```bash
+   rsync -a vision/ root@<ip>:vision/
+   ssh root@<ip>
+   docker build --build-arg TORCH_CUDA=cu126 -t vision vision
+   docker run -d --name vision --restart always --gpus all -p 8001:8001 -e VISION_DEVICE=cuda vision
+   docker logs vision   # "vision model runs on cuda"
+   ```
+
+   `cu126` because the V100 is too old for newer PyTorch CUDA builds. On a newer GPU, set `TORCH_CUDA` and `TORCH_CUDA_VERSION` to a current pair.
+3. **Check it from your laptop:** `curl http://<ip>:8001/health` answers `{"ok":true,"data":{"model_loaded":true},...}`.
+4. **Use it:** `VISION_URL=http://<ip>:8001 make up-verda`. Uploaded raster pages are read on the GPU; `make up-local` still uses the local container.
+
+The service has no password: anyone who finds the IP can send it images. It stores nothing. **Delete** the instance when you're done; a stopped instance still bills for its disk.
+
 ## Things to know
 
 - **Kimi reasons before it answers.** The reasoning is returned separately (`reasoning_content`) and counts toward `max_tokens`. With a small `max_tokens`, `content` can come back empty, so set it to a few thousand.
@@ -75,4 +96,4 @@ The deployed app gets the key from the host's secret settings (for example the *
 
 ## After the hackathon
 
-Delete your API key on the **Credentials** page and remove it from your keyring (`secret-tool clear service verda`).
+Delete your API key on the **Credentials** page and remove it from your keyring (`secret-tool clear service verda`). Delete any GPU instance you rented.
