@@ -27,6 +27,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-021 | 2026-11-14 | A citation's box is the element's extent; the printed name is the fallback | Accepted |
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
+| D-024 | 2026-11-14 | Raster rooms are traced from the drawing's lines; RapidOCR reads the text | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -340,3 +341,30 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - Big sheets get rougher outlines (traced regions instead of snapped polygons), and two touching objects of one class can merge into one.
 - Very large or dense sheets are skipped rather than read badly.
 - The model still runs on drawings that aren't floor plans, such as piping plans, and finds nonsense there. Detecting those is follow-up work.
+
+## D-024: Raster rooms are traced from the drawing's lines; RapidOCR reads the text
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** On raster pages (PNG/JPG, scanned PDFs), a printed room label got its outline either from the floor-plan model (D-022), whose rooms are built from rectangles and merge neighbours (two bedrooms became one), or from a flood fill that leaks through doorways. Tesseract read only 42% of the Swiss room numbers at 150 DPI. A prototype (#103) on 8 Swiss preview floors (289 rooms), scored against their DXFs with the physical scale (DPI + printed "1:100") and no tuning against the answers:
+
+| | Tesseract + model rooms | RapidOCR + traced rooms |
+|---|---|---|
+| Room numbers read | 42% | 86% |
+| Room found as its own room | – | 66% |
+| Area within 5% of the DXF | – | 38% |
+
+**Decision:**
+- **Rooms come from the drawing's own lines,** as CAD "boundary" tools find them:
+  - **Lines:** stroke centre lines (skeleton) plus the outlines of wall bands, closed over their hatching.
+  - **Faces:** Shapely/GEOS extends near-touching ends, splits lines at crossings and finds every enclosed face (`polygonize`).
+  - **Which faces count as rooms:** page-sized and thin faces (wall interiors, hatching) are dropped. A label goes to the largest face around it that holds no other room's label. A face that touches only one room and is smaller than it (a counter, a tub) is part of that room.
+  - **Edge:** the outline is moved 2 px (at 150 DPI) out onto the wall face.
+- **Outline sources for a printed room label,** in order: traced face, then model room, then flood fill. The printed-area check applies to all of them.
+- **OCR:** RapidOCR (PaddleOCR's text detector and recogniser on ONNX Runtime; the models ship in the wheel) reads raster text in tiles. Tesseract stays as the fallback.
+
+**Consequences:**
+- Labelled rooms on raster plans follow their walls.
+- About a third of rooms still leak through doorways drawn without a door swing, or lose part of their area to fixtures the rules don't absorb. Doorway closing is the next step.
+- OCR takes about 8–13 s per Swiss sheet on CPU.
+- `eval/swiss_rooms.py` re-measures all of this on the dataset.
