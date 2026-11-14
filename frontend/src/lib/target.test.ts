@@ -38,6 +38,9 @@ const citation = (over: Partial<Citation> = {}): Citation => ({
   page_index: 0,
   bbox: [10, 20, 30, 40],
   ifc_guid: null,
+  polygon: null,
+  label_bbox: null,
+  target: "element",
   note: "Door tag 09",
   verified: true,
   ...over,
@@ -89,6 +92,12 @@ describe("onPage, for a citation", () => {
 
   it("shows nothing on another page", () => {
     expect(onPage({ kind: "citation", citation: citation() }, 3, elements)).toBeNull();
+  });
+
+  it("says when only a room's printed name could be marked (#70)", () => {
+    const named = citation({ target: "label" });
+    expect(onPage({ kind: "citation", citation: named }, 0, elements)?.labelOnly).toBe(true);
+    expect(onPage({ kind: "citation", citation: citation() }, 0, elements)?.labelOnly).toBe(false);
   });
 });
 

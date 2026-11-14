@@ -15,6 +15,7 @@ from sqlalchemy import func, or_, select
 
 from app.domain.areas import RoomArea, net_area
 from app.domain.citations import EvidenceItem
+from app.domain.extent import element_extent
 from app.domain.geometry import BBox, distance
 from app.models import Element, Page
 from app.qa.context import ToolContext, ToolInputError, parse_id
@@ -249,9 +250,11 @@ def _areas(args: AreaIn, ctx: ToolContext) -> str:
 
 def _describe(el: Element, page_index: int | None, ctx: ToolContext) -> dict[str, Any]:
     bbox: BBox | None = tuple(el.bbox) if el.bbox else None  # type: ignore[assignment]
+    extent = element_extent(el.kind, bbox, el.properties)
     ctx.elements[str(el.id)] = EvidenceItem(
         str(el.id), str(el.document_id), str(el.page_id) if el.page_id else None,
-        page_index, bbox, el.ifc_guid,
+        page_index, extent.bbox, el.ifc_guid,
+        polygon=extent.polygon, label_bbox=bbox, target=extent.target,
     )  # fmt: skip
     out: dict[str, Any] = {
         "id": str(el.id), "kind": el.kind, "label": el.label, "name": el.name,
@@ -263,6 +266,8 @@ def _describe(el: Element, page_index: int | None, ctx: ToolContext) -> dict[str
     for key in ("area_m2", "number", "unit", "outdoor", "shaft"):
         if key in el.properties:
             out[key] = el.properties[key]
+    if el.kind == "room":
+        out["has_outline"] = extent.target == "element"
     return {k: v for k, v in out.items() if v is not None}
 
 

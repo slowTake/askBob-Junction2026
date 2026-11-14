@@ -6,8 +6,9 @@ UI can tell a grounded answer from a guess.
 """
 
 from dataclasses import dataclass
+from typing import Literal
 
-from app.domain.geometry import BBox, bbox_iou
+from app.domain.geometry import BBox, Point, bbox_iou
 
 
 @dataclass(frozen=True)
@@ -16,8 +17,11 @@ class EvidenceItem:
     document_id: str
     page_id: str | None
     page_index: int | None
-    bbox: BBox | None
+    bbox: BBox | None  # for elements: the element's extent (see domain/extent.py)
     ifc_guid: str | None
+    polygon: tuple[Point, ...] | None = None
+    label_bbox: BBox | None = None
+    target: Literal["element", "label", "region"] = "region"
 
 
 @dataclass(frozen=True)
@@ -53,13 +57,16 @@ def check_citations(
 
 
 def citation_payload(checked: CheckedCitation) -> dict[str, object]:
-    """What the browser needs to highlight a citation: document, page, box, 3D id.
+    """What the browser needs to highlight a citation: document, page, shape, 3D id.
 
-    Element citations take their location from the evidence (not from the model);
-    region citations keep the cited box, which lies within what the agent viewed.
+    Element citations take their location from the evidence (not from the model):
+    the element's outline when known, else its label (`target` says which). Region
+    citations keep the cited box, which lies within what the agent viewed.
     """
     c, ev = checked.citation, checked.evidence
-    bbox = ev.bbox if ev is not None and ev.element_id is not None else c.bbox
+    is_element = ev is not None and ev.element_id is not None
+    bbox = ev.bbox if ev is not None and is_element else c.bbox
+    target = ev.target if ev is not None else None
     return {
         "element_id": c.element_id,
         "document_id": ev.document_id if ev else None,
@@ -67,6 +74,9 @@ def citation_payload(checked: CheckedCitation) -> dict[str, object]:
         "page_index": ev.page_index if ev else None,
         "bbox": list(bbox) if bbox else None,
         "ifc_guid": ev.ifc_guid if ev else None,
+        "polygon": [list(p) for p in ev.polygon] if ev and ev.polygon else None,
+        "label_bbox": list(ev.label_bbox) if ev and ev.label_bbox else None,
+        "target": target,
         "note": c.note,
         "verified": checked.verified,
     }

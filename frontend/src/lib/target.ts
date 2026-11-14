@@ -14,6 +14,7 @@ export interface TargetOnPage {
   line: PlanView["line"];
   caption: string;
   verified: boolean | null; // citations only
+  labelOnly: boolean; // a room whose outline is unknown: only its printed name is marked
 }
 
 export function targetDocument(target: PlanTarget): string | null {
@@ -40,6 +41,7 @@ export function onPage(
       line: null,
       caption: c.note || "Cited source",
       verified: c.verified,
+      labelOnly: c.target === "label",
     };
   }
   const { element_ids: ids, line, caption } = target.view;
@@ -59,6 +61,7 @@ export function onPage(
     line,
     caption: caption ?? line?.label ?? `${ids.length} element${ids.length === 1 ? "" : "s"}`,
     verified: null,
+    labelOnly: false,
   };
 }
 

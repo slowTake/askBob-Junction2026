@@ -281,3 +281,13 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 **Decision:** `LLM_PROVIDER=anthropic|verda` (default `anthropic`) picks the model loop. The Verda loop (`app/qa/verda_agent.py`, OpenAI SDK) uses the same system prompt, tools, citation check, answer cache and `qa_log`, and emits the same `step`/`final` events and answer as the Claude loop of D-006. Its final answer is a `final_answer` tool call whose input is the answer schema, validated with the same `FinalAnswer` model, and every request sets `tool_choice: "required"`. `view_region` images go in a user message after the tool messages. The key comes from `VERDA_API_KEY`, passed from the keyring per D-009; a missing key gives `llm_not_configured`. Adaptive thinking, effort, refusal fallbacks and `cache_control` have no equivalent on this path. The answer-cache key and `qa_log.model` use the active model, so answers from the two providers never mix.
 
 **Consequences:** Claude stays the default and the agent we demo. Eval scores on Kimi measure Kimi, not Claude. Behaviour the probe didn't cover, such as long multi-step runs and large images, is unknown until the eval runs on real drawings. The conversion code (`app/qa/openai_format.py`) is tested without network; a change in the answer schema reaches both loops through `ANSWER_SCHEMA`.
+
+## D-021: A citation's box is the element's extent; the printed name is the fallback
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** Clicking a citation about a room spotlit and framed only the room's printed name. In a walkthrough, 22 of 22 room citations were label-only, even for rooms whose outline the reader had found (#70). The room element's `bbox` is the box of its name, and the citation payload sent that box. The plan layer (D-016) already draws a cited room's outline by element id, but the spotlight and the camera frame still used the name's box.
+
+**Decision:** A pure `element_extent` (`app/domain/extent.py`) decides where an element is: for rooms, the outline's bounds and polygon when `polygon_px` exists, otherwise the name's box; other kinds keep their own box. The citation payload's `bbox` is that extent, and it adds `polygon`, `label_bbox` and `target` (`element`, `label` or `region`). The viewer spotlights and frames the extent, and tags a label-only highlight as "Label only". `ANSWER_FORMAT` goes to 3 so cached answers in the old shape aren't served.
+
+**Consequences:** Rooms with a found outline are framed as rooms with no re-ingest. Rooms without one stay "Label only" until their outline is found (#34).
