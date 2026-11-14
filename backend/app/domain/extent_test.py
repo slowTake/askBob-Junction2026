@@ -33,7 +33,18 @@ def test_walls_and_doors_are_their_own_box() -> None:
     assert extent.target == "element"
 
 
-def test_ifc_product_without_a_box_is_located_in_3d() -> None:
-    extent = element_extent("IfcSpace", None, {})
+def test_room_without_any_box_is_not_a_label() -> None:
+    # An IFC space not drawn on a storey plan: located in 3D by its GlobalId, not by a name.
+    extent = element_extent("room", None, {})
     assert extent.bbox is None
     assert extent.target == "element"
+
+
+def test_booleans_and_flat_outlines_are_not_outlines() -> None:
+    assert element_extent("room", LABEL, {"polygon_px": [[True, 0], [1, 0], [1, 1]]}).target == (
+        "label"
+    )
+    # Three points on one line: zero area, nothing to highlight.
+    assert element_extent("room", LABEL, {"polygon_px": [[0, 0], [5, 0], [10, 0]]}).target == (
+        "label"
+    )

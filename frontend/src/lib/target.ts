@@ -10,6 +10,7 @@ export type PlanTarget =
 export interface TargetOnPage {
   highlightIds: string[];
   spotlight: BBox | null; // a cited region: everything else is dimmed
+  spotlightPolygon: number[][] | null; // the cited room's outline, cut out instead of the box
   frame: BBox | null; // what the camera moves to
   line: PlanView["line"];
   caption: string;
@@ -37,6 +38,7 @@ export function onPage(
     return {
       highlightIds: c.element_id ? [c.element_id] : [],
       spotlight: c.bbox,
+      spotlightPolygon: c.polygon,
       frame: c.bbox,
       line: null,
       caption: c.note || "Cited source",
@@ -57,6 +59,7 @@ export function onPage(
   return {
     highlightIds: ids,
     spotlight: null,
+    spotlightPolygon: null,
     frame: union(boxes, ends),
     line,
     caption: caption ?? line?.label ?? `${ids.length} element${ids.length === 1 ? "" : "s"}`,

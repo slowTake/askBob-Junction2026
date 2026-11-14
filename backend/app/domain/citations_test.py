@@ -1,7 +1,13 @@
-from app.domain.citations import Citation, EvidenceItem, check_citations, citation_payload
+from app.domain.citations import (
+    Citation,
+    EvidenceItem,
+    check_citations,
+    citation_payload,
+    element_evidence,
+)
 
-ROOM = EvidenceItem("el-1", "doc-1", "page-1", 0, (10, 10, 30, 20), None)
-REGION = EvidenceItem(None, "doc-1", "page-1", 0, (0, 0, 100, 100), None)
+ROOM = EvidenceItem("el-1", "doc-1", "page-1", 0, (10, 10, 30, 20), None, target="element")
+REGION = EvidenceItem(None, "doc-1", "page-1", 0, (0, 0, 100, 100), None, target="region")
 
 
 def test_element_citation_is_verified() -> None:
@@ -113,3 +119,32 @@ def test_payload_for_region_and_unverified_citations_has_no_outline() -> None:
     assert payload["polygon"] is None
     unknown, _ = check_citations([Citation("el-x", None, None, "guess")], {}, [])
     assert citation_payload(unknown[0])["target"] is None
+
+
+def test_element_evidence_is_the_room_whichever_tool_recorded_it() -> None:
+    # #70 review: find_elements and highlight both record evidence through this one builder.
+    ev = element_evidence(
+        "el-3", "doc-1", "page-1", 0, "room", (500, 390, 539, 424),
+        {"polygon_px": [[400, 300], [700, 300], [700, 500], [400, 500]]}, None,
+    )  # fmt: skip
+    assert ev.bbox == (400, 300, 700, 500)
+    assert ev.label_bbox == (500, 390, 539, 424)
+    assert ev.target == "element"
+
+
+def test_element_evidence_has_no_label_box_when_the_box_is_already_the_outline() -> None:
+    # DXF and IFC plan rooms store the outline's bounds as their bbox: there is no label.
+    square = [[400, 300], [700, 300], [700, 500], [400, 500]]
+    outline = {"polygon_px": square}
+    ev = element_evidence("el-4", "d", "p", 0, "room", (400, 300, 700, 500), outline, None)
+    assert ev.label_bbox is None
+    wall = element_evidence("el-5", "d", "p", 0, "wall", (0, 0, 10, 200), {}, None)
+    assert wall.label_bbox is None
+    assert wall.target == "element"
+
+
+def test_room_without_outline_is_evidence_for_its_label() -> None:
+    ev = element_evidence("el-6", "d", "p", 0, "room", (500, 390, 539, 424), {}, None)
+    assert ev.bbox == (500, 390, 539, 424)
+    assert ev.label_bbox is None
+    assert ev.target == "label"

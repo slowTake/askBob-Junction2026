@@ -1,6 +1,6 @@
 import { describe as group, expect, it } from "vitest";
 import type { ElementInfo } from "../api/types";
-import { describe, drawOrder, layerOf, shapeOf, unionBox } from "./planLayer";
+import { describe, drawOrder, extentBox, layerOf, shapeOf, unionBox } from "./planLayer";
 
 function el(over: Partial<ElementInfo>): ElementInfo {
   return {
@@ -77,5 +77,28 @@ group("unionBox", () => {
     ];
     expect(unionBox(els, new Set(["a", "b"]))).toEqual([0, 0, 30, 40]);
     expect(unionBox(els, new Set(["zzz"]))).toBeNull();
+  });
+
+  it("frames a room by its outline, not by its printed name (#70)", () => {
+    // Name box [500,390,539,424] inside the outline x 400..700, y 300..500.
+    const room = el({ id: "r", bbox: [500, 390, 539, 424], properties: { polygon_px: SQUARE } });
+    expect(unionBox([room], new Set(["r"]))).toEqual([400, 300, 700, 500]);
+  });
+});
+
+const SQUARE = [
+  [400, 300],
+  [700, 300],
+  [700, 500],
+  [400, 500],
+];
+
+group("extentBox", () => {
+  it("is the outline's bounds when there is one, else the box", () => {
+    expect(
+      extentBox(el({ bbox: [500, 390, 539, 424], properties: { polygon_px: SQUARE } })),
+    ).toEqual([400, 300, 700, 500]);
+    expect(extentBox(el({ bbox: [1, 2, 3, 4] }))).toEqual([1, 2, 3, 4]);
+    expect(extentBox(el({ bbox: null }))).toBeNull();
   });
 });

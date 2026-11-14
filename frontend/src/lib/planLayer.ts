@@ -58,9 +58,23 @@ export function describe(el: ElementInfo): { title: string; details: string[] } 
   return { title, details };
 }
 
+/** Where an element is: a room's outline bounds when known, else its box (often its name). */
+export function extentBox(el: ElementInfo): BBox | null {
+  const polygon = el.properties.polygon_px;
+  if (Array.isArray(polygon) && polygon.length >= 3) {
+    const xs = (polygon as number[][]).map((p) => p[0]);
+    const ys = (polygon as number[][]).map((p) => p[1]);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  }
+  return el.bbox;
+}
+
 /** The box around the given elements (to scroll them into view), or null if none has a box. */
 export function unionBox(elements: ElementInfo[], ids: Set<string>): BBox | null {
-  const boxes = elements.filter((e) => ids.has(e.id) && e.bbox).map((e) => e.bbox as BBox);
+  const boxes = elements
+    .filter((e) => ids.has(e.id))
+    .map(extentBox)
+    .filter((b): b is BBox => b !== null);
   if (boxes.length === 0) return null;
   return [
     Math.min(...boxes.map((b) => b[0])),
