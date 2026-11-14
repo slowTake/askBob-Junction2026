@@ -2,7 +2,7 @@
 
 import type { BBox } from "../lib/viewport";
 
-export type DocumentKind = "ifc" | "dxf" | "pdf" | "image";
+export type DocumentKind = "ifc" | "dxf" | "dwg" | "pdf" | "svg" | "image";
 export type DocumentStatus = "queued" | "processing" | "ready" | "failed";
 
 export interface ApiErrorBody {
@@ -34,6 +34,8 @@ export interface DocumentInfo {
   has_model: boolean;
   size_bytes: number;
   error_code: string | null;
+  error_message: string | null; // why processing failed, written for users
+  has_ifc: boolean; // an IFC model can be downloaded (uploaded or built from the drawing)
   created_at: string;
   meta: Record<string, unknown>;
 }

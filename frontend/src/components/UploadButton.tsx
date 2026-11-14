@@ -1,6 +1,6 @@
 import { useRef } from "react";
 
-export const ACCEPTED = ".ifc,.dxf,.pdf,.png,.jpg,.jpeg,.tif,.tiff";
+export const ACCEPTED = ".ifc,.dxf,.dwg,.pdf,.svg,.png,.jpg,.jpeg,.tif,.tiff,.webp,.bmp,.gif";
 
 interface Props {
   onFiles: (files: File[]) => void;

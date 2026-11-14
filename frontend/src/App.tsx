@@ -115,7 +115,7 @@ export function App() {
                     3D model
                   </button>
                 </div>
-                {selected.has_model && (
+                {selected.has_ifc && (
                   <a className="btn btn-secondary btn-sm" href={api.modelIfcUrl(selected.id)}>
                     Download IFC
                   </a>
@@ -124,7 +124,7 @@ export function App() {
               {selected.status !== "ready" ? (
                 <div className="viewer-empty">
                   {selected.status === "failed"
-                    ? "Processing failed. Delete and upload again, or check the worker logs."
+                    ? (selected.error_message ?? "Processing failed.")
                     : "Processing… the drawing appears here when it is ready."}
                 </div>
               ) : activeView === "drawing" ? (
