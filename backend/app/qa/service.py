@@ -18,6 +18,7 @@ from app.domain.streams import answer_cache_key, sse
 from app.domain.usage import Usage
 from app.models import Document, Element, Page, QaLog
 from app.qa.agent import AgentError, FinalAnswer, run_agent
+from app.qa.fast_path import fast_events
 from app.qa.prompts import SelectedElement, selected_notes, viewing_note
 from app.qa.tools import ToolContext
 from app.qa.verda_agent import run_verda_agent
@@ -26,9 +27,10 @@ from app.valkey import cache_get, cache_set
 
 log = logging.getLogger(__name__)
 
-ANSWER_FORMAT = 5  # bump when the payload or how answers are found changes
+ANSWER_FORMAT = 6  # bump when the payload or how answers are found changes
 # 4: answers are a summary line plus "- " lists (prompts.py), laid out by the chat
 # 5: counts come from `count_elements`
+# 6: the payload carries `method` (server or agent)
 
 MESSAGES = {
     "no_documents": "Upload a drawing and wait until it has been processed.",
@@ -52,6 +54,7 @@ def answer_stream(
                               "model": settings.llm_model}  # fmt: skip
     ctx: ToolContext | None = None
     steps = 0
+    method = "agent"  # or "server": answered without the agent loop (D-038)
     try:
         with session_scope() as db:
             docs = _scope(db, document_ids)
@@ -70,13 +73,19 @@ def answer_stream(
             cached = cache_get(key)
             if cached is not None:
                 record.update(answer=cached, verified=cached.get("verified", False), cached=True)
+                method = cached.get("method", "agent")
                 yield sse("answer", {**cached, "cached": True})
             else:
                 ctx = ToolContext(db, [d.id for d in docs])
                 summaries = [{"id": str(d.id), "filename": d.filename, "kind": d.kind,
                               "page_count": d.page_count} for d in docs]  # fmt: skip
-                agent = _agent(settings)
-                for event in agent(question, summaries, ctx, settings, viewing, selected):
+                events = fast_events(question, summaries, ctx, settings, selected)
+                if events is not None:
+                    method = "server"
+                run = events or _agent(settings)(
+                    question, summaries, ctx, settings, viewing, selected
+                )
+                for event in run:
                     if event["type"] == "step":
                         steps += 1
                         yield sse("step", {"tool": event["tool"], "input": event["input"]})
@@ -84,7 +93,7 @@ def answer_stream(
                     if event["type"] == "view":
                         yield sse("view", event["view"])
                         continue
-                    payload = _payload(event["answer"], ctx)
+                    payload = {**_payload(event["answer"], ctx), "method": method}
                     record.update(answer=payload, verified=payload["verified"])
                     cache_set(key, payload, settings.answer_cache_ttl_s)
                     yield sse("answer", payload)
@@ -115,6 +124,7 @@ def answer_stream(
     _log(record)
     served_from_cache = bool(record.get("cached"))
     stats = _stats(settings.llm_model, usage, steps, record["latency_ms"], served_from_cache)
+    stats["method"] = method
     yield sse("done", stats)
 
 

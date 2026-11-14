@@ -13,6 +13,7 @@ from pydantic_settings import BaseSettings
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 Provider = Literal["anthropic", "verda"]
+FastPath = Literal["off", "exact", "all"]
 
 
 class Settings(BaseSettings):
@@ -26,6 +27,11 @@ class Settings(BaseSettings):
     verda_model: str = "kimi-k3-1-pro"
     verda_base_url: str = "https://inference.verda.com/v1"
     max_agent_turns: int = 12
+    # Recognised count and area questions are answered by the server, not the agent loop
+    # (D-038). "exact": only from IFC, CAD and PDF-text elements; "all": also from
+    # elements the floor-plan model or OCR found; "off": the agent answers everything.
+    fast_path: FastPath = "exact"
+    router_model: str | None = None  # the model that sorts questions; unset: the agent's model
 
     # The floor-plan model service (D-022); unset means ingest uses pixel heuristics.
     vision_url: str | None = None

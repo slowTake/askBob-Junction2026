@@ -57,3 +57,20 @@ def error_line(results: list[Result]) -> str:
         return "errors: none"
     listed = ", ".join(f"{code} {count}" for code, count in codes.most_common())
     return f"errors: {sum(codes.values())} of {_plural(len(results), 'question')} ({listed})"
+
+
+def _correct(results: list[Result]) -> str:
+    scored = [r for r in results if r.correct is not None]
+    return f"{sum(bool(r.correct) for r in scored)} of {len(scored)} scored correct"
+
+
+def method_line(results: list[Result]) -> str:
+    """How many questions the server answered without the agent loop, and how each
+    way of answering scored (#97)."""
+    server = [r for r in results if r.method == "server"]
+    agent = [r for r in results if r.method != "server"]
+    share = f"{len(server) / len(results):.0%}" if results else "0%"
+    return (
+        f"without the agent: {len(server)} of {_plural(len(results), 'question')} ({share}), "
+        f"{_correct(server)}; agent: {_correct(agent)}"
+    )

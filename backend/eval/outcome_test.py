@@ -62,3 +62,9 @@ def test_a_backend_without_stats_still_scores() -> None:
 def test_a_stream_that_ended_without_an_answer_is_an_error() -> None:
     result = outcome(ROW, {}, {}, PRICES)
     assert (result.correct, result.error) == (False, "no_answer")
+
+
+def test_the_way_the_answer_was_produced_is_kept() -> None:
+    reply = {"answer": "4 doors.", "value": 4, "verified": True}
+    assert outcome(ROW, reply, {**STATS, "method": "server"}, PRICES).method == "server"
+    assert outcome(ROW, reply, STATS, PRICES).method == "agent"  # an API from before #97

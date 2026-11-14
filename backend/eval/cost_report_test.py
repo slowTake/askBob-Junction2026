@@ -1,4 +1,4 @@
-from eval.cost_report import cost_lines, error_line
+from eval.cost_report import cost_lines, error_line, method_line
 from eval.report import Result
 
 
@@ -63,3 +63,21 @@ def test_errors_are_counted_by_code() -> None:
     ]
     assert error_line(results) == "errors: 3 of 4 questions (too_many_steps 2, llm_busy 1)"
     assert error_line([_result()]) == "errors: none"
+
+
+def test_share_answered_without_the_agent_and_how_each_way_scored() -> None:
+    results = [
+        Result("a", "count", correct=True, verified=True, method="server"),
+        Result("a", "count", correct=False, verified=True, method="server"),
+        Result("a", "text", correct=None, verified=True, method="server"),
+        Result("a", "count", correct=True, verified=True),
+    ]
+    # 3 of 4 by the server; of its 2 scored answers 1 is right; the agent's 1 is right.
+    assert method_line(results) == (
+        "without the agent: 3 of 4 questions (75%), 1 of 2 scored correct; "
+        "agent: 1 of 1 scored correct"
+    )
+    assert method_line([]) == (
+        "without the agent: 0 of 0 questions (0%), 0 of 0 scored correct; "
+        "agent: 0 of 0 scored correct"
+    )

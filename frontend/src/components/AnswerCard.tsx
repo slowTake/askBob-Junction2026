@@ -52,6 +52,14 @@ export function AnswerCard({ turn, latest, onCitation, onShowView }: Props) {
                 {answer.verified ? "✓ Verified sources" : "! Not verified"}
               </span>
               <span className="badge badge-plain">{answer.confidence} confidence</span>
+              {answer.method === "server" && (
+                <span
+                  className="badge badge-plain"
+                  title="Counted or added up by the server from the cited elements, not by the language model"
+                >
+                  computed by the server
+                </span>
+              )}
               {answer.cached && <span className="badge badge-plain">cached</span>}
             </div>
             {turn.views.length > 0 && (
