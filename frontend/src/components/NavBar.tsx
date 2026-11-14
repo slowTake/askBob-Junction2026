@@ -3,7 +3,6 @@ import { UploadButton } from "./UploadButton";
 
 interface Props {
   onFiles: (files: File[]) => void;
-  context: string | null; // the open document, shown as a breadcrumb
   theme: Theme;
   onToggleTheme: () => void;
   sidebarOpen?: boolean; // undefined: no sidebar to toggle (empty state)
@@ -11,7 +10,7 @@ interface Props {
 }
 
 export function NavBar(props: Props) {
-  const { onFiles, context, theme, onToggleTheme, sidebarOpen, onToggleSidebar } = props;
+  const { onFiles, theme, onToggleTheme, sidebarOpen, onToggleSidebar } = props;
   const next = theme === "dark" ? "light" : "dark";
   return (
     <header className="nav-bar">
@@ -30,14 +29,6 @@ export function NavBar(props: Props) {
       <div className="wordmark">
         <span className="wordmark-mark" aria-hidden />
         bobBuilder
-      </div>
-      <div className="crumbs">
-        {context && (
-          <>
-            <span aria-hidden>/</span>
-            <b className="mono">{context}</b>
-          </>
-        )}
       </div>
       <div className="nav-actions">
         <button

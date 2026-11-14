@@ -14,7 +14,7 @@ from the #51 capability probe:
 """
 
 import os
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from functools import lru_cache
 from typing import Any
 
@@ -51,11 +51,11 @@ def run_verda_agent(
     ctx: ToolContext,
     settings: Settings,
     viewing: str | None = None,
-    selected: str | None = None,
+    selected: Sequence[str] = (),
 ) -> Iterator[dict[str, Any]]:
     """Yield `{"type": "step", ...}` per tool call, then one `{"type": "final", ...}`.
 
-    `viewing` and `selected` describe the page on screen and the clicked element.
+    `viewing` and `selected` describe the page on screen and the selected elements.
     """
     # Credentials come from the environment, never from code (D-009).
     key = os.environ.get(KEY_ENV, "").strip()

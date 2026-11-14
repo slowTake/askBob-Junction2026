@@ -24,9 +24,6 @@
     grid-template-columns: 1fr;
     gap: var(--s-5);
   }
-  .crumbs {
-    display: none;
-  }
   .nav-bar {
     justify-content: space-between;
   }

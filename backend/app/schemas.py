@@ -76,12 +76,21 @@ class ElementOut(BaseModel):
     confidence: float
 
 
+MAX_SELECTED = 20  # elements selected on the plan (Shift+click) that one question can carry
+
+
 class AskContextIn(BaseModel):
     """What the user looks at while asking, so "this room" and "here" mean something."""
 
     document_id: uuid.UUID | None = None
     page_index: int | None = Field(default=None, ge=0)
-    element_id: uuid.UUID | None = None  # clicked on the plan
+    element_id: uuid.UUID | None = None  # one element clicked on the plan (older clients)
+    element_ids: list[uuid.UUID] = Field(default_factory=list, max_length=MAX_SELECTED)
+
+    def selected_ids(self) -> list[uuid.UUID]:
+        """Every selected element once, in click order; `element_id` comes last."""
+        ids = [*self.element_ids, *([self.element_id] if self.element_id else [])]
+        return list(dict.fromkeys(ids))
 
 
 class AskIn(BaseModel):

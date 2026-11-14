@@ -5,7 +5,7 @@ validate every tool input ourselves, return images from `view_region`, stream ea
 step to the browser, and record evidence for citation checking.
 """
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -92,11 +92,11 @@ def run_agent(
     ctx: ToolContext,
     settings: Settings,
     viewing: str | None = None,
-    selected: str | None = None,
+    selected: Sequence[str] = (),
 ) -> Iterator[dict[str, Any]]:
     """Yield `step` per tool call, `view` per plan change, then one `final`.
 
-    `viewing` and `selected` describe the page on screen and the clicked element.
+    `viewing` and `selected` describe the page on screen and the selected elements.
     """
     client = _client()
     if not (client.api_key or client.auth_token or client.credentials):
