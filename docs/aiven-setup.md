@@ -43,12 +43,14 @@ Pass the token to a single command instead of exporting it or running `avn user 
 
 ```bash
 # Linux
-AVN_AUTH_TOKEN=$(secret-tool lookup service aiven) avn project list
+AIVEN_AUTH_TOKEN=$(secret-tool lookup service aiven) avn project list
 # macOS
-AVN_AUTH_TOKEN=$(security find-generic-password -s aiven -w) avn project list
+AIVEN_AUTH_TOKEN=$(security find-generic-password -s aiven -w) avn project list
 ```
 
-An alias saves typing, e.g. `alias avnk='AVN_AUTH_TOKEN=$(secret-tool lookup service aiven) avn'`.
+An alias saves typing, e.g. `alias avnk='AIVEN_AUTH_TOKEN=$(secret-tool lookup service aiven) avn'`.
+
+`avn` reads the token from `AIVEN_AUTH_TOKEN` and the project from `AIVEN_PROJECT`. Set the project once in your shell profile (`export AIVEN_PROJECT=<project>`, the name from `avn project list`), otherwise every service command fails with "Specify project".
 
 ## 4. Connect to PostgreSQL
 
@@ -67,7 +69,7 @@ If we use vector search, the extension is enabled once per database with `CREATE
 `scripts/aiven-env.sh` fetches the PostgreSQL and Valkey service URIs with your own token and exports them as `DATABASE_URL` and `VALKEY_URL` for the current shell only. Nothing is written to disk.
 
 ```bash
-export AIVEN_PG_SERVICE=<pg-service> AIVEN_VALKEY_SERVICE=<valkey-service>   # names, not secrets
+export AIVEN_PROJECT=<project> AIVEN_PG_SERVICE=<pg-service> AIVEN_VALKEY_SERVICE=<valkey-service>   # names, not secrets
 source scripts/aiven-env.sh
 make up            # docker compose up --build, against Aiven
 ```
