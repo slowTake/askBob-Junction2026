@@ -86,11 +86,15 @@ def run_agent(
     question: str, documents: list[dict[str, Any]], ctx: ToolContext, settings: Settings
 ) -> Iterator[dict[str, Any]]:
     """Yield `{"type": "step", ...}` per tool call, then one `{"type": "final", ...}`."""
+    client = _client()
+    if not (client.api_key or client.auth_token or client.credentials):
+        # Without this the SDK raises a bare TypeError on the first request.
+        raise AgentError("llm_not_configured")
     messages: list[Any] = [{"role": "user", "content": scope_message(question, documents)}]
     usage = {"input_tokens": 0, "output_tokens": 0}
 
     for _ in range(settings.max_agent_turns):
-        response = _client().beta.messages.create(  # type: ignore[call-overload]  # plain dicts vs SDK TypedDicts
+        response = client.beta.messages.create(  # type: ignore[call-overload]  # plain dicts vs SDK TypedDicts
             model=settings.claude_model,
             max_tokens=MAX_TOKENS,
             system=[
