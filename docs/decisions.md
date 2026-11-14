@@ -21,16 +21,17 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-015 | 2026-11-14 | Every format becomes IFC; one IFC indexer feeds the app | Accepted |
 | D-016 | 2026-11-14 | Floor plans are the interactive surface; 3D only for IFC | Accepted |
 | D-017 | 2026-11-14 | Ingest never leaves a document waiting for a job that is gone | Accepted |
-| D-018 | 2026-11-14 | The plan is a pan/zoom canvas; nothing that appears moves it | Accepted |
+| D-018 | 2026-11-14 | The plan is a pan/zoom canvas; nothing that appears moves it | Superseded in part by D-024 |
 | D-019 | 2026-11-14 | Answers carry a numeric value; the eval scores it by question type | Accepted |
 | D-020 | 2026-11-14 | The Q&A agent can run on Kimi K3.1 Pro on Verda (`LLM_PROVIDER`) | Accepted |
 | D-021 | 2026-11-14 | A citation's box is the element's extent; the printed name is the fallback | Accepted |
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
+| D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
-| D-028 | 2026-11-14 | IFC base quantities are stored in SI units and totalled by the server | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
 | D-027 | 2026-11-14 | Every question reports what it used; the eval turns that into cost | Accepted |
+| D-028 | 2026-11-14 | IFC base quantities are stored in SI units and totalled by the server | Accepted |
 | D-029 | 2026-11-14 | Recognised count and area questions are answered by the server, not the agent loop | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
@@ -256,7 +257,7 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 ## D-018: The plan is a pan/zoom canvas; nothing that appears moves it
 
-**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-016
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-024 (what 100 % means; agent views no longer fly the camera) · **Refines:** D-016
 
 **Context:** The plan flickered: the hover card and banners were inserted above the drawing, so showing them pushed the plan down, the element slid out from under the cursor, and the card vanished again. Zoom stopped at "fit width", so a tall sheet never fit on screen. An agent highlight of one window only scrolled, so users had to zoom out to find it. Older answers were grey on grey, and the agent did not know what the user was looking at.
 
@@ -346,6 +347,24 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - Very large or dense sheets are skipped rather than read badly.
 - The model still runs on drawings that aren't floor plans, such as piping plans, and finds nonsense there. Detecting those is follow-up work.
 
+## D-024: Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes in part:** D-018
+
+**Context:** Fit framed the whole sheet, so scans and PDF pages showed wide paper margins around a small drawing. Framing the detected elements instead failed on sparse scans (one OCR'd letter made Fit zoom onto it). Agent highlights zoomed the plan in after every answer, with a "Shown by the assistant" banner on top. The chat kept one conversation for all documents, so switching drawings mixed answers about different plans (#83).
+
+**Decision:**
+- **Fit frames the drawing's ink.** The browser samples the page image (longest side 1024 px), groups dark pixels into connected pieces and keeps every piece with at least 10 % of the largest one's ink, so logos, footers and specks set apart from the plan drop out while several plans on one sheet are all kept. A blank or unreadable page fits the whole sheet. **100 % now means "as Fit shows it"**, and zoom limits are relative to that (this replaces D-018's "100 % means the whole page fits").
+- **Agent highlights don't move the camera.** The plan fits the window with the highlight drawn on it and no banner; ⌖ zooms to it on demand. A source the user clicks in an answer still flies to it with its verified badge (this replaces D-018's "an agent view … flies the camera").
+- **One conversation per document.** Picking a document in the list shows its conversation, a new upload starts empty, and an answer streams into the conversation it was asked in even if the user switched. Deleting a document forgets its conversation. The New conversation button is removed. Conversations live in the browser tab's memory only.
+- The chat shows one status line (the agent's latest step) while it works, and scrolls to the end when a question is asked or answered.
+- **Asking pins the conversation.** Until a document is picked in the list the chat follows the open document; once a question is asked, the chat stays on that conversation even when the agent or a clicked source opens another document.
+- **A conversation's questions are about its document**, even when an answer has opened another one: the page on screen and selected elements are sent only when they belong to it, and the scope label names it ("Ask about these N" moves the chat to the selected elements' document). An answer's views move the plan only while its conversation is on screen; otherwise they wait as buttons on the answer. Agent highlights have a Clear button next to ⌖, and Download IFC also shows above the plan while the documents panel is collapsed.
+- **Shift+click selects several elements** on the plan (a plain click still selects one). "Ask about these N" sends them all: `AskContextIn.element_ids` (up to 20; the single `element_id` still works), and the agent is told the user selected these elements, so "these" and "them" refer to them. One selected element keeps the old wording and answer-cache key.
+- **Answers are a summary line plus lists.** The agent leads with one short sentence, then groups ("Lower floor:") and "- " items, and puts how it got the answer in `caveats`; the chat lays this out as headings and bullet lists (`lib/answerText.ts`, rendered as elements, never HTML). `ANSWER_FORMAT` 4 keeps older one-paragraph answers out of the cache.
+
+**Consequences:** Fit needs no backend change or re-ingest. A scan with a dark scanner border fits the whole sheet, as before. A reload loses the conversations. With no "New conversation" button there is no way to cancel a slow answer except a reload; a Stop button is the natural follow-up if that matters.
+
 ## D-025: The server counts: `count_elements`, not the model adding up search results
 
 **Date:** 2026-11-14 · **Status:** Accepted
@@ -355,24 +374,6 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 **Decision:** A `count_elements` agent tool, like `sum_room_areas` for areas. The rules are a pure `count` (`app/domain/counting.py`): elements of one required kind, narrowed by fixture `subtype`, room `category`, printed room `name` (exact, ignoring case and runs of spaces, so "Küche" doesn't count "Wohnküche"), IFC `storey`, document and page. An element missing a property never matches a filter on it. The tool returns the exact total, counts per page and per storey, and lists the first 50 elements, which become citable evidence. The prompt sends every "how many" question to it. `ANSWER_FORMAT` goes to 4 so answers counted the old way aren't served from the cache.
 
 **Consequences:** Counts are as good as the elements ingest stores. On IFC models they should now be right; on drawings, doors, windows and fixtures exist only once a detector produces them (#38, #88). Rules like "a doorway without a leaf doesn't count" belong to that detector, not to the tool. The agent still decides which kind and filters a question means.
-
-## D-028: IFC base quantities are stored in SI units and totalled by the server
-
-**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-006, D-015
-
-**Context:** The dataset asks for totals over an IFC model: the net volume of all walls or slabs on a storey, the net side area and the length of all walls, the net floor area of all rooms (#96). The agent could only list elements (50 at most), open each one for its property sets and add the numbers itself, in the model's own units: the Molio model gives wall lengths in millimetres and volumes in m³.
-
-**Decision:**
-- **Ingest keeps each IFC element's base quantities in SI units** under `properties.quantities`: lengths in m, areas in m², volumes in m³, converted with the model's unit scales. They come only from the standard sets (`Qto_*` in IFC4, `BaseQuantities` in IFC2X3). Authoring tools' own sets, such as `ArchiCADQuantities`, are left out, because they reuse names like "Area" with other meanings. Weights and counts are left out too.
-- **A `sum_quantity` agent tool adds them up**: one quantity over the elements of one kind, optionally on one storey. It returns the total with its unit, how many elements were summed, how many of the selected elements lacked the quantity, totals per storey, and the elements summed (50 listed) to cite and highlight. The summing rule is a pure function (`app/domain/quantities.py`).
-- **A storey with no elements of that kind is an error that lists the storeys that have them**, so a misspelt storey is not read as a total of 0.
-- The prompt sends every such total to the tool, and asks for a caveat when elements lacked the quantity.
-
-**Consequences:**
-- Checked without the model against the dataset's answers: all 35 totals for the Molio model match within 2% (most to three decimals).
-- IFC models ingested before this change have no `quantities` until they are processed again.
-- The Esplanades model has no quantity sets on its rooms, so its four room-area totals report every room as lacking the quantity. Areas from geometry are #37.
-- An element nested inside another of the same kind is summed like any other. If a model gives quantities to both a parent and its parts, the total counts them twice; we have not seen such a model.
 
 ## D-026: The agent knows its step budget, and its last turn is the answer
 
@@ -385,7 +386,7 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - **Shared:** the model was never told how many turns it had, and nothing made it answer on the last one. Whether a run finished was chance: the schedule question failed in one run and answered on turn 9 in the next.
 
 **Decision:**
-- The question tells the agent its budget: `max_agent_turns - 1` rounds of tool calls, to answer as soon as it has the evidence, and to say so when two or three searches find nothing instead of searching on.
+- The question tells the agent its budget: `max_agent_turns - 1` rounds of tool calls, to answer as soon as it has the evidence, and, when a search finds nothing, to try other words or another `kind` and then say what is missing instead of searching on. It does not tell the agent that a miss means the documents lack the answer: the search matches text, so "kitchen" does not find a room labelled "Küche". With `max_agent_turns` of 1 the note says there are no tool calls.
 - The last turn accepts only the answer, with a note saying so. On Verda the request names `final_answer` as the tool to call; Kimi and DeepSeek both honour that. On Claude the request sets `tool_choice` to `none`, because Opus 5.5 rejects a forced tool, and the note is a text block after the tool results, so nothing earlier in the conversation changes.
 - An answer forced this way must say what is missing in `caveats` and set `confidence` to low. It is checked like any other answer: citations the tools never returned stay unverified.
 - `too_many_steps` remains for a model that still gives no answer on its last turn.
@@ -406,6 +407,24 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - **`run_eval` prints** tokens, tool calls, seconds and cost per question, averages per source and type, and errors by code. Answers served from the answer cache made no model call and are left out of the averages. `--out` writes one line per question, so two runs can be compared.
 
 **Consequences:** A run now gives accuracy and cost side by side: on DeepSeek, eight questions about four preview drawings averaged 62,000 input tokens and 10 tool calls each. Prices are a hand-kept table and go stale when a provider changes them. No schema change: steps and cached tokens are in the event and the eval file, not in `qa_log`.
+
+## D-028: IFC base quantities are stored in SI units and totalled by the server
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-006, D-015
+
+**Context:** The dataset asks for totals over an IFC model: the net volume of all walls or slabs on a storey, the net side area and the length of all walls, the net floor area of all rooms (#96). The agent could only list elements (50 at most), open each one for its property sets and add the numbers itself, in the model's own units: the Molio model gives wall lengths in millimetres and volumes in m³.
+
+**Decision:**
+- **Ingest keeps each IFC element's base quantities in SI units** under `properties.quantities`: lengths in m, areas in m², volumes in m³, converted with the model's unit scales. They come only from the standard sets (`Qto_*` in IFC4, `BaseQuantities` in IFC2X3). Authoring tools' own sets, such as `ArchiCADQuantities`, are left out, because they reuse names like "Area" with other meanings. Weights and counts are left out too.
+- **A `sum_quantity` agent tool adds them up**: one quantity over the elements of one kind, optionally on one storey. It returns the total with its unit, how many elements were summed, how many of the selected elements lacked the quantity, totals per storey, and the elements summed (50 listed) to cite and highlight. The summing rule is a pure function (`app/domain/quantities.py`).
+- **A storey with no elements of that kind is an error that lists the storeys that have them**, so a misspelt storey is not read as a total of 0.
+- The prompt sends every such total to the tool, and asks for a caveat when elements lacked the quantity.
+
+**Consequences:**
+- Checked without the model against the dataset's answers: all 35 totals for the Molio model match within 2% (most to three decimals).
+- IFC models ingested before this change have no `quantities` until they are processed again.
+- The Esplanades model has no quantity sets on its rooms, so its four room-area totals report every room as lacking the quantity. Areas from geometry are #37.
+- An element nested inside another of the same kind is summed like any other. If a model gives quantities to both a parent and its parts, the total counts them twice; we have not seen such a model.
 
 ## D-029: Recognised count and area questions are answered by the server, not the agent loop
 

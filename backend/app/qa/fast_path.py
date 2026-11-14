@@ -6,6 +6,7 @@ checked like any other. Anything that does not fit returns None, and the agent a
 """
 
 import json
+from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy import select
@@ -39,7 +40,7 @@ def fast_events(
     documents: list[dict[str, Any]],
     ctx: ToolContext,
     settings: Settings,
-    selected: str | None = None,
+    selected: Sequence[str] = (),
 ) -> list[dict[str, Any]] | None:
     """The events of a server-side answer (`step`, `view`, `final`, as the agent loops
     emit them), or None when the agent should answer.

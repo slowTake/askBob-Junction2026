@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 import pytest
@@ -60,7 +61,7 @@ def fakes(monkeypatch: pytest.MonkeyPatch) -> Fakes:
 
 
 def _run(
-    fast: str = "all", selected: str | None = None, documents: list[dict[str, Any]] | None = None
+    fast: str = "all", selected: Sequence[str] = (), documents: list[dict[str, Any]] | None = None
 ) -> list[dict[str, Any]] | None:
     ctx = ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # the tools are faked
     return fast_events("How many doors?", documents or DOC, ctx, _settings(fast), selected)
@@ -163,7 +164,7 @@ def test_the_router_is_not_asked_when_the_fast_path_cannot_apply(
         fast_path, "route", lambda question, settings, usage: asked.append(question)
     )
     assert _run("off") is None
-    assert _run(selected='room "Kitchen" (element_id e1)') is None  # "this room"
+    assert _run(selected=['room "Kitchen" (element_id e1)']) is None  # "this room"
     assert _run(documents=[*DOC, *DOC]) is None  # a count over two drawings
     assert asked == []
 

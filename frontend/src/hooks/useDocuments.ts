@@ -88,12 +88,15 @@ export function useDocuments() {
     }
   }, []);
 
-  const remove = useCallback(async (id: string) => {
+  /** True when the document was deleted. */
+  const remove = useCallback(async (id: string): Promise<boolean> => {
     try {
       await api.deleteDocument(id);
       setDocuments((docs) => docs.filter((d) => d.id !== id));
+      return true;
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Delete failed.");
+      return false;
     }
   }, []);
 

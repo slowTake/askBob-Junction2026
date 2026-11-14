@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import type { DocumentDetail, ElementInfo } from "../api/types";
 import { useCamera } from "../hooks/useCamera";
+import { useInkBox } from "../hooks/useInkBox";
 import { zoomPercent } from "../lib/camera";
 import type { LayerKey } from "../lib/planLayer";
+import { selectElement } from "../lib/selection";
 import { onPage, type PlanTarget, type TargetOnPage } from "../lib/target";
 import { ElementCard } from "./ElementCard";
 import { PlanCanvas } from "./PlanCanvas";
@@ -17,7 +19,7 @@ interface Props {
   onPageChange: (index: number) => void;
   target: PlanTarget | null; // what the assistant or a citation asked to show
   onClearTarget: () => void;
-  onAskAbout: (element: ElementInfo) => void;
+  onAskAbout: (elements: ElementInfo[]) => void;
 }
 
 /** One plan page: pan and zoom, an interactive element layer, and what the agent shows. */
@@ -27,7 +29,7 @@ export function DrawingViewer(props: Props) {
   const [loaded, setLoaded] = useState<{ page: number; elements: ElementInfo[] } | null>(null);
   const [layers, setLayers] = useState<Set<LayerKey>>(() => new Set());
   const [hovered, setHovered] = useState<ElementInfo | null>(null);
-  const [selected, setSelected] = useState<ElementInfo | null>(null);
+  const [selected, setSelected] = useState<ElementInfo[]>([]); // click, or Shift+click for more
   const [imageLoaded, setImageLoaded] = useState<string | null>(null);
   const [framed, setFramed] = useState<PlanTarget | null>(null);
 
@@ -58,19 +60,23 @@ export function DrawingViewer(props: Props) {
   const w = page?.width_px ?? 0;
   const h = page?.height_px ?? 0;
   const size = useMemo(() => (w && h ? { width: w, height: h } : null), [w, h]);
+  const src = api.pageImageUrl(documentId, pageIndex);
+  // Fit frames the drawing's ink, not the sheet's paper margins (#83).
+  const content = useInkBox(src, size);
   const {
     viewportRef,
-    viewport,
     camera,
     ready: laidOut,
     animated,
     dragging,
+    pointerFocus,
     handlers,
     zoomIn,
     zoomOut,
     fit,
+    fitted,
     frame,
-  } = useCamera(size, `${documentId}:${pageIndex}`);
+  } = useCamera(size, `${documentId}:${pageIndex}`, content);
 
   // Elements of another page never show on this one, even for a moment.
   const ready = loaded?.page === pageIndex;
@@ -83,13 +89,22 @@ export function DrawingViewer(props: Props) {
   if (lit.key !== litKey) setLit({ key: litKey, ids: new Set(litKey ? litKey.split(" ") : []) });
   const highlighted = lit.ids;
 
-  // Fly to a new target once: when the page is laid out and, for agent views, its elements
+  // React to a new target once: when the page is laid out and, for agent views, its elements
   // are known. Adjusting state while rendering, so there is no frame in between.
+  // A cited source the user clicked is flown to; the agent's highlights don't zoom: the plan
+  // stays fitted with the highlight drawn on it (⌖ zooms to it on demand).
   const frameable = shown?.frame && (target?.kind === "citation" || ready);
   if (target !== framed && laidOut && (target === null || frameable)) {
     setFramed(target);
-    if (shown?.frame) frame(shown.frame);
+    if (target?.kind === "citation" && shown?.frame) frame(shown.frame);
+    else if (target?.kind === "view") fit();
   }
+
+  const select = useCallback(
+    (el: ElementInfo | null, additive: boolean) =>
+      setSelected((current) => selectElement(current, el, additive)),
+    [],
+  );
 
   // Pointing at nothing (a wall, a gap between rooms) keeps the last element in the bar.
   const pointAt = useCallback((el: ElementInfo | null) => {
@@ -107,11 +122,15 @@ export function DrawingViewer(props: Props) {
     [],
   );
 
-  const src = api.pageImageUrl(documentId, pageIndex);
-  const pinned = selected && page && selected.page_id === page.id ? selected : null;
+  const pinned = useMemo(
+    () => (page ? selected.filter((e) => e.page_id === page.id) : []),
+    [selected, page],
+  );
+  // One Set per change of selection: the element layer is memoised.
+  const selectedIds = useMemo(() => new Set(pinned.map((e) => e.id)), [pinned]);
   const hover = hovered && page && hovered.page_id === page.id ? hovered : null;
-  const card = pinned ?? hover;
-  const percent = camera && size && viewport ? zoomPercent(camera, size, viewport) : 100;
+  const shownInBar = pinned.length > 0 ? pinned : hover ? [hover] : [];
+  const percent = camera && fitted ? zoomPercent(camera, fitted) : 100;
 
   return (
     <div className="viewer">
@@ -121,7 +140,7 @@ export function DrawingViewer(props: Props) {
           pageCount={doc.pages.length}
           pageLabel={page?.label ?? null}
           onPage={(i) => {
-            setSelected(null);
+            setSelected([]);
             onPageChange(i);
           }}
           layers={layers}
@@ -130,7 +149,7 @@ export function DrawingViewer(props: Props) {
       )}
       <div
         ref={viewportRef}
-        className={`plan-viewport${dragging ? " is-dragging" : ""}`}
+        className={`plan-viewport${dragging ? " is-dragging" : ""}${pointerFocus ? " is-pointer-focus" : ""}`}
         tabIndex={0}
         aria-label="Plan. Drag to pan, scroll to zoom, + and - keys zoom, 0 fits the page."
         {...handlers}
@@ -147,9 +166,9 @@ export function DrawingViewer(props: Props) {
             layers={layers}
             highlighted={highlighted}
             shown={shown}
-            selectedId={pinned?.id ?? null}
+            selectedIds={selectedIds}
             onHover={pointAt}
-            onSelect={setSelected}
+            onSelect={select}
             onLoad={() => setImageLoaded(src)}
           />
         )}
@@ -160,7 +179,7 @@ export function DrawingViewer(props: Props) {
         ) : (
           imageLoaded !== src && <div className="viewer-note is-loading">Loading drawing…</div>
         )}
-        {shown && <TargetBanner shown={shown} onClear={onClearTarget} />}
+        {shown && shown.verified !== null && <TargetBanner shown={shown} onClear={onClearTarget} />}
         <div className="zoom-controls" data-no-pan>
           {shown?.frame && (
             <button
@@ -170,6 +189,18 @@ export function DrawingViewer(props: Props) {
               onClick={() => shown.frame && frame(shown.frame)}
             >
               ⌖
+            </button>
+          )}
+          {shown && shown.verified === null && (
+            // The agent's highlight has no banner; this clears it (a clicked source's
+            // banner has its own Clear).
+            <button
+              type="button"
+              className="btn btn-subtle btn-sm"
+              title="Clear the assistant's highlight"
+              onClick={onClearTarget}
+            >
+              Clear
             </button>
           )}
           <button
@@ -195,25 +226,22 @@ export function DrawingViewer(props: Props) {
         </div>
       </div>
       <ElementCard
-        element={card}
-        pinned={card !== null && card === pinned}
-        onClose={() => setSelected(null)}
-        onAsk={() => card && onAskAbout(card)}
+        elements={shownInBar}
+        pinned={pinned.length > 0}
+        onClose={() => setSelected([])}
+        onAsk={() => onAskAbout(pinned)}
       />
     </div>
   );
 }
 
+/** For a source the user clicked: whether it's verified, and a way to clear it. */
 function TargetBanner({ shown, onClear }: { shown: TargetOnPage; onClear: () => void }) {
   return (
     <div className="target-banner" data-no-pan>
-      {shown.verified === null ? (
-        <span className="badge badge-accent">Shown by the assistant</span>
-      ) : (
-        <span className={`badge ${shown.verified ? "badge-ok" : "badge-warn"}`}>
-          {shown.verified ? "✓ Verified source" : "! Unverified source"}
-        </span>
-      )}
+      <span className={`badge ${shown.verified ? "badge-ok" : "badge-warn"}`}>
+        {shown.verified ? "✓ Verified source" : "! Unverified source"}
+      </span>
       {shown.labelOnly && (
         <span
           className="badge badge-plain"

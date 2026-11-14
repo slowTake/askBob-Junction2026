@@ -19,7 +19,7 @@ from app.domain.usage import Usage
 from app.models import Document, Element, Page, QaLog
 from app.qa.agent import AgentError, FinalAnswer, run_agent
 from app.qa.fast_path import fast_events
-from app.qa.prompts import selected_note, viewing_note
+from app.qa.prompts import SelectedElement, selected_notes, viewing_note
 from app.qa.tools import ToolContext
 from app.qa.verda_agent import run_verda_agent
 from app.schemas import AskContextIn
@@ -27,7 +27,9 @@ from app.valkey import cache_get, cache_set
 
 log = logging.getLogger(__name__)
 
-ANSWER_FORMAT = 5  # bump when the payload or how answers are found changes (5: `method`)
+ANSWER_FORMAT = 5  # bump when the payload or how answers are found changes
+# 4: answers are a summary line plus "- " lists (prompts.py), laid out by the chat
+# 5: answers say how they were found (`method`: the agent or the server's fast path)
 
 MESSAGES = {
     "no_documents": "Upload a drawing and wait until it has been processed.",
@@ -64,7 +66,7 @@ def answer_stream(
                 versions,
                 settings.llm_model,
                 ANSWER_FORMAT,
-                f"{viewing or ''}|{selected or ''}",
+                f"{viewing or ''}|{'|'.join(selected)}",  # one element: same key as before
             )
             cached = cache_get(key)
             if cached is not None:
@@ -144,10 +146,10 @@ def _scope(db: Any, document_ids: list[str]) -> list[Document]:
 
 def _context_notes(
     db: Any, docs: list[Document], context: AskContextIn | None
-) -> tuple[str | None, str | None]:
-    """Describe the page on screen and the clicked element, if they are in scope."""
+) -> tuple[str | None, list[str]]:
+    """Describe the page on screen and the selected elements that are in scope."""
     if context is None:
-        return None, None
+        return None, []
     in_scope = {d.id: d for d in docs}
     viewing = None
     doc = in_scope.get(context.document_id) if context.document_id else None
@@ -160,17 +162,23 @@ def _context_notes(
             viewing = viewing_note(
                 doc.filename, str(doc.id), page.index, doc.page_count, str(label) if label else None
             )
-    selected = None
-    element = db.get(Element, context.element_id) if context.element_id else None
-    if element is not None and element.document_id in in_scope:
-        page_index = (
-            db.scalar(select(Page.index).where(Page.id == element.page_id))
-            if element.page_id
-            else None
+    ids = context.selected_ids()
+    if not ids:
+        return viewing, []
+    # One query for every selected element and its page (PR #92 review: it was two per
+    # element, up to 40 round trips before every ask, cache hits included).
+    rows = db.execute(
+        select(Element, Page.index)
+        .outerjoin(Page, Page.id == Element.page_id)
+        .where(Element.id.in_(ids))
+    ).all()
+    found = {
+        str(el.id): SelectedElement(
+            str(el.id), str(el.document_id), el.kind, el.text or el.name or el.label, index
         )
-        title = element.text or element.name or element.label
-        selected = selected_note(element.kind, title, str(element.id), page_index)
-    return viewing, selected
+        for el, index in rows
+    }
+    return viewing, selected_notes([str(i) for i in ids], found, {str(d) for d in in_scope})
 
 
 def _payload(answer: FinalAnswer, ctx: ToolContext) -> dict[str, Any]:

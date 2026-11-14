@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeStep } from "./steps";
+import { currentStatus, describeStep } from "./steps";
 
 describe("describeStep", () => {
   it("describes a filtered search, with pages counted from 1", () => {
@@ -54,5 +54,16 @@ describe("describeStep for quantity totals", () => {
     expect(
       describeStep("sum_quantity", { kind: "slab", quantity: "NetVolume", storey: null }),
     ).toBe("Adding up the net volume of slabs");
+  });
+});
+
+describe("currentStatus", () => {
+  it("is one line: the latest step, or Thinking before the first", () => {
+    expect(currentStatus([])).toBe("Thinking");
+    const steps = [
+      { tool: "find_elements", input: { kind: "room" } },
+      { tool: "view_region", input: {} },
+    ];
+    expect(currentStatus(steps)).toBe("Looking at the drawing"); // the second, latest step
   });
 });

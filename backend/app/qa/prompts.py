@@ -2,6 +2,9 @@
 Per-request facts (which documents are in scope) go in the user message instead.
 """
 
+from collections.abc import Container, Mapping, Sequence
+from typing import NamedTuple
+
 SYSTEM_PROMPT = """\
 You answer questions from site engineers about construction drawings and building \
 models. Your answers must be correct and verifiable: an engineer checks each answer \
@@ -63,7 +66,12 @@ that the scale is unknown and give the printed dimensions instead.
 4. Never invent a number. If the documents do not contain the answer, say so plainly.
 
 Your final answer is JSON matching the response schema:
-- `answer`: short, direct, with units. Lead with the answer itself.
+- `answer`: plain text for a narrow chat panel. The first line is the answer itself \
+in one short sentence, with units ("About 20 doors and 14 windows."). When the answer \
+covers several items or groups, add a blank line, then one item per line starting \
+with "- ", a few words each; give each group its own line ending with ":" ("Lower \
+floor:") before its items. No other formatting (no **, #, tables), and no long \
+paragraphs. Do not explain how you worked it out here: that goes in `caveats`.
 - `value`: when the answer is one number (a count, area, length or volume), that \
 number in the unit the question asks for; otherwise null. `unit`: its unit ("count", \
 "m2", "m3", "m", "mm", "ft2", ...), or null.
@@ -71,7 +79,9 @@ number in the unit the question asks for; otherwise null. `unit`: its unit ("cou
 an `element_id` you received from a tool, or a `page_id` and `bbox` inside a region \
 you viewed. Citations you did not get from tools are rejected.
 - `confidence`: high only when every cited element is exact or visually checked.
-- `caveats`: what could make the answer wrong, or an empty string.
+- `caveats`: what could make the answer wrong and how you got it when that matters \
+("counted by eye: no door elements on this page"), in one or two sentences, or an \
+empty string.
 """
 
 # Sent with the last request of a run, which accepts only the final answer (#95).
@@ -84,11 +94,21 @@ LAST_STEP_NOTE = (
 
 def budget_note(tool_rounds: int) -> str:
     """How many rounds of tool calls the agent gets before it has to answer."""
+    if tool_rounds < 1:  # `max_agent_turns` of 1: the only turn is the answer
+        return (
+            "You have no tool calls for this question. Answer from what is given here. If "
+            "it is not enough to answer, say what is missing in `caveats` and set "
+            "`confidence` to low; do not guess."
+        )
     rounds = "1 round" if tool_rounds == 1 else f"{tool_rounds} rounds"
+    # A miss is not proof of absence: the search matches text, so a label in another
+    # language or an abbreviation ("Küche", "WC") does not match "kitchen" or "toilet".
     return (
         f"You have at most {rounds} of tool calls, and one round can hold several calls. "
-        "Answer as soon as you have the evidence. If two or three searches find nothing "
-        "about the question, the documents do not contain it: say so instead of searching on."
+        "Answer as soon as you have the evidence. If a search finds nothing, try other "
+        "words (labels may be in another language or abbreviated) or another `kind`. If "
+        "those find nothing either, say what you searched for and what is missing instead "
+        "of searching on."
     )
 
 
@@ -96,11 +116,14 @@ def scope_message(
     question: str,
     documents: list[dict[str, object]],
     viewing: str | None = None,
-    selected: str | None = None,
+    selected: Sequence[str] = (),
     tool_rounds: int | None = None,
 ) -> str:
     """The user turn: documents in scope, what the user is looking at, the step budget,
-    then the question."""
+    then the question.
+
+    `selected` holds one `selected_note` per element the user selected on the plan.
+    """
     lines = [
         f"- {d['id']}: {d['filename']} ({d['kind']}, {d['page_count']} pages)" for d in documents
     ]
@@ -108,10 +131,17 @@ def scope_message(
     context = []
     if viewing:
         context.append(f"The user is looking at {viewing}.")
-    if selected:
+    if len(selected) == 1:
         context.append(
-            f"The user selected {selected} on the plan. "
+            f"The user selected {selected[0]} on the plan. "
             '"This", "here" and "it" refer to it: call get_element for its details.'
+        )
+    elif selected:
+        listed = "\n".join(f"- {note}" for note in selected)
+        context.append(
+            f"The user selected these elements on the plan:\n{listed}\n"
+            '"These", "them" and "the selected ones" refer to them: '
+            "call get_element for each one's details."
         )
     parts = [f"Documents in scope:\n{listing}", *(["\n".join(context)] if context else [])]
     if tool_rounds is not None:
@@ -135,3 +165,26 @@ def selected_note(kind: str, title: str | None, element_id: str, page_index: int
     named = f' "{title}"' if title else ""
     where = f", page_index {page_index}" if page_index is not None else ""
     return f"{kind}{named} (element_id {element_id}{where})"
+
+
+class SelectedElement(NamedTuple):
+    """What the agent is told about one element the user selected."""
+
+    id: str
+    document_id: str
+    kind: str
+    title: str | None
+    page_index: int | None
+
+
+def selected_notes(
+    order: Sequence[str], found: Mapping[str, SelectedElement], in_scope: Container[str]
+) -> list[str]:
+    """One `selected_note` per selected element, in click order. Elements that are gone, or
+    in a document outside the question's scope, are left out."""
+    notes = []
+    for element_id in order:
+        el = found.get(element_id)
+        if el is not None and el.document_id in in_scope:
+            notes.append(selected_note(el.kind, el.title, el.id, el.page_index))
+    return notes
