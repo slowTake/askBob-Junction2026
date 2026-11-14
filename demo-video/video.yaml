@@ -1,0 +1,76 @@
+# Single source of truth for the demo video. Edit text here, then `make plan`.
+# Junction rule: "not a second longer than 2 minutes", title cards included.
+# Every product shot must be a real recording of the real app (see README.md).
+
+settings:
+  target_s: 110 # what we aim for
+  max_final_s: 115 # `make check` fails above this
+  hard_limit_s: 120 # Junction's limit, never reached
+  words_per_s: 1.9 # measured: Daniel on eleven_v4 read 17 words in 8.8 s (1.93/s), 2026-11-14
+  resolution: 1920x1080
+  voice:
+    provider: elevenlabs
+    voice_id: onwK4e9ZLuTAKqWW03F9 # Daniel (British, steady, formal); chosen by Peter 2026-11-14
+    model_id: eleven_v4 # highest quality per ElevenLabs docs (2026-11-14); supports Finnish
+    output_format: mp3_44100_128
+    approved: true # Peter approved Daniel after test clips, 2026-11-14
+
+# DRAFT voiceover. Numbers marked X/Y come from backend/eval once we have them.
+# Segment target_s values set the video timeline and must add up to <= settings.target_s.
+segments:
+  - id: hook
+    title: Hook
+    target_s: 8
+    on_screen: A real question typed; the answer and its highlight appear. Team name overlay.
+    voiceover: >-
+      Where's fire door PO-12, and what's its rating? bobBuilder answers in seconds, with
+      proof.
+
+  - id: problem
+    title: Problem
+    target_s: 12
+    on_screen: A general chatbot answering the same drawing confidently and wrong (side by side).
+    voiceover: >-
+      Site engineers lose hours every day digging through drawings. General AI tools guess,
+      and on technical drawings they guess wrong, confidently.
+
+  - id: demo-ifc
+    title: Demo 1, building model
+    target_s: 20
+    on_screen: Question on the IFC model; the element is highlighted in 3D with its citation.
+    voiceover: >-
+      Ask in Finnish, Swedish or English. From the building model, the answer comes with the
+      exact element highlighted, so you can check it in seconds.
+
+  - id: demo-pdf
+    title: Demo 2, PDF drawing
+    target_s: 20
+    on_screen: Same question on a PDF sheet; bounding-box highlight and the cited source.
+    voiceover: >-
+      Same question on a PDF drawing. Our model doesn't read the answer off a picture: it
+      queries the extracted drawing, and every number links back to the spot it came from.
+
+  - id: demo-photo
+    title: Demo 3, phone photo (memorable moment)
+    target_s: 20
+    on_screen: Phone photo vs. PDF side by side; same answer, lower confidence, "please check".
+    voiceover: >-
+      Now a phone photo of the printed sheet. Same answer, same location, but lower
+      confidence, so it tells you to double-check instead of pretending to be sure.
+
+  - id: how
+    title: How it works
+    target_s: 15
+    on_screen: "Architecture: any format -> drawing graph (Aiven Postgres) -> tools -> cited answer."
+    voiceover: >-
+      Every format becomes one drawing graph in Aiven Postgres. Claude answers only through
+      tools, and the server checks every citation. Next year's models make it better, not
+      obsolete.
+
+  - id: close
+    title: Numbers and close
+    target_s: 15
+    on_screen: Eval result, cost per question, latency; team name.
+    voiceover: >-
+      On Stoa's example questions: X of Y correct, about X cents per question. bobBuilder:
+      answers you can check.
