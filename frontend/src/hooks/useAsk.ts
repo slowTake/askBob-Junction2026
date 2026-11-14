@@ -31,9 +31,9 @@ export interface AskOptions {
  * One conversation per document (see lib/conversations.ts); each question streams steps,
  * then a cited answer, into the conversation it was asked in, even if the user opens
  * another document meanwhile. `onView` runs for every plan view the agent sends (live, or
- * replayed from a cached answer).
+ * replayed from a cached answer), with the key of the conversation it belongs to.
  */
-export function useAsk(onView: (view: PlanView) => void) {
+export function useAsk(onView: (view: PlanView, key: string) => void) {
   const [all, setAll] = useState<Conversations<Turn>>({});
   const aborts = useRef(new Map<string, AbortController>()); // per conversation
 
@@ -67,11 +67,11 @@ export function useAsk(onView: (view: PlanView) => void) {
                 answer,
                 views: t.views.length ? t.views : (answer.views ?? []),
               }));
-              if (answer.cached) answer.views?.forEach(onView);
+              if (answer.cached) answer.views?.forEach((v) => onView(v, key));
             },
             onView: (view) => {
               update(id, (t) => ({ ...t, views: [...t.views, view] }));
-              onView(view);
+              onView(view, key);
             },
             onError: (error) => update(id, (t) => ({ ...t, error })),
           },

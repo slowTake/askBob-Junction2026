@@ -191,6 +191,18 @@ export function DrawingViewer(props: Props) {
               ⌖
             </button>
           )}
+          {shown && shown.verified === null && (
+            // The agent's highlight has no banner; this clears it (a clicked source's
+            // banner has its own Clear).
+            <button
+              type="button"
+              className="btn btn-subtle btn-sm"
+              title="Clear the assistant's highlight"
+              onClick={onClearTarget}
+            >
+              Clear
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-subtle btn-sm"

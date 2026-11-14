@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api/client";
 import type { Citation, ElementInfo, PlanView } from "./api/types";
 import { AskPanel } from "./components/AskPanel";
@@ -14,6 +14,7 @@ import { useStoredFlag } from "./hooks/useStoredFlag";
 import { useTheme } from "./hooks/useTheme";
 import { conversationShown } from "./lib/conversations";
 import { pageIndexFor, type PageRef } from "./lib/pages";
+import { questionContext } from "./lib/question";
 import { aboutLabel } from "./lib/selection";
 import type { PlanTarget } from "./lib/target";
 import { availableViews, pickView, type View } from "./lib/views";
@@ -42,7 +43,17 @@ export function App() {
     setView("drawing");
     setTarget({ kind: "view", view: v });
   }, []);
-  const asker = useAsk(showView);
+  // An answer's views move the plan only while its conversation is on screen: an answer
+  // still running for another document must not take over the plan (PR #92 review).
+  // Its views stay as buttons on the answer.
+  const chatKeyRef = useRef<string | null>(null);
+  const showAnswerView = useCallback(
+    (v: PlanView, key: string) => {
+      if (key === chatKeyRef.current) showView(v);
+    },
+    [showView],
+  );
+  const asker = useAsk(showAnswerView);
 
   const selected = docs.documents.find((d) => d.id === selectedId) ?? docs.documents[0] ?? null;
   // The conversation on screen: the one picked in the list or last asked in, else the open
@@ -53,6 +64,10 @@ export function App() {
     selected?.id ?? null,
     docs.documents.map((d) => d.id),
   );
+  useEffect(() => {
+    chatKeyRef.current = chatKey;
+  }, [chatKey]);
+  const chatDoc = docs.documents.find((d) => d.id === chatKey) ?? null;
   const ready = docs.documents.filter((d) => d.status === "ready");
   const views = selected ? availableViews(selected) : [];
   const activeView = pickView(view, views);
@@ -90,7 +105,9 @@ export function App() {
     }
   };
 
+  // Asking about elements selected on a plan is a question about that plan's document.
   const askAbout = (elements: ElementInfo[]) => {
+    if (elements.length > 0) setChatFor(elements[0].document_id);
     setAbout(elements);
     setFocusSignal((n) => n + 1);
   };
@@ -100,17 +117,17 @@ export function App() {
     // Pin it: the agent's views and clicked sources may open another document meanwhile.
     setChatFor(chatKey);
     const onPlan = selected?.status === "ready" && activeView === "drawing";
+    const { documentIds, context } = questionContext({
+      chatDocId: chatKey,
+      openDocId: selected?.id ?? null,
+      pageOnScreen: onPlan ? pageIndex : null,
+      about,
+      onlyThisDocument: onlySelected,
+    });
     void asker.ask(chatKey, question, {
-      documentIds: onlySelected && selected ? [selected.id] : [],
-      context: selected
-        ? {
-            document_id: selected.id,
-            page_index: onPlan ? pageIndex : null,
-            element_id: null,
-            element_ids: about.filter((e) => e.document_id === selected.id).map((e) => e.id),
-          }
-        : null,
-      about: aboutLabel(about),
+      documentIds,
+      context,
+      about: aboutLabel(about.filter((e) => e.document_id === chatKey)),
     });
     setAbout([]);
   };
@@ -159,22 +176,29 @@ export function App() {
         <section className="stage">
           {selected && (
             <>
-              {views.length > 1 && (
+              {(views.length > 1 || (!sidebarOpen && selected.has_ifc)) && (
                 <div className="stage-header">
                   <div className="tabs" role="tablist">
-                    {views.map((v) => (
-                      <button
-                        key={v}
-                        type="button"
-                        role="tab"
-                        aria-selected={activeView === v}
-                        className={`tab${activeView === v ? " is-active" : ""}`}
-                        onClick={() => setView(v)}
-                      >
-                        {v === "drawing" ? "Plan" : "3D model"}
-                      </button>
-                    ))}
+                    {views.length > 1 &&
+                      views.map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          role="tab"
+                          aria-selected={activeView === v}
+                          className={`tab${activeView === v ? " is-active" : ""}`}
+                          onClick={() => setView(v)}
+                        >
+                          {v === "drawing" ? "Plan" : "3D model"}
+                        </button>
+                      ))}
                   </div>
+                  {/* In the documents panel when it's open; here while it's collapsed. */}
+                  {!sidebarOpen && selected.has_ifc && (
+                    <a className="btn btn-secondary btn-sm" href={api.modelIfcUrl(selected.id)}>
+                      Download IFC
+                    </a>
+                  )}
                 </div>
               )}
               {selected.status !== "ready" ? (
@@ -217,7 +241,7 @@ export function App() {
           turns={asker.turnsFor(chatKey)}
           busy={asker.busyFor(chatKey)}
           canAsk={ready.length > 0}
-          scopeLabel={selected?.status === "ready" ? selected.filename : null}
+          scopeLabel={chatDoc?.status === "ready" ? chatDoc.filename : null}
           about={aboutLabel(about)}
           focusSignal={focusSignal}
           onClearAbout={() => setAbout([])}
