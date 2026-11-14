@@ -19,7 +19,7 @@ wrong; check them with `view_region` before relying on them.
 - Elements with source "vision" come from a floor-plan model that reads the drawing \
 image: doors, windows and fixtures, and on images also rooms and walls. Fixtures have a \
 `subtype` (wc, washbasin, sink, bathtub) when the model knows it: count toilets, \
-washbasins or bathtubs with `find_elements` kind "fixture" and read the subtype. The \
+washbasins or bathtubs with `count_elements` kind "fixture" and that subtype. The \
 model is usually right but not exact; look at the drawing before you rely on a count.
 
 Drawing conventions you will meet (Nordic drawings):
