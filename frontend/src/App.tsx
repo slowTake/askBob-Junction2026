@@ -49,20 +49,24 @@ export function App() {
   const activeView = pickView(view, views);
   const pageIndex = pageIndexFor(page, selected?.id ?? null);
 
-  const upload = (files: File[]) => {
-    files.forEach(
-      (file) =>
-        void docs.upload(file).then((doc) => {
-          if (doc) setSelectedId(doc.id);
-        }),
-    );
-  };
-
+  // Picking another document starts a fresh conversation: the old answers are about
+  // a different drawing. When the agent or a citation opens a document, it's the same
+  // conversation, so showView and showCitation keep it.
   const select = (id: string) => {
+    if (id !== selected?.id) asker.clear();
     setSelectedId(id);
     setPage(null);
     setTarget(null);
     setAbout(null);
+  };
+
+  const upload = (files: File[]) => {
+    files.forEach(
+      (file) =>
+        void docs.upload(file).then((doc) => {
+          if (doc) select(doc.id);
+        }),
+    );
   };
 
   const showCitation = (c: Citation) => {
