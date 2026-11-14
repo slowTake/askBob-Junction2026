@@ -54,8 +54,7 @@ def render_png(items: list[Shape], frame: PageFrame) -> bytes:
         pts = [frame.to_px(p) for p in shape.points]
         if shape.text is not None:
             size = max(10, round(shape.text_height_mm * frame.px_per_mm))
-            font = ImageFont.load_default(size=size)
-            draw.text(pts[0], shape.text, fill="black", font=font, anchor="ls")
+            draw_text(draw, pts[0], shape.text, size, centred=False)
         elif shape.role == "wall" and shape.closed and len(pts) > 2:
             draw.polygon(pts, fill=WALL_FILL, outline="black")
         elif len(pts) > 1:
@@ -68,3 +67,26 @@ def render_png(items: list[Shape], frame: PageFrame) -> bytes:
 
 def _z_order(shape: Shape) -> int:
     return {"room": 0, "unit": 0, "wall": 1}.get(shape.role or "", 2) + (shape.text is not None)
+
+
+SUPERSCRIPTS = {"²": "2", "³": "3"}
+
+
+def draw_text(
+    draw: ImageDraw.ImageDraw, xy: Point, text: str, size: int, centred: bool = True
+) -> None:
+    """Draw text; "m²"/"m³" get a real raised digit (the built-in font has no ² glyph).
+
+    centred: xy is the middle of the text; otherwise xy is its left end on the baseline.
+    """
+    font = ImageFont.load_default(size=size)
+    small = ImageFont.load_default(size=max(6, int(size * 0.6)))
+    parts = [(SUPERSCRIPTS[ch], small) if ch in SUPERSCRIPTS else (ch, font) for ch in text]
+    width = sum(draw.textlength(ch, font=f) for ch, f in parts)
+    x, y = xy
+    if centred:
+        x, y = x - width / 2, y + size * 0.35  # baseline sits a third below the middle
+    for ch, f in parts:
+        dy = -size * 0.35 if f is small else 0.0
+        draw.text((x, y + dy), ch, fill="black", font=f, anchor="ls")
+        x += draw.textlength(ch, font=f)
