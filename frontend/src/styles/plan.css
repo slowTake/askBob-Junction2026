@@ -1,20 +1,23 @@
-/* The interactive plan: element layer, agent highlights, measured lines, info card. */
+/* The interactive plan: element layer, agent highlights, measured lines, badges.
+   Sizes are multiplied by --u (one screen pixel in page pixels, set by PlanCanvas), so
+   lines and labels look the same at every zoom in every browser. */
 
-/* PlanLayer.tsx: marks on the paper use the one blue */
 .plan-el {
   cursor: pointer;
   fill: transparent;
   stroke: transparent;
-  stroke-width: 1.5;
-  transition: fill 0.12s;
+  stroke-width: calc(1.5px * var(--u));
+  transition:
+    fill 0.12s,
+    stroke 0.12s;
 }
 .plan-el.is-shown.plan-rooms {
   stroke: var(--paper-ink);
-  stroke-dasharray: 4 3;
+  stroke-dasharray: calc(4px * var(--u)) calc(3px * var(--u));
 }
 .plan-el.is-shown.plan-openings,
 .plan-el.is-shown.plan-fixtures {
-  stroke: var(--paper-ink);
+  stroke: var(--paper-mark);
   fill: var(--paper-mark-soft);
 }
 .plan-el.is-shown.plan-walls {
@@ -22,7 +25,7 @@
 }
 .plan-el.is-shown.plan-labels {
   stroke: var(--paper-ink);
-  stroke-dasharray: 2 2;
+  stroke-dasharray: calc(2px * var(--u)) calc(2px * var(--u));
 }
 .plan-el:hover {
   fill: var(--paper-mark-soft);
@@ -32,42 +35,61 @@
 .plan-el.is-selected {
   fill: var(--paper-mark-soft);
   stroke: var(--paper-mark);
-  stroke-width: 3;
+  stroke-width: calc(3px * var(--u));
   stroke-dasharray: none;
 }
 .plan-el.is-highlighted {
   fill: var(--paper-mark-strong);
   stroke: var(--paper-mark);
-  stroke-width: 3;
+  stroke-width: calc(3px * var(--u));
   stroke-dasharray: none;
+}
+
+.plan-badge {
+  pointer-events: none;
+}
+.plan-badge circle {
+  fill: var(--paper-mark);
+  stroke: var(--paper);
+  stroke-width: calc(2px * var(--u));
+}
+.plan-badge text {
+  fill: var(--paper);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.measure {
+  pointer-events: none;
 }
 .measure line {
   stroke: var(--paper-mark);
-  stroke-width: 3;
-  stroke-dasharray: 8 4;
+  stroke-width: calc(3px * var(--u));
+  stroke-dasharray: calc(8px * var(--u)) calc(4px * var(--u));
+}
+.measure circle {
+  fill: var(--paper-mark);
 }
 .measure text {
   fill: var(--paper-mark);
   font-family: var(--font-mono);
-  font-weight: 500;
+  font-weight: 600;
   text-anchor: middle;
   dominant-baseline: middle;
   paint-order: stroke;
   stroke: var(--paper);
-  stroke-width: 6px;
+  stroke-width: calc(5px * var(--u));
 }
-.element-card {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: 44px;
-  padding: var(--s-2) var(--s-4);
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
+
+.spotlight {
+  pointer-events: none;
 }
-.element-card strong {
-  font-weight: 500;
+.spotlight-dim {
+  fill: var(--dim);
 }
-.element-card .body-sm {
-  flex: 1;
+.spotlight-ring {
+  fill: none;
+  stroke: var(--paper-mark);
+  stroke-width: calc(3px * var(--u));
 }

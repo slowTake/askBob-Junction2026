@@ -1,45 +1,41 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
-import type { Citation, DocumentDetail, ElementInfo, PlanView } from "../api/types";
-import { LAYERS, unionBox, type LayerKey } from "../lib/planLayer";
+import type { DocumentDetail, ElementInfo } from "../api/types";
+import { useCamera } from "../hooks/useCamera";
+import { zoomPercent } from "../lib/camera";
+import type { LayerKey } from "../lib/planLayer";
+import { onPage, type PlanTarget, type TargetOnPage } from "../lib/target";
 import { ElementCard } from "./ElementCard";
-import { PlanLayer } from "./PlanLayer";
-import { focusBox, focusIsHere } from "../lib/focus";
-import { scrollToCenter } from "../lib/viewport";
-import { focusZoom, stepZoom } from "../lib/zoom";
+import { PlanCanvas } from "./PlanCanvas";
+import { ViewerToolbar } from "./ViewerToolbar";
+
+const NO_ELEMENTS: ElementInfo[] = [];
 
 interface Props {
   documentId: string;
   pageIndex: number;
   onPageChange: (index: number) => void;
-  focus: Citation | null;
-  onClearFocus: () => void;
-  highlightIds?: string[]; // elements to light up (agent or citation)
-  planView?: PlanView | null; // the agent's latest instruction for this document
+  target: PlanTarget | null; // what the assistant or a citation asked to show
+  onClearTarget: () => void;
+  onAskAbout: (element: ElementInfo) => void;
 }
 
-const DEFAULT_LAYERS: LayerKey[] = ["openings", "fixtures"];
-
-const FOCUS_PAD_PX = 12;
-
-/** Page image with an SVG overlay in page-pixel coordinates: bboxes need no conversion. */
+/** One plan page: pan and zoom, an interactive element layer, and what the agent shows. */
 export function DrawingViewer(props: Props) {
-  const { documentId, pageIndex, onPageChange, focus, onClearFocus, highlightIds, planView } =
-    props;
-  const [detail, setDetail] = useState<DocumentDetail | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [zoomedFor, setZoomedFor] = useState<Citation | null>(null);
-  const [layers, setLayers] = useState<Set<LayerKey>>(() => new Set(DEFAULT_LAYERS));
-  const [elements, setElements] = useState<ElementInfo[]>([]);
+  const { documentId, pageIndex, onPageChange, target, onClearTarget, onAskAbout } = props;
+  const [detail, setDetail] = useState<DocumentDetail | null | "missing">(null);
+  const [loaded, setLoaded] = useState<{ page: number; elements: ElementInfo[] } | null>(null);
+  const [layers, setLayers] = useState<Set<LayerKey>>(() => new Set());
   const [hovered, setHovered] = useState<ElementInfo | null>(null);
   const [selected, setSelected] = useState<ElementInfo | null>(null);
-  const scroller = useRef<HTMLDivElement>(null);
+  const [imageLoaded, setImageLoaded] = useState<string | null>(null);
+  const [framed, setFramed] = useState<PlanTarget | null>(null);
 
   useEffect(() => {
     let live = true;
     api.getDocument(documentId).then(
       (d) => live && setDetail(d),
-      () => live && setDetail(null),
+      () => live && setDetail("missing"),
     );
     return () => {
       live = false;
@@ -49,207 +45,179 @@ export function DrawingViewer(props: Props) {
   useEffect(() => {
     let live = true;
     api.elements(documentId, pageIndex).then(
-      (els) => live && setElements(els),
-      () => live && setElements([]),
+      (elements) => live && setLoaded({ page: pageIndex, elements }),
+      () => live && setLoaded({ page: pageIndex, elements: [] }),
     );
     return () => {
       live = false;
     };
   }, [documentId, pageIndex]);
 
-  const page = detail?.pages.find((p) => p.index === pageIndex) ?? null;
-  // A newly focused citation zooms in once; after that − and + move freely.
-  if (focus !== zoomedFor) {
-    setZoomedFor(focus);
-    if (focus?.bbox) setZoom(focusZoom);
+  const doc = detail && detail !== "missing" ? detail : null;
+  const page = doc?.pages.find((p) => p.index === pageIndex) ?? null;
+  const w = page?.width_px ?? 0;
+  const h = page?.height_px ?? 0;
+  const size = useMemo(() => (w && h ? { width: w, height: h } : null), [w, h]);
+  const {
+    viewportRef,
+    viewport,
+    camera,
+    ready: laidOut,
+    animated,
+    dragging,
+    handlers,
+    zoomIn,
+    zoomOut,
+    fit,
+    frame,
+  } = useCamera(size, `${documentId}:${pageIndex}`);
+
+  // Elements of another page never show on this one, even for a moment.
+  const ready = loaded?.page === pageIndex;
+  const elements = ready && loaded ? loaded.elements : NO_ELEMENTS;
+  const shown = onPage(target, pageIndex, elements);
+  const litKey = (shown?.highlightIds ?? []).join(" ");
+  // One Set per change of highlight, not per render: the element layer is memoised, and
+  // panning must not redraw hundreds of shapes.
+  const [lit, setLit] = useState({ key: "", ids: new Set<string>() });
+  if (lit.key !== litKey) setLit({ key: litKey, ids: new Set(litKey ? litKey.split(" ") : []) });
+  const highlighted = lit.ids;
+
+  // Fly to a new target once: when the page is laid out and, for agent views, its elements
+  // are known. Adjusting state while rendering, so there is no frame in between.
+  const frameable = shown?.frame && (target?.kind === "citation" || ready);
+  if (target !== framed && laidOut && (target === null || frameable)) {
+    setFramed(target);
+    if (shown?.frame) frame(shown.frame);
   }
-  const effectiveZoom = zoom;
 
-  useEffect(() => {
-    const el = scroller.current;
-    const cited = focusBox(focus, pageIndex);
-    if (!el || !page || !cited) return;
-    const target = scrollToCenter(
-      cited,
-      { width: page.width_px, height: page.height_px },
-      el.clientWidth * effectiveZoom,
-      { width: el.clientWidth, height: el.clientHeight },
-    );
-    el.scrollTo({ ...target, behavior: "smooth" });
-  }, [focus, page, pageIndex, effectiveZoom]);
+  // Pointing at nothing (a wall, a gap between rooms) keeps the last element in the bar.
+  const pointAt = useCallback((el: ElementInfo | null) => {
+    if (el) setHovered(el);
+  }, []);
 
-  const viewHere = planView && planView.page_index === pageIndex ? planView : null;
+  const toggleLayer = useCallback(
+    (key: LayerKey) =>
+      setLayers((current) => {
+        const next = new Set(current);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      }),
+    [],
+  );
 
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el || !page || !viewHere) return;
-    const shown = unionBox(elements, new Set(viewHere.element_ids));
-    if (!shown) return;
-    const target = scrollToCenter(
-      shown,
-      { width: page.width_px, height: page.height_px },
-      el.clientWidth * effectiveZoom,
-      { width: el.clientWidth, height: el.clientHeight },
-    );
-    el.scrollTo({ ...target, behavior: "smooth" });
-  }, [viewHere, elements, page, effectiveZoom]);
-
-  if (!detail) return <div className="viewer-empty">Loading drawing…</div>;
-  if (!page) return <div className="viewer-empty">This document has no drawing pages.</div>;
-
-  // A pinned card belongs to its page; switching pages hides it.
-  const pinned = selected && selected.page_id === page.id ? selected : null;
-  const shown = pinned ?? hovered;
-  const w = page.width_px;
-  const h = page.height_px;
-  const box = focusBox(focus, pageIndex);
+  const src = api.pageImageUrl(documentId, pageIndex);
+  const pinned = selected && page && selected.page_id === page.id ? selected : null;
+  const hover = hovered && page && hovered.page_id === page.id ? hovered : null;
+  const card = pinned ?? hover;
+  const percent = camera && size && viewport ? zoomPercent(camera, size, viewport) : 100;
 
   return (
     <div className="viewer">
-      <div className="viewer-toolbar">
-        <div className="chip-row">
-          <button
-            type="button"
-            className="btn btn-subtle btn-sm"
-            disabled={pageIndex === 0}
-            onClick={() => onPageChange(pageIndex - 1)}
-          >
-            ‹
-          </button>
-          <span className="body-sm">
-            {page.label ?? `Page ${pageIndex + 1}`} ({pageIndex + 1} of {detail.pages.length})
-          </span>
-          <button
-            type="button"
-            className="btn btn-subtle btn-sm"
-            disabled={pageIndex >= detail.pages.length - 1}
-            onClick={() => onPageChange(pageIndex + 1)}
-          >
-            ›
-          </button>
-        </div>
-        <div className="chip-row">
-          {LAYERS.map((layer) => (
+      {doc && (
+        <ViewerToolbar
+          pageIndex={pageIndex}
+          pageCount={doc.pages.length}
+          pageLabel={page?.label ?? null}
+          onPage={(i) => {
+            setSelected(null);
+            onPageChange(i);
+          }}
+          layers={layers}
+          onToggleLayer={toggleLayer}
+        />
+      )}
+      <div
+        ref={viewportRef}
+        className={`plan-viewport${dragging ? " is-dragging" : ""}`}
+        tabIndex={0}
+        aria-label="Plan. Drag to pan, scroll to zoom, + and - keys zoom, 0 fits the page."
+        {...handlers}
+      >
+        {page && camera && (
+          <PlanCanvas
+            src={src}
+            alt={page.label ?? `Page ${pageIndex + 1}`}
+            width={w}
+            height={h}
+            camera={camera}
+            animated={animated}
+            elements={elements}
+            layers={layers}
+            highlighted={highlighted}
+            shown={shown}
+            selectedId={pinned?.id ?? null}
+            onHover={pointAt}
+            onSelect={setSelected}
+            onLoad={() => setImageLoaded(src)}
+          />
+        )}
+        {detail === "missing" ? (
+          <div className="viewer-note">The drawing could not be loaded.</div>
+        ) : doc && !page ? (
+          <div className="viewer-note">This document has no drawing pages.</div>
+        ) : (
+          imageLoaded !== src && <div className="viewer-note is-loading">Loading drawing…</div>
+        )}
+        {shown && <TargetBanner shown={shown} onClear={onClearTarget} />}
+        <div className="zoom-controls" data-no-pan>
+          {shown?.frame && (
             <button
-              key={layer.key}
               type="button"
-              className={`chip chip-toggle${layers.has(layer.key) ? " is-on" : ""}`}
-              onClick={() => setLayers((current) => toggled(current, layer.key))}
+              className="btn btn-subtle btn-sm"
+              title="Show what the assistant pointed at"
+              onClick={() => shown.frame && frame(shown.frame)}
             >
-              {layer.label}
+              ⌖
             </button>
-          ))}
+          )}
           <button
             type="button"
             className="btn btn-subtle btn-sm"
-            onClick={() => setZoom(stepZoom(effectiveZoom, -1))}
+            aria-label="Zoom out"
+            onClick={zoomOut}
           >
             −
           </button>
-          <span className="body-sm">{Math.round(effectiveZoom * 100)}%</span>
+          <span className="zoom-value">{percent}%</span>
           <button
             type="button"
             className="btn btn-subtle btn-sm"
-            onClick={() => setZoom(stepZoom(effectiveZoom, 1))}
+            aria-label="Zoom in"
+            onClick={zoomIn}
           >
             +
           </button>
-        </div>
-      </div>
-      {viewHere && (
-        <div className="focus-banner">
-          <span className="badge badge-dark">Shown by the assistant</span>
-          <span className="body-sm">{viewHere.caption ?? viewHere.line?.label ?? ""}</span>
-          <button type="button" className="btn btn-subtle btn-sm" onClick={onClearFocus}>
-            Clear
+          <button type="button" className="btn btn-subtle btn-sm" onClick={fit}>
+            Fit
           </button>
         </div>
-      )}
-      {focus && focusIsHere(focus, pageIndex) && (
-        <div className="focus-banner">
-          <span className={`badge ${focus.verified ? "badge-ok" : "badge-warn"}`}>
-            {focus.verified ? "Verified source" : "Unverified"}
-          </span>
-          <span className="body-sm">{focus.note}</span>
-          <button type="button" className="btn btn-subtle btn-sm" onClick={onClearFocus}>
-            Clear
-          </button>
-        </div>
-      )}
-      {shown && (
-        <ElementCard element={shown} pinned={pinned !== null} onClose={() => setSelected(null)} />
-      )}
-      <div className="sheet-scroller" ref={scroller}>
-        <div className="sheet" style={{ width: `${effectiveZoom * 100}%` }}>
-          <img src={api.pageImageUrl(documentId, pageIndex)} alt={`Page ${pageIndex + 1}`} />
-          <svg
-            viewBox={`0 0 ${w} ${h}`}
-            className="sheet-overlay"
-            onClick={() => setSelected(null)}
-          >
-            <PlanLayer
-              elements={elements}
-              visible={layers}
-              highlighted={new Set([...(highlightIds ?? []), ...(viewHere?.element_ids ?? [])])}
-              selectedId={pinned?.id ?? null}
-              onHover={setHovered}
-              onSelect={setSelected}
-            />
-            {viewHere?.line && (
-              <g className="measure">
-                <line
-                  x1={viewHere.line.from[0]}
-                  y1={viewHere.line.from[1]}
-                  x2={viewHere.line.to[0]}
-                  y2={viewHere.line.to[1]}
-                  vectorEffect="non-scaling-stroke"
-                />
-                <text
-                  x={(viewHere.line.from[0] + viewHere.line.to[0]) / 2}
-                  y={(viewHere.line.from[1] + viewHere.line.to[1]) / 2}
-                  fontSize={Math.max(14, w / 70)}
-                >
-                  {viewHere.line.label}
-                </text>
-              </g>
-            )}
-            {box && (
-              <>
-                <defs>
-                  <mask id="spotlight">
-                    <rect width={w} height={h} fill="white" />
-                    <rect
-                      x={box[0] - FOCUS_PAD_PX}
-                      y={box[1] - FOCUS_PAD_PX}
-                      width={box[2] - box[0] + 2 * FOCUS_PAD_PX}
-                      height={box[3] - box[1] + 2 * FOCUS_PAD_PX}
-                      rx={8}
-                      fill="black"
-                    />
-                  </mask>
-                </defs>
-                <rect width={w} height={h} className="spotlight-dim" mask="url(#spotlight)" />
-                <rect
-                  className="spotlight-ring"
-                  x={box[0] - FOCUS_PAD_PX}
-                  y={box[1] - FOCUS_PAD_PX}
-                  width={box[2] - box[0] + 2 * FOCUS_PAD_PX}
-                  height={box[3] - box[1] + 2 * FOCUS_PAD_PX}
-                  rx={8}
-                  vectorEffect="non-scaling-stroke"
-                />
-              </>
-            )}
-          </svg>
-        </div>
       </div>
+      <ElementCard
+        element={card}
+        pinned={card !== null && card === pinned}
+        onClose={() => setSelected(null)}
+        onAsk={() => card && onAskAbout(card)}
+      />
     </div>
   );
 }
 
-function toggled(current: Set<LayerKey>, key: LayerKey): Set<LayerKey> {
-  const next = new Set(current);
-  if (next.has(key)) next.delete(key);
-  else next.add(key);
-  return next;
+function TargetBanner({ shown, onClear }: { shown: TargetOnPage; onClear: () => void }) {
+  return (
+    <div className="target-banner" data-no-pan>
+      {shown.verified === null ? (
+        <span className="badge badge-accent">Shown by the assistant</span>
+      ) : (
+        <span className={`badge ${shown.verified ? "badge-ok" : "badge-warn"}`}>
+          {shown.verified ? "✓ Verified source" : "! Unverified source"}
+        </span>
+      )}
+      <span className="target-caption">{shown.caption}</span>
+      <button type="button" className="btn btn-subtle btn-sm" onClick={onClear}>
+        Clear
+      </button>
+    </div>
+  );
 }

@@ -2,10 +2,14 @@
 
 /* ---------- responsive ---------- */
 @media (max-width: 1119px) {
-  .workspace {
+  .workspace,
+  .workspace.is-sidebar-closed {
     grid-template-columns: 220px minmax(0, 1fr);
-    grid-template-rows: minmax(420px, 1fr) auto;
+    grid-template-rows: minmax(480px, 1fr) minmax(420px, auto);
     height: auto;
+  }
+  .workspace.is-sidebar-closed {
+    grid-template-columns: minmax(0, 1fr);
   }
   .ask-panel {
     grid-column: 1 / -1;
@@ -43,7 +47,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .progress span {
+  .progress span,
+  .plan-sheet.is-animated,
+  .steps li:last-child::after {
     transition: none;
+    animation: none;
   }
 }

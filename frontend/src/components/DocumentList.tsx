@@ -1,47 +1,45 @@
 import type { DocumentInfo } from "../api/types";
-import type { IngestProgress } from "../hooks/useDocuments";
+import { isBusy, statusLine, type IngestProgress } from "../lib/ingest";
 
 interface Props {
   documents: DocumentInfo[];
   progress: Record<string, IngestProgress>;
+  workers: number | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
-const STATUS_LABEL: Record<DocumentInfo["status"], string> = {
-  queued: "Queued",
-  processing: "Reading",
-  ready: "Ready",
-  failed: "Failed",
-};
-
-export function DocumentList({ documents, progress, selectedId, onSelect, onDelete }: Props) {
+export function DocumentList(props: Props) {
+  const { documents, progress, workers, selectedId, onSelect, onDelete } = props;
   return (
     <nav className="sidebar" aria-label="Documents">
       <h2 className="eyebrow">Documents</h2>
       <ul className="doc-list">
         {documents.map((doc) => {
-          const p = progress[doc.id];
-          const busy = doc.status === "queued" || doc.status === "processing";
+          const line = statusLine(doc, progress[doc.id], workers);
           return (
             <li key={doc.id}>
               <button
                 type="button"
                 className={`doc-row${doc.id === selectedId ? " is-active" : ""}`}
                 onClick={() => onSelect(doc.id)}
-                title={doc.error_message ?? undefined}
+                title={line.detail ?? doc.filename}
               >
                 <span className="doc-name">{doc.filename}</span>
                 <span className="doc-meta">
                   <span className="kind-tag">{doc.kind.toUpperCase()}</span>
-                  <span className={`status status-${doc.status}`}>
-                    {busy && p?.stage ? p.stage : STATUS_LABEL[doc.status]}
+                  <span className={`status status-${line.tone}`}>
+                    {line.label}
+                    {line.percent !== null && ` ${line.percent}%`}
                   </span>
                 </span>
-                {busy && (
-                  <span className="progress" aria-hidden>
-                    <span style={{ width: `${Math.round((p?.progress ?? 0) * 100)}%` }} />
+                {isBusy(doc) && (
+                  <span
+                    className={`progress${line.percent === null ? " is-waiting" : ""}`}
+                    aria-hidden
+                  >
+                    <span style={{ width: `${line.percent ?? 30}%` }} />
                   </span>
                 )}
               </button>
@@ -49,7 +47,11 @@ export function DocumentList({ documents, progress, selectedId, onSelect, onDele
                 type="button"
                 className="icon-btn"
                 aria-label={`Delete ${doc.filename}`}
-                onClick={() => onDelete(doc.id)}
+                title="Delete"
+                onClick={() => {
+                  if (window.confirm(`Delete ${doc.filename}? This cannot be undone.`))
+                    onDelete(doc.id);
+                }}
               >
                 ×
               </button>

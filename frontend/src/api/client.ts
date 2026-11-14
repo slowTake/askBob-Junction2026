@@ -4,11 +4,13 @@ import { readSSE } from "./sse";
 import type {
   Answer,
   ApiErrorBody,
+  AskContext,
   AskStep,
   DocumentDetail,
   DocumentInfo,
   ElementInfo,
   Envelope,
+  HealthInfo,
   MeshData,
   PlanView,
 } from "./types";
@@ -53,6 +55,7 @@ export interface AskHandlers {
 }
 
 export const api = {
+  health: () => request<HealthInfo>("/api/health"),
   listDocuments: () => request<DocumentInfo[]>("/api/documents"),
   getDocument: (id: string) => request<DocumentDetail>(`/api/documents/${id}`),
   elements: (id: string, page: number) =>
@@ -82,11 +85,12 @@ export const api = {
     documentIds: string[],
     handlers: AskHandlers,
     signal?: AbortSignal,
+    context?: AskContext,
   ): Promise<void> {
     const response = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, document_ids: documentIds }),
+      body: JSON.stringify({ question, document_ids: documentIds, context: context ?? null }),
       signal,
     });
     if (!response.ok || !response.body) {
