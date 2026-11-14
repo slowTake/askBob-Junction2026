@@ -149,6 +149,7 @@ a {
 }
 .chip-toggle.is-on,
 .chip-toggle.is-on:hover:not(:disabled) {
+  /* must outrank .chip:hover, or hovering an "on" chip loses its fill */
   background: var(--ink);
   color: var(--surface);
 }
