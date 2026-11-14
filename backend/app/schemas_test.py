@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.domain.ingest_errors import MESSAGES
-from app.schemas import DocumentOut
+from app.schemas import DocumentOut, PageOut
 
 
 def _doc(**overrides: object) -> DocumentOut:
@@ -25,3 +25,10 @@ def test_drawing_with_built_model_offers_ifc() -> None:
     assert _doc().has_ifc is True
     assert _doc(meta={}).has_ifc is False  # IFC writing failed: nothing to download
     assert _doc(kind="ifc", meta={}).has_ifc is True
+
+
+def test_page_label_is_the_storey() -> None:
+    page = {"id": uuid.uuid4(), "index": 0, "width_px": 10, "height_px": 10, "dpi": None,
+            "mm_per_px": None, "meta": {"storey": "Level 1", "words": 3}}  # fmt: skip
+    dumped = PageOut.model_validate(page).model_dump()
+    assert dumped["label"] == "Level 1" and "meta" not in dumped
