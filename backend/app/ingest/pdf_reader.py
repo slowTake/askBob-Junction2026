@@ -11,6 +11,7 @@ from app.domain.geometry import scale_bbox
 from app.domain.tokens import Word
 from app.ingest.annotate import annotate_page
 from app.ingest.ocr import ocr_words
+from app.ingest.pdf_vector import hatched_regions
 from app.ingest.types import ExtractedDocument, ExtractedPage, Progress
 
 POINTS_PER_INCH = 72.0
@@ -33,9 +34,11 @@ def read_pdf(path: Path, settings: Settings, progress: Progress) -> ExtractedDoc
             words = ocr_words(gray, settings.ocr_langs)
             source = "ocr"
 
-        elements, scale_mm, meta = annotate_page(gray, words, source, dpi)
+        walls = [[(x * px_per_pt, y * px_per_pt) for x, y in w] for w in hatched_regions(page)]
+        elements, scale_mm, meta = annotate_page(gray, words, source, dpi, vector_walls=walls)
         meta["text_layer"] = source == "pdf_text"
-        # TODO(vector): walls/doors from page.get_drawings() are exact; prefer them over CV.
+        meta["vector_walls"] = len(walls)
+        # TODO(vector): doors (arcs) and windows from the vector layer too.
         result.pages.append(
             ExtractedPage(
                 index=number,
@@ -53,14 +56,21 @@ def read_pdf(path: Path, settings: Settings, progress: Progress) -> ExtractedDoc
 
 
 def _pdf_words(page: pymupdf.Page, px_per_pt: float) -> list[Word]:
-    """Words in rendered-pixel coordinates.
+    """Text lines in rendered-pixel coordinates.
 
-    PyMuPDF reports text in unrotated page space; the pixmap is rendered rotated,
-    so map through `rotation_matrix` first (checked on a rotated test page).
+    Words on the same PDF text line are joined, so labels like "Camera da letto",
+    "15.61 m²" and "Whg. A" stay whole. PyMuPDF reports text in unrotated page
+    space; the pixmap is rendered rotated, so map through `rotation_matrix` first.
     """
-    words: list[Word] = []
+    lines: dict[tuple[int, int], list[tuple[pymupdf.Rect, str]]] = {}
     for w in page.get_text("words", sort=True):
         rect = pymupdf.Rect(w[:4]) * page.rotation_matrix
+        lines.setdefault((w[5], w[6]), []).append((rect, str(w[4])))
+    words: list[Word] = []
+    for parts in lines.values():
+        rect = pymupdf.Rect(parts[0][0])
+        for r, _ in parts[1:]:
+            rect |= r
         bbox = scale_bbox((rect.x0, rect.y0, rect.x1, rect.y1), px_per_pt)
-        words.append(Word(bbox, str(w[4])))
+        words.append(Word(bbox, " ".join(text for _, text in parts)))
     return words

@@ -50,6 +50,8 @@ def room_region(
     if area > max_area_frac * h * w:
         return None
     region = (barrier == 128).astype(np.uint8)
+    if region[0, :].any() or region[-1, :].any() or region[:, 0].any() or region[:, -1].any():
+        return None  # reached the page edge: leaked out of the building
     contours, _ = cv2.findContours(region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return None
