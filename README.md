@@ -32,6 +32,18 @@ Ask construction drawings questions in plain language and get answers you can ch
 
 Why it's built this way: [docs/decisions.md](docs/decisions.md).
 
+### Supported formats
+
+Every format goes through the same pipeline and ends up as an IFC model plus the same elements ([docs/model.md](docs/model.md)).
+
+| Upload | How it is read | 3D model |
+|---|---|---|
+| IFC (IFC2X3, IFC4) | indexed directly, exact | its own geometry |
+| DXF | named layers (walls, doors, rooms…); vision on the rendered page when layer names mean nothing | from footprints |
+| DWG | converted to DXF (needs LibreDWG `dwg2dxf` or ODA File Converter on the server) | from footprints |
+| PDF, SVG | text, vector walls and printed labels; OCR for scanned pages | when the scale is printed |
+| PNG, JPEG, TIFF (multi-page), WebP, BMP, GIF | OCR + computer vision | when DPI and scale are known |
+
 ## Run it
 
 **With Aiven** (shared setup; first follow [docs/aiven-setup.md](docs/aiven-setup.md)):

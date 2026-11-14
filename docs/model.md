@@ -53,3 +53,10 @@ Each object written from a drawing carries a `Bob_Element` property set (kind, s
 ## 3D geometry for drawings
 
 A drawing gives footprints, not heights. Shapes are extruded with fixed, documented heights (`model_rules.py`): walls and rooms 2600 mm, windows from 900 to 2100 mm, fixtures 450 mm. Doors become a 20 mm floor marker, because a plan shows where a door is, not where its leaf stands. Uploaded IFC models keep their real geometry.
+
+## Large models and failures
+
+- Meshes are stored gzipped. Models over 1.5 million triangles are trimmed for the browser, keeping building fabric first, then fixtures, then pipes and furniture (`domain/mesh_budget.py`). Trimmed parts stay in the data and still count in answers.
+- A reader that knows why it failed raises `ReaderError` with a code. The API turns the code into a message for the user (`domain/ingest_errors.py`): damaged file, password-protected PDF, no DWG converter, empty drawing.
+- A model that cannot be meshed, or a drawing whose IFC cannot be written, still keeps its elements; the document records a warning.
+

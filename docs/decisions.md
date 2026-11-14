@@ -18,6 +18,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-012 | 2026-11-14 | Drafting-table theme with a dark mode; drawings stay paper | Accepted |
 | D-013 | 2026-11-14 | Fit a missing page scale from printed dimensions; two must agree | Accepted |
 | D-014 | 2026-11-14 | Exact CAD/vector geometry first; pixel heuristics last | Accepted |
+| D-015 | 2026-11-14 | Every format becomes IFC; one IFC indexer feeds the app | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -184,3 +185,24 @@ The agent gets these rules as the `sum_room_areas` tool. A traced room outline i
 | Area totals | 92–100% | 34–37% |
 
 The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, washbasin, bathtub, shower) are not classified yet.
+
+## D-015: Every format becomes IFC; one IFC indexer feeds the app
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** Each format had its own path into the database, so "same shape, same accuracy" depended on every reader agreeing by hand. We also want models that open in BIM tools, and an agent that can highlight elements in 3D for any format.
+
+**Decision:**
+- Every non-IFC upload (DXF, DWG, PDF, SVG, PNG/JPEG/TIFF/WebP/BMP/GIF) is read into elements and written as an **IFC4 model**. IFC uploads are already one.
+- A single IFC indexer turns any IFC into the stored elements, and the 3D mesh comes from the same IFC. Elements, mesh and downloads therefore share GlobalIds.
+- Drawing findings carry a `Bob_Element` property set (kind, source, confidence, page, box, properties), so the round trip loses nothing. The Swiss scores are identical before and after the round trip.
+- Kinds map to standard IFC classes, defined in both directions in `domain/model_rules.py`: apartments are `IfcZone`, known fixtures are `IfcSanitaryTerminal` with a type, and text is `IfcAnnotation`.
+- Counting rules (nested parts, IFC2X3 types, units) live in the indexer, so they apply to every format.
+- **Sturdiness:**
+  - Known failures raise `ReaderError` with a user-facing message (damaged file, password-protected PDF, no DWG converter, empty drawing).
+  - A model that can't be meshed still answers questions.
+  - Big models are trimmed to a triangle budget for the browser (fabric first), and the mesh is stored gzipped.
+  - DXFs whose layer names mean nothing fall back to vision on the rendered page, with the DXF's exact text and scale.
+- **DWG** needs LibreDWG `dwg2dxf` or the ODA File Converter. Debian doesn't package LibreDWG, so the container has neither for now, and DWG uploads ask for a DXF export.
+
+**Consequences:** The pipeline is tested end to end per format (`ingest/pipeline_test.py`) and was run on a sample of every source in the dataset preview: 27 of 28 files processed; the DWG failed by design (no converter installed). The shape is documented in `docs/model.md`.
