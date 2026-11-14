@@ -17,3 +17,7 @@ Work is tracked in GitHub issues on `slowTake/bobBuilder`; see `docs/issues.md`.
 - Create the branch from the issue: `gh issue develop <n> --checkout`.
 - The PR body starts with `Closes #<n>`.
 - Work you find that the issue doesn't cover becomes a new issue (`gh issue create`, ask first), not extra scope in the current PR.
+
+## Separate directories
+
+- `demo-video/` builds the demo video and is not part of the app. It is exempt from tests and CI (D-011) and has its own rules in [demo-video/AGENTS.md](demo-video/AGENTS.md). Read that before working there.
