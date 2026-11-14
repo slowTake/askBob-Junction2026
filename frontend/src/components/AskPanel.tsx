@@ -10,6 +10,7 @@ const EXAMPLES = [
   "Show all the doors and windows.",
   "What is the total area of each apartment?",
   "How far is the kitchen from the bathroom?",
+  "What is the way from apartment A to the stairs?",
 ];
 
 interface Props {

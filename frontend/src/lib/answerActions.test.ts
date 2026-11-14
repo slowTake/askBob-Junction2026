@@ -65,4 +65,31 @@ describe("answerActions", () => {
     expect(actions.sources).toHaveLength(3);
     expect(actions.views).toEqual([view]);
   });
+
+  it("keeps a view that writes a label or draws a route, even over cited rows", () => {
+    const labelled = { ...view, labels: [{ at: [1, 2] as [number, number], text: "78.4 m²" }] };
+    const routed = {
+      ...view,
+      element_ids: [],
+      path: {
+        points: [
+          [0, 0],
+          [5, 5],
+        ] as [number, number][],
+        label: "1 m",
+      },
+    };
+    const actions = answerActions(
+      {
+        columns: ["Apartment"],
+        rows: [
+          { cells: ["A"], citation: 1 },
+          { cells: ["B"], citation: 2 },
+        ],
+      },
+      citations,
+      [labelled, routed],
+    );
+    expect(actions.views).toEqual([labelled, routed]);
+  });
 });

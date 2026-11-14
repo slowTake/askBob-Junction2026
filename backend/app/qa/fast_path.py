@@ -63,7 +63,7 @@ def fast_events(
     if settings.fast_path == "exact" and min(confidences, default=0.0) < EXACT_CONFIDENCE:
         return None
     events: list[dict[str, Any]] = [{"type": "step", "tool": step[0], "input": step[1]}]
-    events += _highlight(elements, draft.answer, ctx)
+    events += _highlight(elements, draft.answer, ctx, plan_label(draft, intent))
     confidence, caveat = reliability(confidences)
     answer = FinalAnswer(
         answer=draft.answer,
@@ -139,15 +139,23 @@ def room_ref(el: Element) -> RoomRef:
     )
 
 
+def plan_label(draft: Draft, intent: Intent) -> str | None:
+    """An area is written on the plan over what it measures, e.g. 'Apartment A · 78.4 m²'."""
+    if draft.unit != "m2":
+        return None
+    area = f"{draft.value:.1f}".rstrip("0").rstrip(".") + " m²"
+    return f"Apartment {intent.unit} · {area}" if intent.unit else area
+
+
 def _highlight(
-    elements: list[dict[str, Any]], caption: str, ctx: ToolContext
+    elements: list[dict[str, Any]], caption: str, ctx: ToolContext, label: str | None = None
 ) -> list[dict[str, Any]]:
     """Show the elements on the plan, when they are on one. IFC elements without a
     plan page have nothing to light up."""
     ids = [e["id"] for e in elements if e.get("page_id")]
     if not ids:
         return []
-    args = {"element_ids": ids, "caption": caption}
+    args = {"element_ids": ids, "caption": caption, "label": label}
     shown = len(ctx.views)
     try:
         run_tool("highlight", args, ctx)

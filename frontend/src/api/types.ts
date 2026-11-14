@@ -135,7 +135,20 @@ export interface AnswerTable {
   rows: { cells: string[]; citation: number }[]; // 1-based citation number; 0 for totals
 }
 
-/** An agent instruction for the plan: light up elements, maybe draw a measured line. */
+/** Text written on the plan at a point, e.g. an apartment's area over the apartment. */
+export interface PlanLabel {
+  at: [number, number];
+  text: string;
+}
+
+/** A walked route: its corners in page px and its length. */
+export interface PlanPath {
+  points: [number, number][];
+  label: string;
+}
+
+/** An agent instruction for the plan: light up elements, draw a measured line or a route,
+ * write labels. `labels` and `path` are missing from answers cached before they existed. */
 export interface PlanView {
   document_id: string;
   page_id: string;
@@ -143,6 +156,8 @@ export interface PlanView {
   element_ids: string[];
   line: { from: [number, number]; to: [number, number]; label: string } | null;
   caption: string | null;
+  labels?: PlanLabel[];
+  path?: PlanPath | null;
 }
 
 export interface AskStep {

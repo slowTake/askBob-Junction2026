@@ -53,6 +53,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-043 | 2026-11-14 | Plan highlights distinguish object types and apartments (#115) | Accepted |
 | D-044 | 2026-11-14 | Compact answer inventories and Opus at low effort (#115) | Accepted |
 | D-045 | 2026-11-14 | Answer rows own their drawing interactions (#115) | Accepted |
+| D-046 | 2026-11-15 | Plan answers draw what they say: a distance line alone, area labels, walking routes | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -725,3 +726,20 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 **Decision:** Clicking anywhere in a cited table row opens its source; the first cell also provides native keyboard activation. Omit source chips already represented by rows and plan highlight buttons whose elements are all covered by those rows. Deduplicate remaining plan actions by document, page, element IDs and measurement, independent of caption and ID ordering. Keep additional sources and measurement actions accessible. Remove the answer-level verification and confidence badges; citation validation stays in the backend, and concrete caveats stay visible.
 
 **Consequences:** A table of apartment areas appears once, without repeated plan buttons and source chips underneath. The interface no longer suggests that citation bookkeeping or a model's confidence label proves an answer correct.
+
+## D-046: Plan answers draw what they say: a distance line alone, area labels, walking routes
+
+**Date:** 2026-11-15 · **Status:** Accepted · **Refines:** D-043, D-044
+
+**Context:** A distance answer lit up both elements, and their highlight covered the measured line. An area answer highlighted the rooms but never showed the number on the plan. There was no way to show how to get somewhere ("path from apartment A to the exit"). Answers still added rooms and figures nobody asked for.
+
+**Decision:**
+- **Distance:** `measure_between` adds a view with the line and its length only; the two elements stay citable but are not highlighted. The prompt says not to highlight them as well.
+- **Area labels:** `highlight` takes an optional `label`, written at the centre of the highlighted elements' outline bounds. The server's area answers (D-038) pass e.g. "Apartment A · 78.4 m²"; the prompt asks the agent to do the same.
+- **Routes:** a new `route` tool walks between two elements on one page. The page becomes a grid (at most 600 cells on its long side); wall boxes and outlines are blocked, door boxes (padded 3 px) are open. `skimage.graph.MCP_Geometric` finds the cheapest path, where steps near a wall cost more (cost 1 + 3 / (1 + clearance in cells)), so it keeps to corridors. The path is cut to the corners where a straight line stays a cell away from walls. Its length uses the page scale; without one the label says "route". The agent picks the target (staircase room, exit or entrance door) with `find_elements`.
+- Every view now has `labels` and `path` (empty or null); the UI draws the route with a start dot and an arrowhead, and labels as text with a paper-coloured halo. Answers cached earlier lack the keys and still render.
+- The answer instructions say to answer only what was asked, without unrequested rooms or figures.
+- The UI is named askBob.
+
+**Consequences:** A route is only as good as the extracted walls and doors: a missed door blocks the way (the tool then says so), a missed wall lets the route through it. Windows stay blocked. Routes do not cross pages or storeys. Labels can overlap the drawing's own text. Tested on synthetic pages; not yet checked on the dataset's plans with a real model.
+

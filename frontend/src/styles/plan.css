@@ -82,6 +82,33 @@
   stroke-width: calc(5px * var(--u));
 }
 
+/* A walked route (the `route` tool): solid, with an arrowhead at the arrival. */
+.route {
+  pointer-events: none;
+}
+.route polyline {
+  fill: none;
+  stroke: var(--paper-mark);
+  stroke-width: calc(4px * var(--u));
+  stroke-linecap: round;
+}
+.route circle,
+.route path {
+  fill: var(--paper-mark);
+}
+.route text,
+.plan-text {
+  fill: var(--paper-mark);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: calc(5px * var(--u));
+  pointer-events: none;
+}
+
 .spotlight {
   pointer-events: none;
 }
