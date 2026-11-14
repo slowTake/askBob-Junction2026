@@ -20,6 +20,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-014 | 2026-11-14 | Exact CAD/vector geometry first; pixel heuristics last | Accepted |
 | D-015 | 2026-11-14 | Every format becomes IFC; one IFC indexer feeds the app | Accepted |
 | D-016 | 2026-11-14 | Floor plans are the interactive surface; 3D only for IFC | Accepted |
+| D-017 | 2026-11-14 | Ingest never leaves a document waiting for a job that is gone | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -226,3 +227,18 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
   - `measure_between` draws a measured line between two elements, centre to centre, plus the nearest-edges distance.
 
 **Consequences:** Ingest is faster for drawings (no meshing). The 3D tab appears only when a document has a real model. The agent tools are covered by schema tests; the measurement geometry is a tested pure function.
+
+## D-017: Ingest never leaves a document waiting for a job that is gone
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-010
+
+**Context:** Documents stayed "Queued" or "processing" forever, with nothing working on them. Causes seen or possible: forked job processes shared the worker parent's database connection, so after a few jobs the first write of a job failed with `DuplicatePreparedStatement` (#56), and that write sat outside the job's error handling; Valkey lost its queue on a restart; a worker died mid-job. D-010 had accepted stranded rows as "not worth a sweeper".
+
+**Decision:**
+- Every forked process starts with an empty connection pool (`os.register_at_fork` in `app/db.py`), so job processes never share the parent's server session.
+- The whole job runs inside its error handling; any failure marks the document `failed` with a reason, and recording the failure never raises.
+- RQ safety nets mark in-flight documents failed: a failure callback (also run for jobs abandoned by a dead worker: `ingest_interrupted`) and a killed-work-horse handler (out of memory: `ingest_killed`). Maintenance runs every 60 s, so a dead worker's job is noticed within about 2.5 minutes.
+- On start, the worker queues again every `queued` or `processing` document that no queued or running job refers to (older than 60 s, so a fresh upload is never doubled).
+- `/api/health` reports `ingest_workers`, so the UI can say that no worker is running instead of a silent "Queued". `ok` still covers only Postgres and Valkey: without a worker the API works and uploads wait.
+
+**Consequences:** A document is never stuck: it finishes, fails with a reason the user can act on, or is picked up again when a worker starts. A document interrupted by a restart is marked failed rather than retried automatically, so a file that crashes the whole worker can't loop forever.
