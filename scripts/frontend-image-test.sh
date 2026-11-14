@@ -26,7 +26,7 @@ check() { # $1 = name, $2 = expected, $3 = actual
   fi
 }
 
-port() { docker port "$1" 80/tcp | head -1 | sed 's/.*://'; }
+port() { docker port "$1" 80/tcp 2>/dev/null | head -1 | sed 's/.*://' || true; } # empty once stopped
 code() { curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$1" || true; }
 body() { curl -s --max-time 5 "$1" || true; }
 running() { docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || echo false; }
@@ -39,9 +39,10 @@ web() {
   docker run -d --name "$id-web" --network "$net" -p 127.0.0.1::80 "$@" "$image" >/dev/null
   for _ in $(seq 30); do
     [[ "$(running "$id-web")" == true ]] || return 0
-    local url
-    url="http://127.0.0.1:$(port "$id-web")"
-    [[ "$(code "$url/")" != 000 ]] && {
+    local p url
+    p="$(port "$id-web")"
+    url="http://127.0.0.1:$p"
+    [[ -n "$p" && "$(code "$url/")" != 000 ]] && {
       echo "$url"
       return 0
     }
