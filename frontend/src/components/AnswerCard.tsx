@@ -9,62 +9,80 @@ interface Props {
   onShowView: (view: PlanView) => void;
 }
 
-/** The latest answer is a card with an accent rule; older turns fall back to plain text. */
+/** One question and its answer. Every answer stays readable; the latest has an accent rule. */
 export function AnswerCard({ turn, latest, onCitation, onShowView }: Props) {
   const { answer, error, steps, pending } = turn;
   return (
-    <article className={`answer-card${latest ? " is-latest" : ""}`}>
-      <p className="question">{turn.question}</p>
+    <article className={`turn${latest ? " is-latest" : ""}`}>
+      <div className="question">
+        {turn.about && <span className="question-about">About {turn.about}</span>}
+        {turn.question}
+      </div>
 
-      {pending && !answer && (
-        <ul className="steps">
-          {steps.length === 0 && <li>Thinking…</li>}
-          {steps.map((s, i) => (
-            <li key={i}>{describeStep(s.tool, s.input)}</li>
-          ))}
-        </ul>
-      )}
+      <div className="answer-card">
+        {pending && !answer && !error && (
+          <ul className="steps" aria-live="polite">
+            {steps.length === 0 && <li>Thinking</li>}
+            {steps.map((s, i) => (
+              <li key={i}>{describeStep(s.tool, s.input)}</li>
+            ))}
+          </ul>
+        )}
 
-      {error && <p className="error-text">{error.message}</p>}
+        {error && <p className="error-text">{error.message}</p>}
 
-      {answer && (
-        <>
-          <div className="chip-row">
-            <span className={`badge ${answer.verified ? "badge-ok" : "badge-warn"}`}>
-              {answer.verified ? "✓ Verified sources" : "! Not verified"}
-            </span>
-            <span className="badge badge-plain">{answer.confidence} confidence</span>
-            {answer.cached && <span className="badge badge-plain">cached</span>}
-          </div>
-          <p className="answer-text">{answer.answer}</p>
-          {answer.citations.length > 0 && (
+        {answer && (
+          <>
+            <p className="answer-text">{answer.answer}</p>
             <div className="chip-row">
-              {answer.citations.map((c, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className={`citation${c.verified ? "" : " is-unverified"}`}
-                  onClick={() => onCitation(c)}
-                  title={c.verified ? "Show on drawing" : "This citation could not be verified"}
-                >
-                  <span className="citation-num">{i + 1}</span>
-                  {c.note || "source"}
-                </button>
-              ))}
+              <span className={`badge ${answer.verified ? "badge-ok" : "badge-warn"}`}>
+                {answer.verified ? "✓ Verified sources" : "! Not verified"}
+              </span>
+              <span className="badge badge-plain">{answer.confidence} confidence</span>
+              {answer.cached && <span className="badge badge-plain">cached</span>}
             </div>
-          )}
-          {turn.views.length > 0 && (
-            <button
-              type="button"
-              className="citation"
-              onClick={() => onShowView(turn.views[turn.views.length - 1])}
-            >
-              Show on plan
-            </button>
-          )}
-          {answer.caveats && <p className="caveats">{answer.caveats}</p>}
-        </>
-      )}
+            {turn.views.length > 0 && (
+              <div className="answer-section">
+                <span className="section-label">On the plan</span>
+                <div className="chip-row">
+                  {turn.views.map((v, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className="view-chip"
+                      onClick={() => onShowView(v)}
+                    >
+                      ⌖ {v.caption ?? v.line?.label ?? `${v.element_ids.length} elements`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {answer.citations.length > 0 && (
+              <div className="answer-section">
+                <span className="section-label">Sources</span>
+                <div className="chip-row">
+                  {answer.citations.map((c, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className={`citation${c.verified ? "" : " is-unverified"}`}
+                      onClick={() => onCitation(c)}
+                      title={
+                        c.verified ? "Show on the drawing" : "This citation could not be verified"
+                      }
+                    >
+                      <span className="citation-num">{i + 1}</span>
+                      {c.note || "source"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {answer.caveats && <p className="caveats">{answer.caveats}</p>}
+          </>
+        )}
+      </div>
     </article>
   );
 }

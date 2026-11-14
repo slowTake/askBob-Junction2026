@@ -6,12 +6,27 @@ interface Props {
   context: string | null; // the open document, shown as a breadcrumb
   theme: Theme;
   onToggleTheme: () => void;
+  sidebarOpen?: boolean; // undefined: no sidebar to toggle (empty state)
+  onToggleSidebar?: () => void;
 }
 
-export function NavBar({ onFiles, context, theme, onToggleTheme }: Props) {
+export function NavBar(props: Props) {
+  const { onFiles, context, theme, onToggleTheme, sidebarOpen, onToggleSidebar } = props;
   const next = theme === "dark" ? "light" : "dark";
   return (
     <header className="nav-bar">
+      {onToggleSidebar && (
+        <button
+          type="button"
+          className="btn btn-bar icon-only"
+          onClick={onToggleSidebar}
+          aria-expanded={sidebarOpen}
+          aria-label={sidebarOpen ? "Hide documents" : "Show documents"}
+          title={sidebarOpen ? "Hide documents" : "Show documents"}
+        >
+          ☰
+        </button>
+      )}
       <div className="wordmark">
         <span className="wordmark-mark" aria-hidden />
         bobBuilder
@@ -27,7 +42,7 @@ export function NavBar({ onFiles, context, theme, onToggleTheme }: Props) {
       <div className="nav-actions">
         <button
           type="button"
-          className="btn btn-bar theme-toggle"
+          className="btn btn-bar icon-only"
           onClick={onToggleTheme}
           aria-label={`Switch to ${next} mode`}
           title={`Switch to ${next} mode`}
