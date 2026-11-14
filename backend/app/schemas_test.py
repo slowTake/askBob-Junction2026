@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.ingest_errors import MESSAGES
+from app.domain.upscale import UPSCALE_FORMAT
 from app.schemas import MAX_SELECTED, AskContextIn, DocumentOut, PageOut
 
 
@@ -64,7 +65,16 @@ def test_page_says_whether_it_was_upscaled() -> None:
     page = {"id": uuid.uuid4(), "index": 0, "width_px": 10, "height_px": 10, "dpi": None,
             "mm_per_px": None, "meta": {}}  # fmt: skip
     assert PageOut.model_validate(page).model_dump()["upscale"] is None
-    page["meta"] = {"upscale": {"document_version": 2, "format": 1, "model": "m", "added": 4,
-                                "input_tokens": 3000, "output_tokens": 400}}  # fmt: skip
+    page["meta"] = {"upscale": {"document_version": 2, "format": UPSCALE_FORMAT, "model": "m",
+                                "added": 4, "input_tokens": 3000,
+                                "output_tokens": 400}}  # fmt: skip
     # Only what the UI shows; the token counts stay on the server.
     assert PageOut.model_validate(page).model_dump()["upscale"] == {"added": 4, "model": "m"}
+
+
+def test_a_page_upscaled_in_an_older_format_offers_upscale_again() -> None:
+    # The server reruns such a page (is_cached), so the UI must show the button again.
+    old = {"document_version": 2, "format": UPSCALE_FORMAT - 1, "model": "m", "added": 0}
+    page = {"id": uuid.uuid4(), "index": 0, "width_px": 10, "height_px": 10, "dpi": None,
+            "mm_per_px": None, "meta": {"upscale": old}}  # fmt: skip
+    assert PageOut.model_validate(page).model_dump()["upscale"] is None
