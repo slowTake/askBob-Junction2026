@@ -6,6 +6,7 @@ from app.domain.dimensions import mm_per_px
 from app.domain.geometry import bbox_center, bbox_to_plan_polygon, footprint_mm
 from app.domain.kinds import DrawingKind
 from app.domain.tokens import Word, classify, merge_split_numbers
+from app.ingest.dimension_lines import fit_dimension_scale
 from app.ingest.rooms import Gray, ink_mask, room_region, wall_boxes
 from app.ingest.types import ExtractedElement
 
@@ -38,11 +39,26 @@ def annotate_page(
             )
         )
 
-    # TODO(scale): raster pages without DPI: fit dimension strings to their dimension lines.
-    scale_mm = mm_per_px(dpi, scales[0]) if dpi and scales else None
     height = float(gray.shape[0])
     ink = ink_mask(gray)
     text_boxes = [w.bbox for w in words]
+
+    scale_mm: float | None = None
+    scale_meta: dict[str, Any] = {"scale_method": None}
+    if dpi and scales:
+        scale_mm = mm_per_px(dpi, scales[0])
+        scale_meta["scale_method"] = "dpi"
+    else:  # no DPI or no scale note: fit the printed dimensions to their dimension lines
+        dimensions = [
+            (el.value_mm, el.bbox)
+            for el in elements
+            if el.kind == "dimension" and el.value_mm and el.bbox
+        ]
+        fit = fit_dimension_scale(ink, dimensions, erase=text_boxes)
+        if fit:
+            scale_mm, support = fit
+            scale_meta = {"scale_method": "dimension_fit", "scale_support": support}
+    # TODO(scale): scale bars (HABS, Finna) as a third method, "scale_bar".
 
     for el in elements:
         if el.kind != "room" or el.bbox is None:
@@ -63,5 +79,10 @@ def annotate_page(
             wall.footprint_mm = bbox_to_plan_polygon(box, scale_mm, height)
         elements.append(wall)
 
-    meta = {"scale_denominators": scales, "scale_known": scale_mm is not None, "words": len(words)}
+    meta = {
+        "scale_denominators": scales,
+        "scale_known": scale_mm is not None,
+        **scale_meta,
+        "words": len(words),
+    }
     return elements, scale_mm, meta
