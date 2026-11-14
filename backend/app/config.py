@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     sketch_timeout_s: float = 300.0  # one model call
     sketch_deadline_s: float = 600.0  # no new check round starts after this
 
+    # OCR service on a bigger host (#119); unset means the worker reads pages itself.
+    ocr_url: str | None = None
+    ocr_timeout_s: int = 120  # then the page is read locally after all
+
     render_dpi: int = 150
     ocr_langs: str = "fin+swe+eng"  # Tesseract only
     ocr_engine: Literal["rapid", "tesseract"] = "rapid"  # D-024; Tesseract is also the fallback

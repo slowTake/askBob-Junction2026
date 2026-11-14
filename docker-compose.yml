@@ -68,6 +68,9 @@ services:
       # Override to use a vision service elsewhere, e.g. on a Verda GPU (`make up-verda`).
       - VISION_URL=${VISION_URL:-http://vision:8001}
       - VISION_TIMEOUT_S=${VISION_TIMEOUT_S:-90}
+      # OCR on another host (#119), e.g. Verda; empty means the worker reads pages itself.
+      - OCR_URL=${OCR_URL:-}
+      - OCR_TIMEOUT_S=${OCR_TIMEOUT_S:-120}
     depends_on:
       postgres: { condition: service_healthy, required: false }
       valkey: { condition: service_healthy, required: false }

@@ -52,7 +52,7 @@ def test_png_reports_progress_before_slow_stages_and_survives_vision_timeout(
         assert kwargs["vision"] is None
         return [], None, {}
 
-    monkeypatch.setattr(image_reader, "ocr_words", ocr)
+    monkeypatch.setattr(image_reader, "page_words", ocr)
     monkeypatch.setattr(image_reader, "analyse_page", vision)
     monkeypatch.setattr(image_reader, "annotate_page", annotate)
     result = image_reader.read_image(

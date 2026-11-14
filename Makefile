@@ -25,10 +25,12 @@ up-local: ## Run everything offline with local Postgres + Valkey containers
 	$(LOCAL_ENV) docker compose --profile local up $(UP_FLAGS)
 	@$(MAKE) --no-print-directory smoke
 
-up-verda: ## Like up-local, but raster pages go to the vision service on a Verda GPU (VISION_URL)
+up-verda: ## Like up-local, but CubiCasa (VISION_URL) and optionally OCR (OCR_URL) run on Verda
 	@test -n "$$VISION_URL" || { echo "Run: VISION_URL=http://<verda-ip>:8001 make up-verda"; exit 1; }
 	@curl -sf --max-time 10 "$$VISION_URL/health" >/dev/null \
 		|| { echo "No vision service answers at $$VISION_URL/health (see docs/verda-setup.md)"; exit 1; }
+	@test -z "$$OCR_URL" || curl -sf --max-time 10 "$$OCR_URL/health" >/dev/null \
+		|| { echo "No OCR service answers at $$OCR_URL/health (see docs/verda-setup.md)"; exit 1; }
 	$(LOCAL_ENV) docker compose --profile local up $(UP_FLAGS) --scale vision=0
 	@$(MAKE) --no-print-directory smoke
 

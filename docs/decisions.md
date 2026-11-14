@@ -47,6 +47,8 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-037 | 2026-11-14 | IFC base quantities are stored in SI units and totalled by the server | Accepted |
 | D-038 | 2026-11-14 | Recognised count and area questions are answered by the server, not the agent loop | Accepted |
 | D-039 | 2026-11-14 | The `vision` service can run on a Verda GPU; `make up-verda` points ingest at it (#118) | Accepted |
+| D-040 | 2026-11-14 | OCR can run as a service on the Verda GPU host (`OCR_URL`) (#119) | Accepted |
+| D-041 | 2026-11-14 | Deleting a document cancels its ingest job (#120) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -661,3 +663,28 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 - **Traffic is plain HTTP on a public IP, without authentication,** for the hackathon demo only. The service stores nothing; uploaded page images do cross the internet to Verda.
 
 **Consequences:** Raster ingest speed depends on a rented machine someone has to start and delete. Anyone who finds the IP can send the service images to analyse. Before real use it needs a token and HTTPS. The V100 pin dies with PyTorch 2.15's CUDA 12.6 cut; a newer GPU can use a current CUDA build by changing `TORCH_CUDA` and `TORCH_CUDA_VERSION`. The D-023 pixel budget is unchanged; a GPU may afford a larger one, which would be its own decision.
+
+## D-040: OCR can run as a service on the Verda GPU host (`OCR_URL`)
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-024, D-039 · **Issue:** #119
+
+**Context:** OCR (RapidOCR, Tesseract fallback, D-024) runs in the ingest worker. On the Aiven Runtime plan (D-034) the CPU is too small: a raster page enlarged 2× becomes about fifteen 1600 px tiles, each through two networks, and pages wait minutes. The worker cannot move to Verda, because the API and worker share the container's disk (D-034).
+
+**Decision:**
+- **A service from the backend image:** `uvicorn --factory app.ocr_server:serve --port 8002` runs the same `ocr_words` behind `POST /ocr?langs=&engine=` (page image in, words with boxes out) and `GET /health`, with the app's envelope and no raw errors. It needs no database or queue. One page at a time.
+- **The worker sends pages there when `OCR_URL` is set** (`app/ingest/ocr_client.py`), with the worker's own `OCR_LANGS` and `OCR_ENGINE`, and waits up to `OCR_TIMEOUT_S` (120 s). Any failure or malformed answer reads the page locally, as before. Unset, nothing changes.
+- **GPU:** `--build-arg ONNX_GPU=1` swaps onnxruntime for `onnxruntime-gpu[cuda,cudnn]==1.26.0` with cuDNN 9.10.2.21. 1.26.0 is the last CUDA 12 release; 1.28 and later need CUDA 13, which dropped the V100. `OCR_DEVICE` (auto, cpu, cuda) puts RapidOCR's models on CUDA; `cuda` without a CUDA provider stops startup. The default build is unchanged, so `make up-local` and Aiven need no GPU libraries.
+- `make up-verda` passes `OCR_URL` and checks its `/health` when set. Deploy steps in `docs/verda-setup.md`.
+
+**Consequences:** Page images cross the internet twice (OCR and CubiCasa), unauthenticated, as in D-039. The OCR service is CPU-bound for Tesseract and the tiling; only RapidOCR's networks use the GPU. Not yet measured on the V100 when written.
+
+## D-041: Deleting a document cancels its ingest job
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #120
+
+**Context:** Deleting a document removed its row and files, but its RQ job kept running until it finished or hit the 30-minute job timeout. With one worker (D-034) every later upload waited in Queued meanwhile.
+
+**Decision:** `DELETE /api/documents/{id}` calls `cancel_ingest` after the delete commits: a waiting job is cancelled, a running one gets RQ's stop-job command, which kills the job's process so the worker takes the next job. It never fails the delete: a job that finished meanwhile or an unreachable Valkey is logged and ignored. The failure callbacks already ignore a document that no longer exists.
+
+**Consequences:** A delete mid-ingest frees the worker within seconds. The killed job's partial work is discarded with the document. A worker running with RQ's `SimpleWorker` (no forked job process) could not be stopped this way; ours forks.
+

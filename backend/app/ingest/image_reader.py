@@ -12,7 +12,7 @@ from PIL import Image, ImageSequence, UnidentifiedImageError
 from app.config import Settings
 from app.ingest.annotate import annotate_page
 from app.ingest.errors import ReaderError
-from app.ingest.ocr import ocr_words
+from app.ingest.ocr_client import page_words
 from app.ingest.types import ExtractedDocument, ExtractedPage, Progress
 from app.ingest.vision_client import analyse_page
 
@@ -67,7 +67,7 @@ def _page(
     image.save(buffer, format="PNG")
     png = buffer.getvalue()
     progress("ocr", 0.0)
-    words = ocr_words(gray, settings.ocr_langs, settings.ocr_engine)
+    words = page_words(gray, settings)
     progress("vision", 0.3)
     vision, status = analyse_page(png, settings)
     progress("annotating", 0.8)

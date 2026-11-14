@@ -85,6 +85,21 @@ The `vision` service (CubiCasa5k, D-022) can run on a rented Verda GPU instead o
 
 The service has no password: anyone who finds the IP can send it images. It stores nothing. **Delete** the instance when you're done; a stopped instance still bills for its disk.
 
+## 7. Run OCR on the same Verda machine
+
+OCR can run there too ([D-040](decisions.md)), from the backend image built with the GPU build of onnxruntime. It needs about 6 GB of free disk next to the `vision` image (`df -h /`).
+
+```bash
+rsync -a --exclude .venv backend/ root@<ip>:backend/
+ssh root@<ip>
+docker build --build-arg ONNX_GPU=1 -t ocr backend
+docker run -d --name ocr --restart always --gpus all -p 8002:8002 -e OCR_DEVICE=cuda ocr \
+  uvicorn --factory app.ocr_server:serve --host 0.0.0.0 --port 8002
+docker logs ocr   # "OCR runs RapidOCR on cuda"
+```
+
+Then `curl http://<ip>:8002/health`, and add `OCR_URL=http://<ip>:8002` next to `VISION_URL`: on the command line for `make up-verda`, or in the Aiven app's settings. If the service fails, the worker reads the page itself.
+
 ## Things to know
 
 - **Kimi reasons before it answers.** The reasoning is returned separately (`reasoning_content`) and counts toward `max_tokens`. With a small `max_tokens`, `content` can come back empty, so set it to a few thousand.
