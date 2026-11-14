@@ -72,14 +72,43 @@ you viewed. Citations you did not get from tools are rejected.
 empty string.
 """
 
+# Sent with the last request of a run, which accepts only the final answer (#95).
+LAST_STEP_NOTE = (
+    "That was your last round of tool calls. Give your final answer now, from what you "
+    "have found. If it is not enough to answer, say what is missing in `caveats` and set "
+    "`confidence` to low; do not guess."
+)
+
+
+def budget_note(tool_rounds: int) -> str:
+    """How many rounds of tool calls the agent gets before it has to answer."""
+    if tool_rounds < 1:  # `max_agent_turns` of 1: the only turn is the answer
+        return (
+            "You have no tool calls for this question. Answer from what is given here. If "
+            "it is not enough to answer, say what is missing in `caveats` and set "
+            "`confidence` to low; do not guess."
+        )
+    rounds = "1 round" if tool_rounds == 1 else f"{tool_rounds} rounds"
+    # A miss is not proof of absence: the search matches text, so a label in another
+    # language or an abbreviation ("Küche", "WC") does not match "kitchen" or "toilet".
+    return (
+        f"You have at most {rounds} of tool calls, and one round can hold several calls. "
+        "Answer as soon as you have the evidence. If a search finds nothing, try other "
+        "words (labels may be in another language or abbreviated) or another `kind`. If "
+        "those find nothing either, say what you searched for and what is missing instead "
+        "of searching on."
+    )
+
 
 def scope_message(
     question: str,
     documents: list[dict[str, object]],
     viewing: str | None = None,
     selected: Sequence[str] = (),
+    tool_rounds: int | None = None,
 ) -> str:
-    """The user turn: documents in scope, what the user is looking at, then the question.
+    """The user turn: documents in scope, what the user is looking at, the step budget,
+    then the question.
 
     `selected` holds one `selected_note` per element the user selected on the plan.
     """
@@ -103,6 +132,8 @@ def scope_message(
             "call get_element for each one's details."
         )
     parts = [f"Documents in scope:\n{listing}", *(["\n".join(context)] if context else [])]
+    if tool_rounds is not None:
+        parts.append(budget_note(tool_rounds))
     return "\n\n".join([*parts, f"Question: {question}"])
 
 

@@ -16,6 +16,8 @@ FINAL_TOOL_NOTE = (
     "\nGive your final answer by calling the `final_answer` tool exactly once, with the "
     "JSON described above as its input. Do not answer in plain text."
 )
+# On the last turn of a run only the final answer is accepted (#95).
+FINAL_TOOL_CHOICE = {"type": "function", "function": {"name": FINAL_TOOL}}
 _IMAGE_NOTE = "The image follows in the next message."
 
 

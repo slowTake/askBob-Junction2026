@@ -13,7 +13,7 @@ import anthropic
 from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
-from app.qa.prompts import SYSTEM_PROMPT, scope_message
+from app.qa.prompts import LAST_STEP_NOTE, SYSTEM_PROMPT, scope_message
 from app.qa.tools import TOOLS, ToolContext, ToolInputError, run_tool
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"  # re-run refused requests on a fallback model
@@ -102,11 +102,17 @@ def run_agent(
     if not (client.api_key or client.auth_token or client.credentials):
         # Without this the SDK raises a bare TypeError on the first request.
         raise AgentError("llm_not_configured")
-    first = scope_message(question, documents, viewing, selected)
+    turns = settings.max_agent_turns
+    first = scope_message(question, documents, viewing, selected, tool_rounds=turns - 1)
     messages: list[Any] = [{"role": "user", "content": first}]
     usage = {"input_tokens": 0, "output_tokens": 0}
 
-    for _ in range(settings.max_agent_turns):
+    for turn in range(turns):
+        # The last turn takes no tool calls, so a run ends with an answer instead of
+        # `too_many_steps` (#95). Opus 5.5 rejects a forced tool, but accepts "none".
+        last = turn == turns - 1
+        if last:
+            _add_last_step_note(messages)
         response = client.beta.messages.create(  # type: ignore[call-overload]  # plain dicts vs SDK TypedDicts
             model=settings.claude_model,
             max_tokens=MAX_TOKENS,
@@ -114,6 +120,7 @@ def run_agent(
                 {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}
             ],
             tools=TOOLS,
+            tool_choice={"type": "none" if last else "auto"},
             messages=messages,
             thinking={"type": "adaptive"},
             output_config={
@@ -165,3 +172,14 @@ def run_agent(
         return
 
     raise AgentError("too_many_steps")
+
+
+def _add_last_step_note(messages: list[Any]) -> None:
+    """Append the note to the tool results of the latest user turn.
+
+    It goes in the same turn, after the results, so nothing earlier in the conversation
+    changes. A run of one turn has no tool results and needs no note.
+    """
+    latest = messages[-1]
+    if latest["role"] == "user" and isinstance(latest["content"], list):
+        latest["content"].append({"type": "text", "text": LAST_STEP_NOTE})

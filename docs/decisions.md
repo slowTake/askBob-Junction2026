@@ -28,6 +28,8 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
 | D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
+| D-024 | 2026-11-14 | Raster rooms are traced from the drawing's lines; RapidOCR reads the text | Accepted |
+| D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -342,6 +344,24 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - Very large or dense sheets are skipped rather than read badly.
 - The model still runs on drawings that aren't floor plans, such as piping plans, and finds nonsense there. Detecting those is follow-up work.
 
+## D-024: Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes in part:** D-018
+
+**Context:** Fit framed the whole sheet, so scans and PDF pages showed wide paper margins around a small drawing. Framing the detected elements instead failed on sparse scans (one OCR'd letter made Fit zoom onto it). Agent highlights zoomed the plan in after every answer, with a "Shown by the assistant" banner on top. The chat kept one conversation for all documents, so switching drawings mixed answers about different plans (#83).
+
+**Decision:**
+- **Fit frames the drawing's ink.** The browser samples the page image (longest side 1024 px), groups dark pixels into connected pieces and keeps every piece with at least 10 % of the largest one's ink, so logos, footers and specks set apart from the plan drop out while several plans on one sheet are all kept. A blank or unreadable page fits the whole sheet. **100 % now means "as Fit shows it"**, and zoom limits are relative to that (this replaces D-018's "100 % means the whole page fits").
+- **Agent highlights don't move the camera.** The plan fits the window with the highlight drawn on it and no banner; ⌖ zooms to it on demand. A source the user clicks in an answer still flies to it with its verified badge (this replaces D-018's "an agent view … flies the camera").
+- **One conversation per document.** Picking a document in the list shows its conversation, a new upload starts empty, and an answer streams into the conversation it was asked in even if the user switched. Deleting a document forgets its conversation. The New conversation button is removed. Conversations live in the browser tab's memory only.
+- The chat shows one status line (the agent's latest step) while it works, and scrolls to the end when a question is asked or answered.
+- **Asking pins the conversation.** Until a document is picked in the list the chat follows the open document; once a question is asked, the chat stays on that conversation even when the agent or a clicked source opens another document.
+- **A conversation's questions are about its document**, even when an answer has opened another one: the page on screen and selected elements are sent only when they belong to it, and the scope label names it ("Ask about these N" moves the chat to the selected elements' document). An answer's views move the plan only while its conversation is on screen; otherwise they wait as buttons on the answer. Agent highlights have a Clear button next to ⌖, and Download IFC also shows above the plan while the documents panel is collapsed.
+- **Shift+click selects several elements** on the plan (a plain click still selects one). "Ask about these N" sends them all: `AskContextIn.element_ids` (up to 20; the single `element_id` still works), and the agent is told the user selected these elements, so "these" and "them" refer to them. One selected element keeps the old wording and answer-cache key.
+- **Answers are a summary line plus lists.** The agent leads with one short sentence, then groups ("Lower floor:") and "- " items, and puts how it got the answer in `caveats`; the chat lays this out as headings and bullet lists (`lib/answerText.ts`, rendered as elements, never HTML). `ANSWER_FORMAT` 4 keeps older one-paragraph answers out of the cache.
+
+**Consequences:** Fit needs no backend change or re-ingest. A scan with a dark scanner border fits the whole sheet, as before. A reload loses the conversations. With no "New conversation" button there is no way to cancel a slow answer except a reload; a Stop button is the natural follow-up if that matters.
+
 ## D-024: Raster rooms are traced from the drawing's lines; RapidOCR reads the text
 
 **Date:** 2026-11-14 · **Status:** Accepted
@@ -371,3 +391,21 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - OCR takes about 8–15 s per Swiss sheet on CPU.
 - RapidOCR's recogniser has no accented letters ("Pièce" reads as "Piece"), so room names are now matched without accents.
 - The app's own image reader, scored with `eval/swiss_rooms.py` on the same 8 floors: 70% of rooms named, 66% outlined, 36% with the area within 5% of the DXF.
+
+## D-026: The agent knows its step budget, and its last turn is the answer
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-006, D-020
+
+**Context:** The first eval on dataset drawings (#86, DeepSeek) ended 5 of 7 questions in `too_many_steps`: twelve model turns and no answer. Traces of three of them (#95) show three different causes, and one shared one:
+- **IFC model facts** ("which software was used?"): the project, site and authoring application are not in the element store, so the model searched 20 times and never found them.
+- **A door schedule:** the model read the table from image crops, a few rows at a time.
+- **A raster plan:** it had no door elements (ingested without the vision service), so the model counted from image crops, at 15–100 s a turn on Verda.
+- **Shared:** the model was never told how many turns it had, and nothing made it answer on the last one. Whether a run finished was chance: the schedule question failed in one run and answered on turn 9 in the next.
+
+**Decision:**
+- The question tells the agent its budget: `max_agent_turns - 1` rounds of tool calls, to answer as soon as it has the evidence, and, when a search finds nothing, to try other words or another `kind` and then say what is missing instead of searching on. It does not tell the agent that a miss means the documents lack the answer: the search matches text, so "kitchen" does not find a room labelled "Küche". With `max_agent_turns` of 1 the note says there are no tool calls.
+- The last turn accepts only the answer, with a note saying so. On Verda the request names `final_answer` as the tool to call; Kimi and DeepSeek both honour that. On Claude the request sets `tool_choice` to `none`, because Opus 5.5 rejects a forced tool, and the note is a text block after the tool results, so nothing earlier in the conversation changes.
+- An answer forced this way must say what is missing in `caveats` and set `confidence` to low. It is checked like any other answer: citations the tools never returned stay unverified.
+- `too_many_steps` remains for a model that still gives no answer on its last turn.
+
+**Consequences:** On the same five drawings, 8 of 8 non-raster questions now end with an answer (2 of 6 scored ones correct). A forced answer can be wrong; before, there was no answer. The three causes above are not fixed by this: they need model facts for IFC, a way to read schedule tables, and elements to count on raster plans (#93, D-022). The Claude path is covered by tests with a fake client only, since no one has an Anthropic key (D-020).

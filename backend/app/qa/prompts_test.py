@@ -2,6 +2,7 @@
 
 from app.qa.prompts import (
     SelectedElement,
+    budget_note,
     scope_message,
     selected_note,
     selected_notes,
@@ -50,6 +51,34 @@ def test_selected_note_names_the_element_and_where_it_is() -> None:
         'room "Kitchen" (element_id e1, page_index 0)'
     )
     assert selected_note("door", None, "e2", None) == "door (element_id e2)"
+
+
+def test_the_step_budget_comes_before_the_question() -> None:
+    assert scope_message("How many rooms?", DOCS, tool_rounds=11) == (
+        "Documents in scope:\n- d1: plan.dxf (dxf, 1 pages)\n\n"
+        + budget_note(11)
+        + "\n\nQuestion: How many rooms?"
+    )
+
+
+def test_budget_note_counts_rounds_and_asks_for_an_early_answer() -> None:
+    note = budget_note(11)
+    assert note.startswith("You have at most 11 rounds of tool calls")
+    assert "1 round of tool calls" in budget_note(1)  # singular
+
+
+def test_budget_note_asks_for_other_words_before_reporting_a_miss() -> None:
+    # A search that finds nothing does not show the documents lack it (PR #100 review).
+    note = budget_note(11)
+    assert "try other words" in note
+    assert "do not contain it" not in note
+
+
+def test_budget_note_without_tool_rounds_asks_for_an_answer_from_what_is_given() -> None:
+    # `max_agent_turns` of 1 leaves no round of tool calls.
+    note = budget_note(0)
+    assert note.startswith("You have no tool calls for this question.")
+    assert "0 rounds" not in note
 
 
 def test_several_selected_elements_are_listed() -> None:
