@@ -49,7 +49,7 @@ Every format goes through the same pipeline and ends up as an IFC model plus the
 **Aiven** runs our data services ([D-005](docs/decisions.md), setup in [docs/aiven-setup.md](docs/aiven-setup.md)):
 - **Aiven for PostgreSQL** holds the building model (documents, pages, elements with provenance) and `qa_log`: every question and answer with whether it verified, the model, latency and tokens. `pg_trgm` powers fuzzy label search; `pgvector` is enabled for embeddings.
 - **Aiven for Valkey** is the ingest job queue (RQ), the pub/sub channel for live progress that the browser gets over SSE, and the answer cache, keyed by question and document version.
-- **Aiven Runtime** is where we are deploying the UI: the nginx image builds from `frontend/Dockerfile` and points at the API through `BACKEND_URL` ([D-033](docs/decisions.md)). Hosting the API, worker and vision service there is still open.
+- **Aiven Runtime** hosts the demo: one app, `askBob`, runs the UI's nginx, the API and the ingest worker in one container built from the root `Dockerfile` ([D-034](docs/decisions.md)). See [Deploy on Aiven Runtime](#deploy-on-aiven-runtime).
 - Connection details come from `avn` and your OS keyring at start-up (`make up-aiven`) and are never written to a file. `make up-local` runs the same app against local containers when offline.
 
 **The Claude API** does the reasoning:
@@ -120,6 +120,32 @@ make dev-web      # terminal 3: UI on :5173, proxies /api to :8000
 ```
 
 Docker needs the daemon running and your user in the `docker` group (`sudo systemctl start docker`, `sudo usermod -aG docker $USER`, then log in again).
+
+### Deploy on Aiven Runtime
+
+The whole app runs as one Runtime app (D-034): nginx on port 8080 serves the UI and
+proxies `/api` to the API in the same container, and the ingest worker runs beside it.
+In the Aiven Console, project `junction-stoa-winners` → **Runtime** → the app → configure:
+
+| Setting | Value |
+|---|---|
+| Repository, branch | `slowTake/bobBuilder`, `main` |
+| Manifest | `Dockerfile` (the root one; not `docker-compose.yml`, which would create extra Postgres and Valkey services) |
+| Build context directory | `/` (the repo root) |
+| Containerfile path | `/Dockerfile` |
+| Port | `8080`, HTTP |
+| Cloud, plan | `aws-eu-central-1`, at least `startup-50-2560` (OCR needs the memory) |
+
+Secrets, in the app's settings (type them in the console, never in chat or a file):
+- `DATABASE_URL` and `VALKEY_URL`: connect `pg-2c3baae` and `valkey-bobbuilder` under
+  **Connected services** with those variable names, or paste their service URIs as secrets.
+- `ANTHROPIC_API_KEY`; optionally `LLM_PROVIDER=verda` with `VERDA_API_KEY`.
+
+Pushing does not redeploy: after a merge, use **Actions → Deploy latest commit**. Limits
+of this setup: files live on the container's own disk, so a redeploy or restart loses
+uploads, page images and models while Postgres still lists the documents (re-upload
+after a redeploy); there is no vision service, so raster ingest uses pixel heuristics.
+Check the image locally with `make runtime-image-check`.
 
 ## Layout
 

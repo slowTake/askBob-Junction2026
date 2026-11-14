@@ -7,7 +7,7 @@ LOCAL_ENV = DATABASE_URL=postgresql://bob:bob@postgres:5432/bob VALKEY_URL=redis
 UP_FLAGS = --build --detach
 SMOKE_TIMEOUT ?= 180
 
-.PHONY: help up up-aiven up-local up-claude smoke down logs check backend-check vision-check frontend-check size-check scripts-check frontend-image-check fmt dev-api dev-worker dev-web
+.PHONY: help up up-aiven up-local up-claude smoke down logs check backend-check vision-check frontend-check size-check scripts-check frontend-image-check runtime-image-check fmt dev-api dev-worker dev-web
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -59,6 +59,9 @@ scripts-check: ## Tests for the helper scripts
 
 frontend-image-check: ## Frontend image starts without a backend and follows BACKEND_URL (needs Docker; CI runs it)
 	scripts/frontend-image-test.sh
+
+runtime-image-check: ## Single-container Runtime image passes smoke against throwaway DBs (needs Docker; CI runs it)
+	scripts/runtime-image-test.sh
 
 fmt: ## Auto-format everything
 	cd backend && uv run ruff format . && uv run ruff check --fix .

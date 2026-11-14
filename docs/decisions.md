@@ -27,12 +27,12 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-021 | 2026-11-14 | A citation's box is the element's extent; the printed name is the fallback | Accepted |
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
-| D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Superseded in part by D-034 |
+| D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Superseded in part by D-035 |
 | D-024 | 2026-11-14 | Raster rooms are traced from the drawing's lines; RapidOCR reads the text | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
 | D-027 | 2026-11-14 | Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates | Accepted |
-| D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029, D-034 |
+| D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029, D-035 |
 | D-029 | 2026-11-14 | Sketch check rounds show the draft in red over the photo, and the model is told where the ink is | Accepted |
 | D-025 | 2026-11-14 | Bound optional raster analysis and make Claude startup explicit (#106) | Accepted |
 | D-026 | 2026-11-14 | Room highlights require boundaries traced from the drawing (#103) | Accepted |
@@ -41,7 +41,8 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-031 | 2026-11-14 | Claude omits unused tool filters to stay within strict-schema limits (#111) | Accepted |
 | D-032 | 2026-11-14 | `make up-*` start in the background and smoke-check the stack (#107) | Accepted |
 | D-033 | 2026-11-14 | The UI's nginx finds the backend per request, at an address from `BACKEND_URL` (#107, #64) | Accepted |
-| D-034 | 2026-11-14 | One Export menu holds Download IFC, Download SVG and Print (#109) | Accepted |
+| D-034 | 2026-11-14 | The demo runs on Aiven Runtime as one container: UI, API and worker (#116) | Accepted |
+| D-035 | 2026-11-14 | One Export menu holds Download IFC, Download SVG and Print (#109) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -358,7 +359,7 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 ## D-024: Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document
 
-**Date:** 2026-11-14 · **Status:** Superseded in part by D-034 (where Download IFC shows) · **Supersedes in part:** D-018
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-035 (where Download IFC shows) · **Supersedes in part:** D-018
 
 **Context:** Fit framed the whole sheet, so scans and PDF pages showed wide paper margins around a small drawing. Framing the detected elements instead failed on sparse scans (one OCR'd letter made Fit zoom onto it). Agent highlights zoomed the plan in after every answer, with a "Shown by the assistant" banner on top. The chat kept one conversation for all documents, so switching drawings mixed answers about different plans (#83).
 
@@ -477,7 +478,7 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 ## D-028: On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured
 
-**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) and D-034 (where Download SVG and Print live) · **Refines:** D-027 (for raster image pages only)
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) and D-035 (where Download SVG and Print live) · **Refines:** D-027 (for raster image pages only)
 
 **Context:** The demo shows a photo of a hand-drawn floor plan (a napkin sketch) turned into a clean plan with one button (#82). D-027's pass asks a small model once for what ingest *missed* and draws boxes. On a sketch, ingest's OCR and line detection are the unreliable part, so filling its gaps keeps its noise; boxes cannot show a door swing; and one unchecked answer has no way to notice its own mistakes. The owner's rules: one button; redraw, never invent (no measurement unless written on the sketch); a stronger, slower model is allowed for this path; output is the Redrawn view plus Download SVG and Print, no DXF.
 
@@ -557,7 +558,21 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 **Consequences:** Recreating the backend no longer needs a frontend restart (verified on the local stack with the backend moved to a new IP, plus SSE on `/api/events`). The UI image can be deployed alone; until a backend is hosted, its `/api` calls return 502. Hosting the API, worker and vision on Runtime is not decided here: the shared `/data` volume and vision's 6 GB need checking first.
 
-## D-034: One Export menu holds Download IFC, Download SVG and Print
+## D-034: The demo runs on Aiven Runtime as one container: UI, API and worker
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #116
+
+**Context:** We want the app hosted for the Junction demo on Aiven Runtime, next to our Aiven Postgres and Valkey. Runtime apps cannot share a disk and "an Aiven Runtime application cannot be integrated with another Runtime application"; ports are public HTTPS only. Our API and worker share `/data` for uploads, page images, IFC and meshes (`backend/app/storage.py`), so separate apps would need that storage moved first (into Postgres or an object store), which is more than the event leaves time for.
+
+**Decision:**
+- The root `Dockerfile` (at the root because Runtime's manifest scan uses each Dockerfile's own folder as build context; a root `.dockerignore` keeps the context to `backend/`, `frontend/` and `deploy/`, without `.env` files), with `deploy/runtime/nginx.conf` and `start.sh`, runs nginx, uvicorn and the RQ worker in one container as the unprivileged `app` user. nginx listens on 8080 and proxies `/api` to `127.0.0.1:8000`.
+- `deploy/runtime/start.sh` starts the API, waits for it to answer (it creates the schema) before starting the worker, then nginx. If any process exits, it stops the others and exits, so Runtime restarts the container whole. On SIGTERM it stops the API and worker with TERM and nginx with QUIT (graceful), waits up to `STOP_GRACE_S` (20 s) and then kills what is left, so a worker busy with a minutes-long job does not hold a redeploy; that job is cut off and requeued by the next worker (whose file is gone after a redeploy anyway).
+- It deploys as the existing Runtime app `askBob` (aws-eu-central-1, port 8080, at least `startup-50-2560`). Secrets (`DATABASE_URL`, `VALKEY_URL`, `ANTHROPIC_API_KEY`) are set on that app in the console.
+- `scripts/runtime-image-test.sh` (CI containers job, `make runtime-image-check`) builds the image, runs it against throwaway Postgres and Valkey and checks `scripts/smoke.sh` through the single port, SSE, a non-root user, that a stop finishes within the grace period even with a stuck worker, and that the container stops when the worker dies.
+
+**Consequences:** One app to configure and one address. Files are on the container's own disk: a redeploy or restart loses them while their Postgres rows stay, so documents uploaded before a redeploy break and have to be uploaded again. No vision service runs (raster ingest uses pixel heuristics, D-023). Verified locally: a CubiCasa PNG ingested in about 21 s with 70 elements; idle memory is about 300 MB. Not yet verified on Runtime itself, including its request timeout for the minutes-long sketch redraw, its upload size limit, and whether it runs the container as the image's `app` user (UID 1000, which owns `/data`); a forced other UID could not write `/data`. The lasting setup (files in Postgres or an object store, separate API and vision apps) is a later issue. The `frontend/` image and `BACKEND_URL` (D-033) stay for Compose and for that later split.
+
+## D-035: One Export menu holds Download IFC, Download SVG and Print
 
 **Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #109 · **Supersedes in part:** D-024 (Download IFC above the plan), D-028 (Download SVG and Print in the plan toolbar)
 
