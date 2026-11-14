@@ -538,3 +538,16 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 **Consequences:** `make up-*` return to the prompt with a pass or a named failure instead of streaming logs. A backend recreated while the frontend keeps running now shows up as a failed proxy check until #64 is fixed. The rest of #107 (`make dev`, `make doctor`, keyring helper, per-checkout project names) is still open.
 
+## D-033: The UI's nginx finds the backend per request, at an address from `BACKEND_URL`
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #107 (part), fixes #64
+
+**Context:** `frontend/nginx.conf` had `proxy_pass http://backend:8000;`. nginx resolves a literal host once at start-up, so it kept a recreated backend's old IP and :8080 returned 502 (#64), and it refused to start at all when no `backend` host existed. That blocks deploying the UI image on its own, which we are trying on Aiven Runtime (project `junction-stoa-winners`, app `askBob`, aws-eu-central-1); the Compose-to-Runtime route would also create extra Postgres and Valkey services from our offline-profile containers.
+
+**Decision:**
+- The config becomes `frontend/nginx.conf.template`, filled by the nginx image's entrypoint at start-up (only `BACKEND_URL` and `NGINX_LOCAL_RESOLVERS` are substituted).
+- `proxy_pass` uses a variable built from `BACKEND_URL` (Dockerfile default `http://backend:8000`), with `resolver` set to the container's own DNS servers from `/etc/resolv.conf` (`NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1`), cached 10 s. Not Docker's `127.0.0.11`, which does not exist outside Docker networks.
+- The backend gets its own host name in `Host` (nginx's default) with SNI on, so an HTTPS backend behind a router works; the browser's host goes in `X-Forwarded-Host`. The backend only reads the request path.
+- `scripts/frontend-image-test.sh` (CI containers job, `make frontend-image-check`) checks the image starts without a backend, proxies to `BACKEND_URL`, and follows a backend recreated on a new IP.
+
+**Consequences:** Recreating the backend no longer needs a frontend restart (verified on the local stack with the backend moved to a new IP, plus SSE on `/api/events`). The UI image can be deployed alone; until a backend is hosted, its `/api` calls return 502. Hosting the API, worker and vision on Runtime is not decided here: the shared `/data` volume and vision's 6 GB need checking first.

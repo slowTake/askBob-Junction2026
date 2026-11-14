@@ -83,3 +83,5 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker compose build
+      - name: Frontend image starts alone and follows the backend (D-033)
+        run: scripts/frontend-image-test.sh
