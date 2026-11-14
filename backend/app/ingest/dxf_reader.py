@@ -105,7 +105,12 @@ def _areas(
             source="dxf",
             bbox=frame.bbox_px(outline.points),
             footprint_mm=outline.points,
-            properties={"area_m2": round(area_m2, 2)},
+            properties={
+                "area_m2": round(area_m2, 2),
+                "polygon_px": [
+                    [round(x, 1), round(y, 1)] for x, y in map(frame.to_px, outline.points)
+                ],
+            },
         )
         for i, t in enumerate(texts):
             if i in used or not point_in_polygon(t.points[0], outline.points):
