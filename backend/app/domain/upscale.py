@@ -17,7 +17,8 @@ from dataclasses import dataclass
 from app.domain.geometry import BBox, bbox_area
 
 UPSCALE_SOURCE = "upscale"
-UPSCALE_FORMAT = 2  # bump when the prompt or the merge rules change: pages run again
+UPSCALE_FORMAT = 3  # bump when a prompt or the rules change: pages run again
+FILL_MODE = "fill"  # the gap-filling pass; image pages get the sketch redraw instead
 
 ADDABLE_KINDS = ("room", "door", "window", "wall")  # also the order they are listed in
 MAX_CONFIDENCE = 0.9  # a vision result is never exact
@@ -118,6 +119,7 @@ def cache_entry(
     return {
         "document_version": document_version,
         "format": UPSCALE_FORMAT,
+        "mode": FILL_MODE,
         "model": model,
         "added": added,
         "input_tokens": input_tokens,
@@ -125,13 +127,16 @@ def cache_entry(
     }
 
 
-def is_cached(page_meta: Mapping[str, object], document_version: int) -> bool:
-    """The pass already ran on this page, for this version of the document."""
+def is_cached(
+    page_meta: Mapping[str, object], document_version: int, mode: str = FILL_MODE
+) -> bool:
+    """The pass of this `mode` already ran on this page, for this version of the document."""
     entry = page_meta.get("upscale")
     return (
         isinstance(entry, Mapping)
         and entry.get("document_version") == document_version
         and entry.get("format") == UPSCALE_FORMAT
+        and entry.get("mode", FILL_MODE) == mode
     )
 
 
