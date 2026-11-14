@@ -40,11 +40,13 @@ ANSWER_SCHEMA = {
     "type": "object",
     "properties": {
         "answer": {"type": "string"},
+        "value": {"anyOf": [{"type": "number"}, {"type": "null"}]},
+        "unit": {"anyOf": [{"type": "string"}, {"type": "null"}]},
         "citations": {"type": "array", "items": _CITATION},
         "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
         "caveats": {"type": "string"},
     },
-    "required": ["answer", "citations", "confidence", "caveats"],
+    "required": ["answer", "value", "unit", "citations", "confidence", "caveats"],
     "additionalProperties": False,
 }
 
@@ -65,6 +67,8 @@ class CitationIn(BaseModel):
 
 class FinalAnswer(BaseModel):
     answer: str
+    value: float | None  # the answer as one number, for counts and measures
+    unit: str | None
     citations: list[CitationIn]
     confidence: Literal["high", "medium", "low"]
     caveats: str

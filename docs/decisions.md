@@ -22,6 +22,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-016 | 2026-11-14 | Floor plans are the interactive surface; 3D only for IFC | Accepted |
 | D-017 | 2026-11-14 | Ingest never leaves a document waiting for a job that is gone | Accepted |
 | D-018 | 2026-11-14 | The plan is a pan/zoom canvas; nothing that appears moves it | Accepted |
+| D-019 | 2026-11-14 | Answers carry a numeric value; the eval scores it by question type | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -259,3 +260,13 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - Document status says why a document waits (including "no ingest worker is running"), the list re-reads when the event stream reconnects and polls while anything is in flight, and failed documents offer "Process again".
 
 **Consequences:** Overlay sizes are multiplied by `--u` (one screen pixel in page pixels) so lines and labels look the same at every zoom in every browser. The element layer is memoised, so panning never redraws hundreds of shapes.
+
+## D-019: Answers carry a numeric value; the eval scores it by question type
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** The dataset's `questions.jsonl` gives each question a `type` and scores counts exactly and areas, lengths and volumes within 2%; text answers are free-form (issue #41). Our eval accepted any number within 2% anywhere in the answer text, so "Room 2.01 is 15.61 m²" could pass on the room number, and a count of 13 passed for 13.2. The agent's answer was only free text, so there was no single value to score.
+
+**Decision:** The agent's structured answer (D-006) gains `value` (one number in the unit the question asks for, or null) and `unit` (or null), and `/api/ask` returns both. The eval scores `value`: counts must be equal, area, length and volume within 2% relative. Text and other answers are not scored automatically; the report lists them separately. The answer cache key includes an answer-format version, so cached answers from before a payload change are not served. Eval runs upload a sample of the dataset to a local stack (`make up-local`) by default, not to the shared Aiven database.
+
+**Consequences:** One accuracy number per run, split by source and type, that matches the challenge's rules. A correct answer with a null `value` counts as wrong, which also measures whether the agent fills the field. Text questions (265 of 7,990 in the preview) need a manual or model-graded check later.
