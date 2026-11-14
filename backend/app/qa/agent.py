@@ -105,7 +105,6 @@ def run_agent(
     turns = settings.max_agent_turns
     first = scope_message(question, documents, viewing, selected, tool_rounds=turns - 1)
     messages: list[Any] = [{"role": "user", "content": first}]
-    usage = {"input_tokens": 0, "output_tokens": 0}
 
     for turn in range(turns):
         # The last turn takes no tool calls, so a run ends with an answer instead of
@@ -131,8 +130,12 @@ def run_agent(
             betas=[FALLBACK_BETA],
             fallbacks="default",
         )
-        usage["input_tokens"] += response.usage.input_tokens
-        usage["output_tokens"] += response.usage.output_tokens
+        ctx.usage.add(
+            input_tokens=response.usage.input_tokens,  # excludes cached input
+            output_tokens=response.usage.output_tokens,
+            cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", None) or 0,
+            cache_write_tokens=getattr(response.usage, "cache_creation_input_tokens", None) or 0,
+        )
 
         if response.stop_reason == "refusal":
             raise AgentError("refused")
@@ -168,7 +171,7 @@ def run_agent(
             answer = FinalAnswer.model_validate_json(text)
         except ValidationError as exc:
             raise AgentError("bad_answer") from exc
-        yield {"type": "final", "answer": answer, "usage": usage}
+        yield {"type": "final", "answer": answer, "usage": ctx.usage.as_dict()}
         return
 
     raise AgentError("too_many_steps")

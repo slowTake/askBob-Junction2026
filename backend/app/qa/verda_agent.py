@@ -69,7 +69,6 @@ def run_verda_agent(
         {"role": "system", "content": SYSTEM_PROMPT + FINAL_TOOL_NOTE},
         {"role": "user", "content": first},
     ]
-    usage = {"input_tokens": 0, "output_tokens": 0}
 
     for turn in range(turns):
         last = turn == turns - 1
@@ -83,8 +82,13 @@ def run_verda_agent(
             tool_choice=FINAL_TOOL_CHOICE if last else "required",
         )
         if response.usage:
-            usage["input_tokens"] += response.usage.prompt_tokens
-            usage["output_tokens"] += response.usage.completion_tokens
+            details = getattr(response.usage, "prompt_tokens_details", None)
+            cached = getattr(details, "cached_tokens", None) or 0
+            ctx.usage.add(
+                input_tokens=response.usage.prompt_tokens - cached,
+                output_tokens=response.usage.completion_tokens,
+                cache_read_tokens=cached,
+            )
 
         choice = response.choices[0]
         if choice.finish_reason == "length":
@@ -103,7 +107,7 @@ def run_verda_agent(
                 answer = FinalAnswer.model_validate_json(final)
             except ValidationError as exc:
                 raise AgentError("bad_answer") from exc
-            yield {"type": "final", "answer": answer, "usage": usage}
+            yield {"type": "final", "answer": answer, "usage": ctx.usage.as_dict()}
             return
         if not calls:
             raise AgentError("bad_answer")  # plain text despite tool_choice="required"

@@ -135,6 +135,21 @@ def test_the_question_states_the_step_budget(claude: FakeClaude) -> None:
     assert "at most 2 rounds of tool calls" in claude.requests[0]["messages"][0]["content"]
 
 
+def test_usage_counts_cache_reads_and_writes_apart(claude: FakeClaude) -> None:
+    first, second = _tool_turn("t1"), _answer_turn()
+    first.usage.cache_creation_input_tokens = 900
+    second.usage.cache_read_input_tokens = 900
+    claude.responses = [first, second]
+    # Each request: 100 uncached input + 10 output tokens.
+    assert _loop()[-1]["usage"] == {
+        "input_tokens": 200,
+        "output_tokens": 20,
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 900,
+        "requests": 2,
+    }
+
+
 def test_step_limit_when_the_last_turn_still_gives_no_answer(claude: FakeClaude) -> None:
     claude.responses = [_tool_turn("t1"), _tool_turn("t2"), _tool_turn("t3")]
     with pytest.raises(AgentError) as raised:
