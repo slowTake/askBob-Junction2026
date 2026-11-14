@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { api } from "../api/client";
+import { isTranslucent, materialRole, type MaterialRole } from "../lib/materials";
 
 interface Props {
   documentId: string;
@@ -15,15 +16,25 @@ interface SceneHandle {
 
 // Neutral model; the cited element takes the accent blue (DESIGN.md, D-012).
 // The canvas is transparent so the theme's desk colour shows behind it.
-const SOLID = new THREE.MeshStandardMaterial({ color: 0xe2e2e2, roughness: 0.9 });
-const SPACE = new THREE.MeshStandardMaterial({
-  color: 0xffffff,
-  transparent: true,
-  opacity: 0.12,
-  depthWrite: false,
-});
+const LOOKS: Record<MaterialRole, THREE.Material> = {
+  solid: new THREE.MeshStandardMaterial({ color: 0xe2e2e2, roughness: 0.9 }),
+  fixture: new THREE.MeshStandardMaterial({ color: 0xafafaf, roughness: 0.8 }),
+  marker: new THREE.MeshStandardMaterial({ color: 0x4b4b4b, roughness: 0.8 }),
+  space: new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false,
+  }),
+  glass: new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false,
+  }),
+};
 const HIGHLIGHT = new THREE.MeshStandardMaterial({ color: 0x0f62fe, roughness: 0.6 });
-const HIGHLIGHT_SPACE = new THREE.MeshStandardMaterial({
+const HIGHLIGHT_SEE_THROUGH = new THREE.MeshStandardMaterial({
   color: 0x0f62fe,
   transparent: true,
   opacity: 0.45,
@@ -77,10 +88,10 @@ export function ModelViewer({ documentId, highlightGuid }: Props) {
           geometry.setAttribute("position", new THREE.Float32BufferAttribute(m.positions, 3));
           geometry.setIndex(m.indices);
           geometry.computeVertexNormals();
-          const isSpace = m.ifc_class === "IfcSpace";
-          const mesh = new THREE.Mesh(geometry, isSpace ? SPACE : SOLID);
-          mesh.userData = { isSpace };
-          if (!isSpace)
+          const role = materialRole(m.ifc_class);
+          const mesh = new THREE.Mesh(geometry, LOOKS[role]);
+          mesh.userData = { role };
+          if (!isTranslucent(role))
             mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 30), EDGES));
           group.add(mesh);
           meshes.set(m.guid, mesh);
@@ -117,9 +128,9 @@ export function ModelViewer({ documentId, highlightGuid }: Props) {
     const h = handle.current;
     if (!h) return;
     h.meshes.forEach((mesh, guid) => {
-      const isSpace = Boolean(mesh.userData.isSpace);
+      const role = mesh.userData.role as MaterialRole;
       const lit = guid === highlightGuid;
-      mesh.material = lit ? (isSpace ? HIGHLIGHT_SPACE : HIGHLIGHT) : isSpace ? SPACE : SOLID;
+      mesh.material = lit ? (isTranslucent(role) ? HIGHLIGHT_SEE_THROUGH : HIGHLIGHT) : LOOKS[role];
     });
     h.render();
   }, [highlightGuid, status]);

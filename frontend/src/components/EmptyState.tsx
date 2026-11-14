@@ -32,7 +32,7 @@ export function EmptyState({ onFiles }: Props) {
       >
         <p className="heading">Drop drawings here</p>
         <div className="chip-row">
-          {["IFC", "DXF", "PDF", "PNG", "JPEG", "TIFF"].map((f) => (
+          {["IFC", "DXF", "DWG", "PDF", "SVG", "PNG", "JPEG", "TIFF"].map((f) => (
             <span key={f} className="chip">
               {f}
             </span>

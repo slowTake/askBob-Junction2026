@@ -30,6 +30,7 @@ export function DocumentList({ documents, progress, selectedId, onSelect, onDele
                 type="button"
                 className={`doc-row${doc.id === selectedId ? " is-active" : ""}`}
                 onClick={() => onSelect(doc.id)}
+                title={doc.error_message ?? undefined}
               >
                 <span className="doc-name">{doc.filename}</span>
                 <span className="doc-meta">
