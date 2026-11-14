@@ -23,3 +23,11 @@ def test_cache_key_changes_with_document_version_or_model() -> None:
     base = answer_cache_key("q", ["d1@1"], "m")
     assert base != answer_cache_key("q", ["d1@2"], "m")
     assert base != answer_cache_key("q", ["d1@1"], "other")
+
+
+def test_cache_key_changes_with_what_the_user_is_looking_at() -> None:
+    # "How big is this?" about the kitchen must not replay the answer about a bedroom.
+    kitchen = answer_cache_key("how big is this?", ["d1@1"], "m", context="selected e1")
+    bedroom = answer_cache_key("how big is this?", ["d1@1"], "m", context="selected e2")
+    assert kitchen != bedroom
+    assert kitchen != answer_cache_key("how big is this?", ["d1@1"], "m")

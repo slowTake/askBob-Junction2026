@@ -30,7 +30,9 @@ For any area total (an apartment, a floor, all rooms with a name), call \
 `sum_room_areas`; it applies the counting rules (shafts and outdoor spaces excluded) \
 and lists the rooms it counted, which you then cite.
 
-The user sees the plan next to your answer. Show, don't only tell: call `highlight` \
+The user sees the plan next to your answer. The question may say which page they are \
+looking at and which element they clicked; an ambiguous question ("this room", "here", \
+"on this floor") is about that page or element. Show, don't only tell: call `highlight` \
 with the elements your answer is about (the windows counted, the room asked about), \
 and `measure_between` for distances between two elements; it draws the line too.
 
@@ -52,9 +54,42 @@ you viewed. Citations you did not get from tools are rejected.
 """
 
 
-def scope_message(question: str, documents: list[dict[str, object]]) -> str:
+def scope_message(
+    question: str,
+    documents: list[dict[str, object]],
+    viewing: str | None = None,
+    selected: str | None = None,
+) -> str:
+    """The user turn: documents in scope, what the user is looking at, then the question."""
     lines = [
         f"- {d['id']}: {d['filename']} ({d['kind']}, {d['page_count']} pages)" for d in documents
     ]
     listing = "\n".join(lines) if lines else "- (no processed documents)"
-    return f"Documents in scope:\n{listing}\n\nQuestion: {question}"
+    context = []
+    if viewing:
+        context.append(f"The user is looking at {viewing}.")
+    if selected:
+        context.append(
+            f"The user selected {selected} on the plan. "
+            '"This", "here" and "it" refer to it: call get_element for its details.'
+        )
+    parts = [f"Documents in scope:\n{listing}", *(["\n".join(context)] if context else [])]
+    return "\n\n".join([*parts, f"Question: {question}"])
+
+
+def viewing_note(
+    filename: str, document_id: str, page_index: int, page_count: int, label: str | None
+) -> str:
+    """The page on screen, numbered like the UI ("page 2 of 3") plus the tools' page_index."""
+    named = f' ("{label}")' if label else ""
+    return (
+        f"page {page_index + 1} of {page_count}{named} of {filename} "
+        f"(document_id {document_id}, page_index {page_index})"
+    )
+
+
+def selected_note(kind: str, title: str | None, element_id: str, page_index: int | None) -> str:
+    """The element the user clicked on the plan."""
+    named = f' "{title}"' if title else ""
+    where = f", page_index {page_index}" if page_index is not None else ""
+    return f"{kind}{named} (element_id {element_id}{where})"
