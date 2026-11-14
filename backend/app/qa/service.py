@@ -25,7 +25,7 @@ from app.valkey import cache_get, cache_set
 
 log = logging.getLogger(__name__)
 
-ANSWER_FORMAT = 3  # bump when the answer payload changes, so old cached answers are not served
+ANSWER_FORMAT = 4  # bump when the payload or how answers are found changes (4: counting)
 
 MESSAGES = {
     "no_documents": "Upload a drawing and wait until it has been processed.",
