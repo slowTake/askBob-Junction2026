@@ -36,7 +36,7 @@ UNNAMED_PSET = "Unnamed"
 
 
 def flatten_psets[K: str | None](
-    psets: Mapping[K, Mapping[str, Any]], limit: int = 60
+    psets: Mapping[K, Mapping[Any, Any]], limit: int = 60
 ) -> dict[str, Any]:
     """{"Pset_WallCommon": {"IsExternal": True}} -> {"Pset_WallCommon.IsExternal": True}.
 
@@ -47,7 +47,8 @@ def flatten_psets[K: str | None](
     named = {UNNAMED_PSET if name is None else name: props for name, props in psets.items()}
     flat: dict[str, Any] = {}
     for pset_name in sorted(named):
-        for prop, value in sorted(named[pset_name].items()):
+        # Properties can be unnamed too (Name is optional in IFC): sort them as text.
+        for prop, value in sorted(named[pset_name].items(), key=lambda kv: str(kv[0])):
             if prop == "id" or not isinstance(value, str | int | float | bool):
                 continue
             flat[f"{pset_name}.{prop}"] = value

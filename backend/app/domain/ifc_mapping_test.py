@@ -35,3 +35,9 @@ def test_flatten_keeps_a_pset_with_no_name() -> None:
 def test_zup_to_yup() -> None:
     # (1, 2, 3) in IFC (z up) is (1, 3, -2) in three.js (y up).
     assert zup_to_yup([1.0, 2.0, 3.0, 0.0, 0.0, 0.0]) == [1.0, 3.0, -2.0, 0.0, 0.0, 0.0]
+
+
+def test_flatten_survives_unnamed_property_sets() -> None:
+    # data/ifc_bench/hitos_arc.ifc has property sets whose Name is null.
+    psets: dict[str | None, dict[str, object]] = {None: {"Fire": "EI60"}, "Pset_A": {"x": 1}}
+    assert flatten_psets(psets) == {"Pset_A.x": 1, "Unnamed.Fire": "EI60"}
