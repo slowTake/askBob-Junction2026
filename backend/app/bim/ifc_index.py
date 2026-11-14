@@ -19,6 +19,7 @@ import ifcopenshell.util.unit as ifc_unit
 from app.bim.ifc_writer import BOB_PSET, FOOTPRINT_KEY
 from app.domain.ifc_mapping import flatten_psets, ifc_kind, quantity
 from app.domain.model_rules import marked_kind, sanitary_subtype
+from app.domain.quantities import base_quantities
 from app.ingest.types import ExtractedElement
 
 SKIPPED = {"IfcOpeningElement", "IfcVirtualElement", "IfcGrid", "IfcSite", "IfcBuilding"}
@@ -29,6 +30,7 @@ def index_ifc(path: Path) -> tuple[list[ExtractedElement], dict[str, Any]]:
     model = ifcopenshell.open(str(path))
     to_mm = _unit_scale(model, "LENGTHUNIT") * 1000
     to_m2 = _unit_scale(model, "AREAUNIT")
+    to_m3 = _unit_scale(model, "VOLUMEUNIT")
 
     elements: list[ExtractedElement] = []
     product: Any
@@ -41,7 +43,7 @@ def index_ifc(path: Path) -> tuple[list[ExtractedElement], dict[str, Any]]:
         elif product.is_a("IfcAnnotation"):
             continue  # 2D annotations of uploaded models are drawing furniture, not facts
         else:
-            el = _from_ifc(product, psets, to_mm, to_m2)
+            el = _from_ifc(product, psets, to_mm, to_m2, to_m3)
         _relations(product, el)
         elements.append(el)
     elements += _zones(model)
@@ -69,7 +71,9 @@ def _from_bob(product: Any, bob: dict[str, Any]) -> ExtractedElement:
     )
 
 
-def _from_ifc(product: Any, psets: dict[str, Any], to_mm: float, to_m2: float) -> ExtractedElement:
+def _from_ifc(
+    product: Any, psets: dict[str, Any], to_mm: float, to_m2: float, to_m3: float
+) -> ExtractedElement:
     ifc_class = product.is_a()
     type_obj = ifc_element.get_type(product)
     kind = marked_kind(getattr(product, "ObjectType", None)) or ifc_kind(ifc_class)
@@ -99,6 +103,11 @@ def _from_ifc(product: Any, psets: dict[str, Any], to_mm: float, to_m2: float) -
         area = quantity(psets, AREA_KEYS)
         if area is not None:
             properties["area_m2"] = round(area * to_m2, 2)
+
+    # Lengths, areas and volumes in SI units, for the agent's `sum_quantity` tool. Kept
+    # apart from the flattened property sets, which are capped and in the model's units.
+    if quantities := base_quantities(psets, to_mm / 1000, to_m2, to_m3):
+        properties["quantities"] = quantities
 
     long_name = getattr(product, "LongName", None)
     return ExtractedElement(

@@ -46,6 +46,12 @@ For any area total (an apartment, a floor, all rooms with a name), call \
 `sum_room_areas`; it applies the counting rules (shafts and outdoor spaces excluded) \
 and lists the rooms it counted, which you then cite.
 
+For a total over the elements of an IFC model (the net volume, net side area or length \
+of all walls on a storey, the net volume of all slabs, the net floor area of all rooms \
+on a storey), call `sum_quantity` and answer with its `total`; never add element \
+quantities yourself. If it reports elements without the quantity, say so in `caveats`. \
+Cite and highlight the elements it lists.
+
 For any "how many" question, call `count_elements` with the kind and the filters the \
 question names (fixture subtype, room category or printed label, IFC storey, page) and \
 answer with its `total`; never count `find_elements` results yourself, they stop at 50. \

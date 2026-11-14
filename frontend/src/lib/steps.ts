@@ -17,6 +17,15 @@ export function describeStep(tool: string, input: Record<string, unknown>): stri
       return typeof input.unit === "string" && input.unit
         ? `Adding up the room areas of apartment ${input.unit}`
         : "Adding up the room areas";
+    case "sum_quantity": {
+      // "NetSideArea" -> "net side area"
+      const quantity =
+        typeof input.quantity === "string"
+          ? input.quantity.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()
+          : "quantity";
+      const where = typeof input.storey === "string" && input.storey ? ` on ${input.storey}` : "";
+      return `Adding up the ${quantity} of ${kind}${where}`;
+    }
     case "count_elements": {
       const filter = [input.subtype, input.category, input.name].find(
         (v): v is string => typeof v === "string" && v !== "",

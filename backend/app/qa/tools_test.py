@@ -8,14 +8,18 @@ from pydantic import ValidationError
 from app.domain.counting import Countable
 from app.domain.ifc_mapping import IFC_KINDS
 from app.domain.kinds import DRAWING_KINDS
+from app.domain.quantities import Measured, unit_of
 from app.models import Element
 from app.qa.tools import (
     KINDS,
+    QUANTITIES,
     TOOLS,
     AreaIn,
     CountIn,
     FindIn,
+    QuantityIn,
     countable,
+    measured,
     pages_counted,
     shown_properties,
 )
@@ -46,6 +50,36 @@ def test_area_tool_input_is_validated() -> None:
     area = next(t for t in TOOLS if t["name"] == "sum_room_areas")
     assert set(area["input_schema"]["required"]) == {"document_id", "unit", "name"}
     assert AreaIn.model_validate({"document_id": None, "unit": "A", "name": None}).unit == "A"
+
+
+def test_quantity_tool_names_kinds_and_quantities() -> None:
+    tool = next(t for t in TOOLS if t["name"] == "sum_quantity")
+    props = tool["input_schema"]["properties"]
+    assert tool["strict"] is True
+    assert set(tool["input_schema"]["required"]) == {"kind", "quantity", "storey", "document_id"}
+    assert props["kind"]["enum"] == KINDS
+    assert props["quantity"]["enum"] == QUANTITIES
+    # Every quantity on offer has a unit, so the total can always be reported with one.
+    assert all(unit_of(q) in ("m", "m2", "m3") for q in QUANTITIES)
+    # What the preview's questions ask for: volumes, side areas, floor areas and lengths.
+    assert {"NetVolume", "NetSideArea", "NetFloorArea", "Length"} <= set(QUANTITIES)
+
+
+def test_quantity_tool_input_is_validated() -> None:
+    args = QuantityIn.model_validate(
+        {"kind": "wall", "quantity": "NetVolume", "storey": "5. Sal", "document_id": None}
+    )
+    assert (args.kind, args.quantity, args.storey) == ("wall", "NetVolume", "5. Sal")
+    with pytest.raises(ValidationError):
+        QuantityIn.model_validate({"kind": "wall", "quantity": "Weight"})
+
+
+def test_measured_reads_storey_and_quantities_from_an_element() -> None:
+    el = Element(id=uuid.UUID(int=7), kind="wall",
+                 properties={"storey": "1. Sal", "quantities": {"NetVolume": 2.5}})  # fmt: skip
+    assert measured(el) == Measured(str(uuid.UUID(int=7)), "wall", "1. Sal", {"NetVolume": 2.5})
+    # Elements from drawings, and IFC elements ingested before #96, have no quantities.
+    assert measured(Element(id=uuid.UUID(int=8), kind="wall", properties={})).quantities == {}
 
 
 def test_plan_tools_are_offered_with_strict_inputs() -> None:
