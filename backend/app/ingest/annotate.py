@@ -54,7 +54,10 @@ def annotate_page(
             for el in elements
             if el.kind == "dimension" and el.value_mm and el.bbox
         ]
-        fit = fit_dimension_scale(ink, dimensions, erase=text_boxes)
+        # OCR reads extension lines and slashes as "|" or "/" words; erasing those
+        # would wipe the very ticks the fit measures between (#69).
+        letters = [w.bbox for w in words if any(ch.isalnum() for ch in w.text)]
+        fit = fit_dimension_scale(ink, dimensions, erase=letters)
         if fit:
             scale_mm, support = fit
             scale_meta = {"scale_method": "dimension_fit", "scale_support": support}

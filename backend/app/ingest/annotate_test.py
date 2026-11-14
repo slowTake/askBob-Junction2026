@@ -38,6 +38,15 @@ def test_scale_fitted_from_dimensions_without_dpi() -> None:
     assert meta["scale_known"] is True
 
 
+def test_ticks_read_as_text_are_not_erased() -> None:
+    # Tesseract reads extension lines as "|" words (seen on real pages, #69). Erasing
+    # those boxes would wipe the ticks, so the fit must still find 10 mm per pixel.
+    bars = [Word((float(x), 88.0, x + 1.0, 113.0), "|") for x in (50, 150, 350)]
+    _, scale, meta = annotate_page(_sheet(), [*WORDS, *bars], "ocr", dpi=None)
+    assert scale == pytest.approx(10.0)
+    assert meta["scale_support"] == 2
+
+
 def test_no_scale_when_nothing_to_fit() -> None:
     _, scale, meta = annotate_page(_sheet(), WORDS[:1], "ocr", dpi=None)
     assert scale is None  # one label alone is not trusted
