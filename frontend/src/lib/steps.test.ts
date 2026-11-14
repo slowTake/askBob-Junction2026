@@ -32,6 +32,20 @@ describe("describeStep for the area and plan tools", () => {
   });
 });
 
+describe("describeStep for counting", () => {
+  it("names the kind, the filter and where", () => {
+    expect(describeStep("count_elements", { kind: "door", storey: "3. Sal" })).toBe(
+      "Counting doors on 3. Sal",
+    );
+    expect(describeStep("count_elements", { kind: "fixture", subtype: "wc", page_index: 0 })).toBe(
+      "Counting fixtures “wc” on page 1",
+    );
+    expect(describeStep("count_elements", { kind: "room", name: "Küche" })).toBe(
+      "Counting rooms “Küche”",
+    );
+  });
+});
+
 describe("currentStatus", () => {
   it("is one line: the latest step, or Thinking before the first", () => {
     expect(currentStatus([])).toBe("Thinking");
