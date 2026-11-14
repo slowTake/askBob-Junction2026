@@ -31,6 +31,8 @@ export function DrawingViewer(props: Props) {
   const [hovered, setHovered] = useState<ElementInfo | null>(null);
   const [selected, setSelected] = useState<ElementInfo[]>([]); // click, or Shift+click for more
   const [imageLoaded, setImageLoaded] = useState<string | null>(null);
+  const [imageFailed, setImageFailed] = useState<string | null>(null);
+  const [imageAttempt, setImageAttempt] = useState(0);
   const [framed, setFramed] = useState<PlanTarget | null>(null);
 
   useEffect(() => {
@@ -60,7 +62,12 @@ export function DrawingViewer(props: Props) {
   const w = page?.width_px ?? 0;
   const h = page?.height_px ?? 0;
   const size = useMemo(() => (w && h ? { width: w, height: h } : null), [w, h]);
-  const src = api.pageImageUrl(documentId, pageIndex);
+  const src = `${api.pageImageUrl(documentId, pageIndex)}?attempt=${imageAttempt}`;
+  useEffect(() => {
+    if (imageLoaded === src || imageFailed === src) return;
+    const timer = window.setTimeout(() => setImageFailed(src), 30_000);
+    return () => window.clearTimeout(timer);
+  }, [src, imageLoaded, imageFailed]);
   // Fit frames the drawing's ink, not the sheet's paper margins (#83).
   const content = useInkBox(src, size);
   const {
@@ -169,13 +176,28 @@ export function DrawingViewer(props: Props) {
             selectedIds={selectedIds}
             onHover={pointAt}
             onSelect={select}
-            onLoad={() => setImageLoaded(src)}
+            onLoad={() => {
+              setImageFailed(null);
+              setImageLoaded(src);
+            }}
+            onError={() => setImageFailed(src)}
           />
         )}
         {detail === "missing" ? (
           <div className="viewer-note">The drawing could not be loaded.</div>
         ) : doc && !page ? (
           <div className="viewer-note">This document has no drawing pages.</div>
+        ) : imageFailed === src ? (
+          <div className="viewer-note" role="alert">
+            The drawing image could not be loaded.{" "}
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setImageAttempt((attempt) => attempt + 1)}
+            >
+              Retry
+            </button>
+          </div>
         ) : (
           imageLoaded !== src && <div className="viewer-note is-loading">Loading drawing…</div>
         )}

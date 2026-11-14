@@ -20,6 +20,7 @@ interface Props {
   onHover: (el: ElementInfo | null) => void;
   onSelect: (el: ElementInfo | null, additive: boolean) => void; // null: the empty plan
   onLoad: () => void;
+  onError: () => void;
 }
 
 const SPOTLIGHT_PAD_PX = 10;
@@ -50,6 +51,7 @@ export function PlanCanvas(props: Props) {
         height={height}
         draggable={false}
         onLoad={props.onLoad}
+        onError={props.onError}
       />
       <svg
         className="sheet-overlay"
