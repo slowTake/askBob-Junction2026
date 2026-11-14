@@ -6,6 +6,10 @@ COPY . .
 RUN npm run build
 
 FROM nginx:1.29-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# The image's entrypoint fills the template from these at start-up (see nginx.conf.template).
+ENV BACKEND_URL=http://backend:8000 \
+    NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
+    NGINX_ENVSUBST_FILTER="^(BACKEND_URL|NGINX_LOCAL_RESOLVERS)$"
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

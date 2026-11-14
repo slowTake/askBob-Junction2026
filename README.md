@@ -70,6 +70,11 @@ unless the API is healthy, an ingest worker listens, nginx proxies `/api` and th
 UI page is served on :8080. Follow the logs with `make logs`; run `make smoke`
 again at any time to check a running stack.
 
+The UI container's nginx sends `/api` to `BACKEND_URL` (default
+`http://backend:8000`, the Compose service), so the same image can run on its own,
+for example on Aiven Runtime, pointed at a backend elsewhere. Without a reachable
+backend it still serves the UI and answers `/api` with 502.
+
 Raster ingest reports OCR, geometry and annotation progress. The optional vision
 model has a 90-second wait budget per page, then ingest continues with pixel
 heuristics. Set `VISION_TIMEOUT_S` when starting Docker to allow a longer wait.

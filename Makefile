@@ -5,7 +5,7 @@ LOCAL_ENV = DATABASE_URL=postgresql://bob:bob@postgres:5432/bob VALKEY_URL=redis
 # checks the stack from the outside. Follow the logs with `make logs`.
 UP_FLAGS = --build --detach --wait --wait-timeout 300
 
-.PHONY: help up up-aiven up-local up-claude smoke down logs check backend-check vision-check frontend-check size-check scripts-check fmt dev-api dev-worker dev-web
+.PHONY: help up up-aiven up-local up-claude smoke down logs check backend-check vision-check frontend-check size-check scripts-check frontend-image-check fmt dev-api dev-worker dev-web
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -54,6 +54,9 @@ scripts-check: ## Tests for the helper scripts
 	scripts/aiven-env-test.sh
 	bash scripts/claude-env-test.sh
 	scripts/smoke-test.sh
+
+frontend-image-check: ## Frontend image starts without a backend and follows BACKEND_URL (needs Docker; CI runs it)
+	scripts/frontend-image-test.sh
 
 fmt: ## Auto-format everything
 	cd backend && uv run ruff format . && uv run ruff check --fix .
