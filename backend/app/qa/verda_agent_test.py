@@ -10,6 +10,7 @@ import pytest
 from app.config import Settings
 from app.qa import verda_agent
 from app.qa.agent import AgentError, FinalAnswer
+from app.qa.prompts import LAST_STEP_NOTE
 from app.qa.tools import ToolContext, ToolInputError
 from app.qa.verda_agent import run_verda_agent
 
@@ -112,7 +113,8 @@ def test_bad_tool_input_goes_back_as_an_error_and_the_loop_continues(fake: FakeC
     events = _events()
     assert [e["type"] for e in events] == ["step", "step", "final"]
     assert fake.requests[1]["messages"][-1]["content"] == "Error: no such element in scope"
-    assert fake.requests[2]["messages"][-1]["content"] == "Error: arguments are not valid JSON"
+    # The third request is the last turn (max_agent_turns is 3), so the note follows the error.
+    assert fake.requests[2]["messages"][-2]["content"] == "Error: arguments are not valid JSON"
 
 
 @pytest.mark.parametrize(
@@ -133,12 +135,49 @@ def test_unusable_responses_map_to_agent_errors(
     assert raised.value.code == code
 
 
+def test_the_last_turn_must_be_the_final_answer(fake: FakeClient) -> None:
+    # SETTINGS.max_agent_turns is 3: two tool turns, then the model has to answer.
+    fake.responses = [
+        _response([_call("c1", "find_elements", "{}")]),
+        _response([_call("c2", "find_elements", "{}")]),
+        _response([_call("c3", "final_answer", json.dumps(ANSWER))]),
+    ]
+    events = _events()
+    assert [e["type"] for e in events] == ["step", "step", "final"]
+    assert [r["tool_choice"] for r in fake.requests] == [
+        "required",
+        "required",
+        {"type": "function", "function": {"name": "final_answer"}},
+    ]
+    last = fake.requests[2]["messages"][-1]
+    assert last == {"role": "user", "content": LAST_STEP_NOTE}
+    # Earlier turns end with the tool result, not with the note.
+    assert fake.requests[1]["messages"][-1]["role"] == "tool"
+
+
+def test_the_question_states_the_step_budget(fake: FakeClient) -> None:
+    fake.responses = [_response([_call("c1", "final_answer", json.dumps(ANSWER))])]
+    _events()
+    # max_agent_turns is 3, and the last turn is the answer: 2 rounds of tool calls.
+    assert "at most 2 rounds of tool calls" in fake.requests[0]["messages"][1]["content"]
+
+
 def test_step_limit(fake: FakeClient) -> None:
-    # SETTINGS.max_agent_turns is 3: three tool turns and no final answer.
+    # Three tool turns and no final answer, even when the last turn demands one.
     fake.responses = [_response([_call(f"c{i}", "find_elements", "{}")]) for i in range(3)]
     with pytest.raises(AgentError) as raised:
         _events()
     assert raised.value.code == "too_many_steps"
+
+
+def test_tools_called_instead_of_the_demanded_answer_are_not_run(fake: FakeClient) -> None:
+    fake.responses = [_response([_call(f"c{i}", "find_elements", "{}")]) for i in range(3)]
+    ctx = ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
+    steps = []
+    with pytest.raises(AgentError):
+        for event in run_verda_agent("How many bedrooms?", [], ctx, SETTINGS):
+            steps.append(event)
+    assert len(steps) == 2  # the third turn's tool call is neither a step nor run
 
 
 @pytest.mark.parametrize("value", [None, "", "  \n"])
