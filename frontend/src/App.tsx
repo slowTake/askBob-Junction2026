@@ -6,6 +6,7 @@ import { DocumentList } from "./components/DocumentList";
 import { DocumentStatus } from "./components/DocumentStatus";
 import { DrawingViewer } from "./components/DrawingViewer";
 import { EmptyState } from "./components/EmptyState";
+import type { Exports, SheetExport } from "./components/ExportMenu";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { NavBar } from "./components/NavBar";
 import { useAsk } from "./hooks/useAsk";
@@ -35,6 +36,7 @@ export function App() {
   const [target, setTarget] = useState<PlanTarget | null>(null);
   const [about, setAbout] = useState<ElementInfo[]>([]); // selected on the plan to ask about
   const [focusSignal, setFocusSignal] = useState(0);
+  const [sheetExport, setSheetExport] = useState<SheetExport | null>(null); // set by the plan
 
   // The agent drives the plan: open its document and page, then frame what it shows.
   const showView = useCallback((v: PlanView) => {
@@ -132,6 +134,11 @@ export function App() {
     setAbout([]);
   };
 
+  // One Export menu: in the documents panel's footer, or in the app bar while it's hidden.
+  const exports: Exports | null = selected
+    ? { ifcUrl: selected.has_ifc ? api.modelIfcUrl(selected.id) : null, sheet: sheetExport }
+    : null;
+
   const toast = docs.error && (
     <p className="toast" role="alert">
       {docs.error}
@@ -159,6 +166,7 @@ export function App() {
         onToggleTheme={toggleTheme}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        exports={sidebarOpen ? undefined : (exports ?? undefined)}
       />
       {toast}
       <main className={`workspace${sidebarOpen ? "" : " is-sidebar-closed"}`}>
@@ -168,7 +176,7 @@ export function App() {
             progress={docs.progress}
             workers={docs.workers}
             selectedId={selected?.id ?? null}
-            ifcUrl={selected?.has_ifc ? api.modelIfcUrl(selected.id) : null}
+            exports={exports}
             onSelect={select}
             onDelete={(id) => void docs.remove(id).then((removed) => removed && asker.clear(id))}
           />
@@ -176,29 +184,22 @@ export function App() {
         <section className="stage">
           {selected && (
             <>
-              {(views.length > 1 || (!sidebarOpen && selected.has_ifc)) && (
+              {views.length > 1 && (
                 <div className="stage-header">
                   <div className="tabs" role="tablist">
-                    {views.length > 1 &&
-                      views.map((v) => (
-                        <button
-                          key={v}
-                          type="button"
-                          role="tab"
-                          aria-selected={activeView === v}
-                          className={`tab${activeView === v ? " is-active" : ""}`}
-                          onClick={() => setView(v)}
-                        >
-                          {v === "drawing" ? "Plan" : "3D model"}
-                        </button>
-                      ))}
+                    {views.map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        role="tab"
+                        aria-selected={activeView === v}
+                        className={`tab${activeView === v ? " is-active" : ""}`}
+                        onClick={() => setView(v)}
+                      >
+                        {v === "drawing" ? "Plan" : "3D model"}
+                      </button>
+                    ))}
                   </div>
-                  {/* In the documents panel when it's open; here while it's collapsed. */}
-                  {!sidebarOpen && selected.has_ifc && (
-                    <a className="btn btn-secondary btn-sm" href={api.modelIfcUrl(selected.id)}>
-                      Download IFC
-                    </a>
-                  )}
                 </div>
               )}
               {selected.status !== "ready" ? (
@@ -217,6 +218,7 @@ export function App() {
                   target={target}
                   onClearTarget={() => setTarget(null)}
                   onAskAbout={askAbout}
+                  onSheetExport={setSheetExport}
                 />
               ) : (
                 <ErrorBoundary
