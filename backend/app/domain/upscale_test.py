@@ -186,6 +186,7 @@ class TestCache:
         assert meta["upscale"] == {
             "document_version": 3,
             "format": UPSCALE_FORMAT,
+            "mode": "fill",
             "model": "some-model",
             "added": 4,
             "input_tokens": 1200,
@@ -193,6 +194,8 @@ class TestCache:
         }
         assert is_cached(meta, 3) is True
         assert is_cached(meta, 4) is False  # re-ingested since
+        # A gap-filling pass is not the sketch redraw of the same page.
+        assert is_cached(meta, 3, mode="sketch") is False
 
     def test_a_page_never_upscaled_or_upscaled_in_an_old_format_is_not_cached(self) -> None:
         assert is_cached({}, 1) is False
