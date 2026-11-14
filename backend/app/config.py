@@ -28,14 +28,14 @@ class Settings(BaseSettings):
     verda_base_url: str = "https://inference.verda.com/v1"
     max_agent_turns: int = 12
     # Recognised count and area questions are answered by the server, not the agent loop
-    # (D-032). "exact": only from IFC, CAD and PDF-text elements; "all": also from
+    # (D-038). "exact": only from IFC, CAD and PDF-text elements; "all": also from
     # elements the floor-plan model or OCR found; "off": the agent answers everything.
     fast_path: FastPath = "exact"
     router_model: str | None = None  # the model that sorts questions; unset: the agent's model
 
     # The floor-plan model service (D-022); unset means ingest uses pixel heuristics.
     vision_url: str | None = None
-    vision_timeout_s: int = 600  # a large sheet takes minutes on CPU
+    vision_timeout_s: int = 90  # optional enrichment must not block the ingest queue for minutes
 
     # Upscale (#82, D-027): one cheap vision call per page, on demand.
     upscale_model: str = "claude-haiku-5-5"  # with LLM_PROVIDER=verda, `verda_model` is used
@@ -51,7 +51,8 @@ class Settings(BaseSettings):
     sketch_deadline_s: float = 600.0  # no new check round starts after this
 
     render_dpi: int = 150
-    ocr_langs: str = "fin+swe+eng"
+    ocr_langs: str = "fin+swe+eng"  # Tesseract only
+    ocr_engine: Literal["rapid", "tesseract"] = "rapid"  # D-024; Tesseract is also the fallback
     max_upload_mb: int = 200
     answer_cache_ttl_s: int = 86_400
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8080"]

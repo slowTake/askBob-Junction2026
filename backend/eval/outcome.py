@@ -19,7 +19,8 @@ def outcome(
     prices: Mapping[str, Price],
 ) -> Result:
     answered = "answer" in reply
-    model = stats.get("model")
+    # A request a fallback model answered is billed at its price, not `model`'s.
+    model = None if stats.get("fallback_requests") else stats.get("model")
     return Result(
         source=row["source"],
         type=row["type"],

@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 ANSWER_FORMAT = 6  # bump when the payload or how answers are found changes
 # 4: answers are a summary line plus "- " lists (prompts.py), laid out by the chat
 # 5: counts come from `count_elements`
-# 6: answers say how they were found (`method`: the agent or the server's fast path)
+# 6: the payload carries `method` (server or agent)
 
 MESSAGES = {
     "no_documents": "Upload a drawing and wait until it has been processed.",
@@ -54,7 +54,7 @@ def answer_stream(
                               "model": settings.llm_model}  # fmt: skip
     ctx: ToolContext | None = None
     steps = 0
-    method = "agent"  # or "server": answered without the agent loop (D-032)
+    method = "agent"  # or "server": answered without the agent loop (D-038)
     try:
         with session_scope() as db:
             docs = _scope(db, document_ids)

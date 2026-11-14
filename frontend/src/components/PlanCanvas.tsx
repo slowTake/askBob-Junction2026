@@ -20,6 +20,7 @@ interface Props {
   onHover: (el: ElementInfo | null) => void;
   onSelect: (el: ElementInfo | null, additive: boolean) => void; // null: the empty plan
   onLoad: () => void;
+  onError: () => void;
   /** The redrawn page (#82), drawn over the image and under the same overlay. */
   redraw: ReactNode | null;
 }
@@ -53,6 +54,7 @@ export function PlanCanvas(props: Props) {
         height={height}
         draggable={false}
         onLoad={props.onLoad}
+        onError={props.onError}
       />
       {props.redraw}
       <svg

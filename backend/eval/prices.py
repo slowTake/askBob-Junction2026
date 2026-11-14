@@ -19,12 +19,15 @@ class Price:
 
 
 # Anthropic list prices, checked 2026-11-03. A 5-minute cache write costs 1.25x input.
+# A cache read costs 0.05x input on Opus and Sonnet 5.5 and 0.1x on Haiku 5.5.
+# Haiku 5.5 costs $0.50 in, $2.50 out when one prompt is over 100,000 tokens. Usage is
+# added up per question, not per prompt, so that rate is not applied here.
 # Verda shows its prices only in the Console (Inference -> Models), so its models are
 # not listed: pass them with --price, or add them here.
 PRICES: dict[str, Price] = {
     "claude-opus-5-5": Price(4.0, 20.0, cache_read=0.2, cache_write=5.0),
     "claude-sonnet-5-5": Price(2.0, 10.0, cache_read=0.1, cache_write=2.5),
-    "claude-haiku-5-5": Price(0.1, 0.5),
+    "claude-haiku-5-5": Price(0.1, 0.5, cache_read=0.01, cache_write=0.125),
 }
 
 

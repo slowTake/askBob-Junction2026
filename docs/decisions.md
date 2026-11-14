@@ -27,15 +27,25 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-021 | 2026-11-14 | A citation's box is the element's extent; the printed name is the fallback | Accepted |
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
-| D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
+| D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Superseded in part by D-035 |
+| D-024 | 2026-11-14 | Raster rooms are traced from the drawing's lines; RapidOCR reads the text | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
 | D-027 | 2026-11-14 | Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates | Accepted |
-| D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029 |
+| D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029, D-035 |
 | D-029 | 2026-11-14 | Sketch check rounds show the draft in red over the photo, and the model is told where the ink is | Accepted |
-| D-030 | 2026-11-14 | Every question reports what it used; the eval turns that into cost | Accepted |
-| D-031 | 2026-11-14 | IFC base quantities are stored in SI units and totalled by the server | Accepted |
-| D-032 | 2026-11-14 | Recognised count and area questions are answered by the server, not the agent loop | Accepted |
+| D-025 | 2026-11-14 | Bound optional raster analysis and make Claude startup explicit (#106) | Accepted |
+| D-026 | 2026-11-14 | Room highlights require boundaries traced from the drawing (#103) | Accepted |
+| D-027 | 2026-11-14 | Match raster drawings to uploaded native DXF room boundaries (#108) | Accepted |
+| D-030 | 2026-11-14 | Matched CAD rooms survive the redraw integration (#108) | Accepted |
+| D-031 | 2026-11-14 | Claude omits unused tool filters to stay within strict-schema limits (#111) | Accepted |
+| D-032 | 2026-11-14 | `make up-*` start in the background and smoke-check the stack (#107) | Accepted |
+| D-033 | 2026-11-14 | The UI's nginx finds the backend per request, at an address from `BACKEND_URL` (#107, #64) | Accepted |
+| D-034 | 2026-11-14 | The demo runs on Aiven Runtime as one container: UI, API and worker (#116) | Accepted |
+| D-035 | 2026-11-14 | One Export menu holds Download IFC, Download SVG and Print (#109) | Accepted |
+| D-036 | 2026-11-14 | Every question reports what it used; the eval turns that into cost | Accepted |
+| D-037 | 2026-11-14 | IFC base quantities are stored in SI units and totalled by the server | Accepted |
+| D-038 | 2026-11-14 | Recognised count and area questions are answered by the server, not the agent loop | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -352,7 +362,7 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 ## D-024: Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document
 
-**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes in part:** D-018
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-035 (where Download IFC shows) · **Supersedes in part:** D-018
 
 **Context:** Fit framed the whole sheet, so scans and PDF pages showed wide paper margins around a small drawing. Framing the detected elements instead failed on sparse scans (one OCR'd letter made Fit zoom onto it). Agent highlights zoomed the plan in after every answer, with a "Shown by the assistant" banner on top. The chat kept one conversation for all documents, so switching drawings mixed answers about different plans (#83).
 
@@ -367,6 +377,46 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - **Answers are a summary line plus lists.** The agent leads with one short sentence, then groups ("Lower floor:") and "- " items, and puts how it got the answer in `caveats`; the chat lays this out as headings and bullet lists (`lib/answerText.ts`, rendered as elements, never HTML). `ANSWER_FORMAT` 4 keeps older one-paragraph answers out of the cache.
 
 **Consequences:** Fit needs no backend change or re-ingest. A scan with a dark scanner border fits the whole sheet, as before. A reload loses the conversations. With no "New conversation" button there is no way to cancel a slow answer except a reload; a Stop button is the natural follow-up if that matters.
+
+## D-025: Bound optional raster analysis and make Claude startup explicit
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #106
+
+**Context:** One raster job waited over ten minutes for the vision service, blocking later uploads. A failed image request left the viewer saying Loading forever, and the Docker backend had no Anthropic key.
+
+**Decision:** Vision enrichment waits at most 90 seconds per page by default, configurable with `VISION_TIMEOUT_S`, before using the existing heuristic fallback. Raster readers emit progress before OCR, vision and annotation; transparent PNGs are composited onto white paper. Document API requests and viewer image loads stop waiting after 30 seconds, with a retry for failed images; uploads allow 120 seconds. `make up-claude` reads credentials from the environment, the OS keyring, or hidden terminal input and starts the local stack with the selected provider. It fails clearly without credentials in noninteractive use.
+
+**Consequences:** Slow CPU vision may produce fewer detected objects when it exceeds the budget. The vision server may finish its computation after its client disconnects. Keys stay outside the repository; existing containers must be recreated to apply changed credentials. Image retries reload the image without reprocessing the document.
+
+## D-024: Raster rooms are traced from the drawing's lines; RapidOCR reads the text
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** On raster pages (PNG/JPG, scanned PDFs), a printed room label got its outline either from the floor-plan model (D-022), whose rooms are built from rectangles and merge neighbours (two bedrooms became one), or from a flood fill that leaks through doorways. Tesseract read only 42% of the Swiss room numbers at 150 DPI. A prototype (#103) on 8 Swiss preview floors (289 rooms), scored against their DXFs with the physical scale (DPI + printed "1:100") and no tuning against the answers:
+
+| | Tesseract + model rooms | RapidOCR + traced rooms |
+|---|---|---|
+| Room numbers read | 42% | 86% |
+| Room found as its own room | – | 66% |
+| Area within 5% of the DXF | – | 38% |
+
+**Decision:**
+- **Rooms come from the drawing's own lines,** as CAD "boundary" tools find them:
+  - **Lines:** stroke centre lines (skeleton) plus the outlines of wall bands, closed over their hatching.
+  - **Faces:** Shapely/GEOS extends near-touching ends, splits lines at crossings and finds every enclosed face (`polygonize`).
+  - **Which faces count as rooms:** page-sized and thin faces (wall interiors, hatching) are dropped. A label goes to the largest face around it that holds no other room's label. A face that touches only one room and is smaller than it (a counter, a tub) is part of that room.
+  - **Edge:** the outline is moved 2 px (at 150 DPI) out onto the wall face.
+- **Outline sources for a printed room label,** in order: traced face, then model room, then flood fill. The printed-area check applies to all of them.
+- **OCR:** RapidOCR (PaddleOCR's text detector and recogniser on ONNX Runtime; the models ship in the wheel) reads raster text in tiles. Tesseract stays as the fallback.
+
+**Consequences:**
+- Labelled rooms on raster plans follow their walls.
+- About a third of rooms still leak through doorways drawn without a door swing, or lose part of their area to fixtures the rules don't absorb.
+- Because the doorway line itself isn't drawn, a door's swing area counts toward the room on the other side of the door.
+- Closing doorways fixes both and is the next step.
+- OCR takes about 8–15 s per Swiss sheet on CPU.
+- RapidOCR's recogniser has no accented letters ("Pièce" reads as "Piece"), so room names are now matched without accents.
+- The app's own image reader, scored with `eval/swiss_rooms.py` on the same 8 floors: 70% of rooms named, 66% outlined, 36% with the area within 5% of the DXF.
 
 ## D-025: The server counts: `count_elements`, not the model adding up search results
 
@@ -395,6 +445,25 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - `too_many_steps` remains for a model that still gives no answer on its last turn.
 
 **Consequences:** On the same five drawings, 8 of 8 non-raster questions now end with an answer (2 of 6 scored ones correct). A forced answer can be wrong; before, there was no answer. The three causes above are not fixed by this: they need model facts for IFC, a way to read schedule tables, and elements to count on raster plans (#93, D-022). The Claude path is covered by tests with a fake client only, since no one has an Anthropic key (D-020).
+## D-026: Room highlights require boundaries traced from the drawing
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #103 · **Supersedes in part:** D-024 room-outline fallbacks
+
+**Context:** The running app used Tesseract and model masks instead of the local prototype's RapidOCR and line tracing. It assigned one apartment-wide polygon to a bathroom and bedroom, and a jagged segmentation fragment to corridor 3.14. Model and flood-fill fallbacks can produce those shapes without proving a room boundary.
+
+**Decision:** Use the prototype's RapidOCR and drawing-line tracing for room highlights. Every candidate must contain its own label and no other room name or unlinked room number. If no traced boundary passes these checks and the existing printed-area check, retain the printed label for citation. For raster pages, model masks and raw flood fills cannot substitute for room boundaries or create unnamed room fragments; model walls, doors and fixtures remain available. Exact-scale CAD renderings retain their existing closed-region fallback, subject to the same room-label checks.
+
+**Consequences:** Some rooms have label-only citations when the drawing's lines do not establish their boundaries. On the two reported PNGs, the reader finds six and twelve separate traced rooms respectively, including the full corridor 3.14 instead of its small model fragment. Existing documents must be reprocessed to replace their stored geometry.
+
+## D-027: Match raster drawings to uploaded native DXF room boundaries
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #108
+
+**Context:** Raster line tracing cannot reliably recover all semantic spaces, especially an open kitchen beside a living area with no separating wall. The dataset supplies a corresponding DXF with exact room polygons and names. On the reported floor, OCR plus tracing located only part of the 17-room plan reliably.
+
+**Decision:** Match uploaded raster/DXF files by filename stem, ignoring case. Use DXF text alignment and shared room numbers to fit a deterministic scale/rotation/translation. Require at least three labels, 75% agreement and a pixel residual within the page-size budget; reject ambiguous CAD revisions and polygons outside the raster. Preserve the raster image and map all native CAD rooms, names, areas and provenance into its page. The existing IFC export is built from these same rooms. Store the companion hash and alignment quality. Either upload order triggers a refresh once, including when a companion arrives during image processing; failed registration never loops. Native CAD companions bypass optional model segmentation. Existing raster behavior remains when no reliable companion exists.
+
+**Consequences:** Exact semantic splits require the corresponding CAD file. OCR is used for registration, and can miss individual rooms without losing their CAD geometry. The reported 17-room drawing aligns on 16 labels with 0.39 px RMS error and retains all 17 separate spaces. A pair with fewer than three reliable shared numbers is left unmatched. Different DXFs with an identical filename stem are rejected rather than selecting a revision silently.
 
 ## D-027: Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates
 
@@ -412,7 +481,7 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 ## D-028: On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured
 
-**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) · **Refines:** D-027 (for raster image pages only)
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) and D-035 (where Download SVG and Print live) · **Refines:** D-027 (for raster image pages only)
 
 **Context:** The demo shows a photo of a hand-drawn floor plan (a napkin sketch) turned into a clean plan with one button (#82). D-027's pass asks a small model once for what ingest *missed* and draws boxes. On a sketch, ingest's OCR and line detection are the unreliable part, so filling its gaps keeps its noise; boxes cannot show a door swing; and one unchecked answer has no way to notice its own mistakes. The owner's rules: one button; redraw, never invent (no measurement unless written on the sketch); a stronger, slower model is allowed for this path; output is the Redrawn view plus Download SVG and Print, no DXF.
 
@@ -442,7 +511,85 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 **Consequences:** On the test image the walls now land within 3 px of the ink, in three rounds (about 33k tokens in and 8k out, about 76 s). A dark border or shadow inside the photo can widen the box; the prompt names those cases so the model can set the box aside.
 
-## D-030: Every question reports what it used; the eval turns that into cost
+## D-030: Matched CAD rooms survive the redraw integration
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #108
+
+**Context:** Main's new sketch redraw applies to image documents, including a PNG whose rooms now come from its native DXF companion. Generating another model-made set of rooms would mix approximate and exact geometry and could duplicate quantities.
+
+**Decision:** A matched CAD PNG renders its clean sheet from the existing CAD elements immediately. Its upscale endpoint returns a no-op without model calls or element changes. Other raster sketches retain main's model redraw. Preserve the PNG image load/error timeout and retry behavior alongside the redraw UI; allow the synchronous sketch API request the server's default bounded claim budget rather than the normal 30-second document request budget.
+
+**Consequences:** CAD-matched room geometry, identifiers and areas remain unchanged when switching views or requesting upscale. PNG-only sketches continue to use the model loop. Main and the earlier unmerged branches used some overlapping decision IDs; the existing entries are preserved and are distinguished by their titles and issue references.
+
+
+## D-031: Claude omits unused tool filters to stay within strict-schema limits
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #111
+
+**Context:** Claude rejected the complete request before answering because the shared strict tool schemas contained 15 nullable parameters and the answer schema contained five more. Anthropic limits union parameters across all strict schemas to 16.
+
+**Decision:** Adapt only Claude's tool definitions: a required nullable filter becomes an optional property of its non-null type. Existing Pydantic handlers already default missing filters to None. Keep required inputs, enum constraints, strict validation, every tool and the structured answer. Deep-copy shared definitions so the Verda path is unchanged. Regression tests cover the actual request payload and the combined schema budget.
+
+**Consequences:** The request has five union parameters and 15 optional tool parameters, within Claude's documented limits. No tools or filters are removed. Future schema additions must keep the combined tool/answer budget within provider limits.
+
+## D-032: `make up-*` start in the background and smoke-check the stack
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #107 (part)
+
+**Context:** `make up`, `up-aiven` and `up-local` ran `docker compose up --build` in the foreground, so nothing checked that the started stack was actually reachable. A stack could look up while :8080 returned 502 (nginx with a stale backend address, #64), no worker listened, or the UI build was broken, and people found out in the browser.
+
+**Decision:**
+- The `up-*` targets run `docker compose up --build --detach`, then `make smoke` with a 180 s budget. Logs are followed with `make logs`. No `--wait`: it would also block on vision's healthcheck, and the app works without vision (ingest falls back to pixel heuristics).
+- `scripts/smoke.sh` checks from the host, retrying for up to `SMOKE_TIMEOUT` seconds (default 60): `/api/health` on :8000 reports `"ok":true` (it always answers 200, so the body is read), `ingest_workers` is above 0 (waited for too, because the worker registers with the queue a moment after it starts; a missing count fails), `/api/health` through :8080 also answers (nginx proxy), and :8080 serves the UI page. Each failure names the likely cause and the command to look further. `API_URL` and `WEB_URL` override the ports.
+- `scripts/smoke-test.sh` tests it against local fake servers and runs in `make check` and CI.
+
+**Consequences:** `make up-*` return to the prompt with a pass or a named failure instead of streaming logs. A broken proxy or a stopped frontend shows up as a failed proxy check (the #64 cause is fixed by D-033). The rest of #107 (`make dev`, `make doctor`, keyring helper, per-checkout project names) is still open.
+
+## D-033: The UI's nginx finds the backend per request, at an address from `BACKEND_URL`
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #107 (part), fixes #64
+
+**Context:** `frontend/nginx.conf` had `proxy_pass http://backend:8000;`. nginx resolves a literal host once at start-up, so it kept a recreated backend's old IP and :8080 returned 502 (#64), and it refused to start at all when no `backend` host existed. That blocks deploying the UI image on its own, which we are trying on Aiven Runtime (project `junction-stoa-winners`, app `askBob`, aws-eu-central-1); the Compose-to-Runtime route would also create extra Postgres and Valkey services from our offline-profile containers.
+
+**Decision:**
+- The config becomes `frontend/nginx.conf.template`, filled by the nginx image's entrypoint at start-up (only `BACKEND_URL` and `NGINX_LOCAL_RESOLVERS` are substituted).
+- `proxy_pass` uses a variable built from `BACKEND_URL` (Dockerfile default `http://backend:8000`), with `resolver` set to the container's own DNS servers from `/etc/resolv.conf` (`NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1`), cached 10 s. Not Docker's `127.0.0.11`, which does not exist outside Docker networks.
+- `BACKEND_URL` must be `http(s)://host[:port]`: with a variable, nginx would send a URL's path in place of every request path. `frontend/docker-entrypoint.d/16-check-proxy.envsh` drops a trailing slash and stops the container, saying why, on a path or when `/etc/resolv.conf` has no nameserver.
+- nginx's resolver ignores `resolv.conf` search domains, so outside Compose the host must be a full name (`api.example.com`).
+- The backend gets its own host name in `Host` (nginx's default) with SNI on and its certificate checked against the image's CA bundle, so an HTTPS backend behind a router works; the browser's host goes in `X-Forwarded-Host`, and `X-Forwarded-Proto` keeps an incoming one from a TLS-terminating router. The backend only reads the request path.
+- `scripts/frontend-image-test.sh` (CI containers job, `make frontend-image-check`) checks the image starts without a backend, proxies to `BACKEND_URL` (also with a trailing slash), follows a backend recreated on a new IP, and refuses a path or a missing nameserver.
+
+**Consequences:** Recreating the backend no longer needs a frontend restart (verified on the local stack with the backend moved to a new IP, plus SSE on `/api/events`). The UI image can be deployed alone; until a backend is hosted, its `/api` calls return 502. Hosting the API, worker and vision on Runtime is not decided here: the shared `/data` volume and vision's 6 GB need checking first.
+
+## D-034: The demo runs on Aiven Runtime as one container: UI, API and worker
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #116
+
+**Context:** We want the app hosted for the Junction demo on Aiven Runtime, next to our Aiven Postgres and Valkey. Runtime apps cannot share a disk and "an Aiven Runtime application cannot be integrated with another Runtime application"; ports are public HTTPS only. Our API and worker share `/data` for uploads, page images, IFC and meshes (`backend/app/storage.py`), so separate apps would need that storage moved first (into Postgres or an object store), which is more than the event leaves time for.
+
+**Decision:**
+- The root `Dockerfile` (at the root because Runtime's manifest scan uses each Dockerfile's own folder as build context; a root `.dockerignore` keeps the context to `backend/`, `frontend/` and `deploy/`, without `.env` files), with `deploy/runtime/nginx.conf` and `start.sh`, runs nginx, uvicorn and the RQ worker in one container as the unprivileged `app` user. nginx listens on 8080 and proxies `/api` to `127.0.0.1:8000`.
+- `deploy/runtime/start.sh` starts the API, waits for it to answer (it creates the schema) before starting the worker, then nginx. If any process exits, it stops the others and exits, so Runtime restarts the container whole. On SIGTERM it stops the API and worker with TERM and nginx with QUIT (graceful), waits up to `STOP_GRACE_S` (20 s) and then kills what is left, so a worker busy with a minutes-long job does not hold a redeploy; that job is cut off and requeued by the next worker (whose file is gone after a redeploy anyway).
+- It deploys as the existing Runtime app `askBob` (aws-eu-central-1, port 8080, at least `startup-50-2560`). Secrets (`DATABASE_URL`, `VALKEY_URL`, `ANTHROPIC_API_KEY`) are set on that app in the console.
+- `scripts/runtime-image-test.sh` (CI containers job, `make runtime-image-check`) builds the image, runs it against throwaway Postgres and Valkey and checks `scripts/smoke.sh` through the single port, SSE, a non-root user, that a stop finishes within the grace period even with a stuck worker, and that the container stops when the worker dies.
+
+**Consequences:** One app to configure and one address. Files are on the container's own disk: a redeploy or restart loses them while their Postgres rows stay, so documents uploaded before a redeploy break and have to be uploaded again. No vision service runs (raster ingest uses pixel heuristics, D-023). Verified locally: a CubiCasa PNG ingested in about 21 s with 70 elements; idle memory is about 300 MB. Not yet verified on Runtime itself, including its request timeout for the minutes-long sketch redraw, its upload size limit, and whether it runs the container as the image's `app` user (UID 1000, which owns `/data`); a forced other UID could not write `/data`. The lasting setup (files in Postgres or an object store, separate API and vision apps) is a later issue. The `frontend/` image and `BACKEND_URL` (D-033) stay for Compose and for that later split.
+
+## D-035: One Export menu holds Download IFC, Download SVG and Print
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #109 · **Supersedes in part:** D-024 (Download IFC above the plan), D-028 (Download SVG and Print in the plan toolbar)
+
+**Context:** Files left the app from three places: Download IFC at the bottom of the documents panel, a second Download IFC above the plan while the panel was collapsed, and Download SVG and Print in the plan toolbar, laid out invisibly on the original view so the toolbar would not shift. The copy above the plan took a whole row for one button and was easy to miss. The Redraw card, once open, could only be left through the Original tab.
+
+**Decision:**
+- **One Export ▾ menu** with Download IFC, Download SVG and Print. It sits where Download IFC was, at the bottom of the documents panel, and opens upward. Hiding the panel hides it too: nothing moves to the app bar, which keeps only the panel toggle, the theme and Upload.
+- Download IFC is greyed out when the document has no IFC. Download SVG and Print are greyed out until the redrawn sheet is on screen; the plan viewer hands the menu those two actions while it is.
+- The plan toolbar keeps page navigation, Original / Redrawn and the layers; the row above the plan shows only when there are Plan / 3D model tabs.
+- The menu and the Redraw card close on a click anywhere outside them or on Esc (`useDismiss`). Closing the card during a redraw only hides it: the server finishes, and Redrawn shows the result.
+
+**Consequences:** Export has one place, and the plan toolbar no longer reserves space for hidden buttons. With the documents panel hidden there is no way to export until it is shown again. The 3D tab can still download the IFC from the menu; SVG and Print stay greyed out there.
+
+## D-036: Every question reports what it used; the eval turns that into cost
 
 **Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-019
 
@@ -452,12 +599,12 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 - **Usage is counted per question in one shape** (`app/domain/usage.py`): input tokens that were not cached, input read from the provider's prompt cache, input written to it, output tokens, and the number of model requests. It lives on the tool context, so a question that fails still reports what it used.
 - **The closing `done` event of `/api/ask` carries it**, with the model, the number of tool calls, the time and whether the answer came from the answer cache. The browser ignores the event's data today.
 - **`qa_log.input_tokens` now counts every input token**, cached or not. Before, the Claude loop left cached input out.
-- **The eval prices it** (`eval/prices.py`, dollars per million tokens). Anthropic's list prices are in the table. Verda shows its prices only in the Console, so they are passed with `--price MODEL=IN,OUT` or added to the table; a model without a price reports "price unknown", never a guess.
+- **The eval prices it** (`eval/prices.py`, dollars per million tokens). Anthropic's list prices are in the table. Verda shows its prices only in the Console, so they are passed with `--price MODEL=IN,OUT` or added to the table; a model without a price reports "price unknown", never a guess. So does a question where Claude's refusal fallback (`fallbacks="default"`) re-ran a request on another model: the `done` event counts those as `fallback_requests`, and their tokens are billed at a price we don't know.
 - **`run_eval` prints** tokens, tool calls, seconds and cost per question, averages per source and type, and errors by code. Answers served from the answer cache made no model call and are left out of the averages. `--out` writes one line per question, so two runs can be compared.
 
 **Consequences:** A run now gives accuracy and cost side by side: on DeepSeek, eight questions about four preview drawings averaged 62,000 input tokens and 10 tool calls each. Prices are a hand-kept table and go stale when a provider changes them. No schema change: steps and cached tokens are in the event and the eval file, not in `qa_log`.
 
-## D-031: IFC base quantities are stored in SI units and totalled by the server
+## D-037: IFC base quantities are stored in SI units and totalled by the server
 
 **Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-006, D-015
 
@@ -474,10 +621,9 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 - IFC models ingested before this change have no `quantities` until they are processed again.
 - The Esplanades model has no quantity sets on its rooms, so its four room-area totals report every room as lacking the quantity. Areas from geometry are #37.
 - An element nested inside another of the same kind is summed like any other. If a model gives quantities to both a parent and its parts, the total counts them twice; we have not seen such a model.
+## D-038: Recognised count and area questions are answered by the server, not the agent loop
 
-## D-032: Recognised count and area questions are answered by the server, not the agent loop
-
-**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-006, D-025, D-031
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-006, D-025, D-037
 
 **Context:** Low inference cost is a quarter of the judging. In the preview, 76% of the questions are counts and 20% are areas, and most follow a few patterns in several languages ("How many doors are shown on the floor plan of '4. Sal'?", "net floor area of apartment A"). The agent loop spent 16,000–210,000 input tokens and up to 12 tool calls on each of them, and answered the same question differently from run to run (#97).
 

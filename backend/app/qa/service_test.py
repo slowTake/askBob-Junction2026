@@ -46,6 +46,7 @@ def test_stats_report_what_the_question_used() -> None:
         "cache_read_tokens": 100,
         "cache_write_tokens": 0,
         "requests": 2,
+        "fallback_requests": 0,
     }
 
 

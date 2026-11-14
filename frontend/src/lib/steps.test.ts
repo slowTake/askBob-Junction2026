@@ -32,6 +32,17 @@ describe("describeStep for the area and plan tools", () => {
   });
 });
 
+describe("describeStep for quantity totals", () => {
+  it("names the quantity in plain words, the kind and the storey", () => {
+    expect(
+      describeStep("sum_quantity", { kind: "wall", quantity: "NetSideArea", storey: "5. Sal" }),
+    ).toBe("Adding up the net side area of walls on 5. Sal");
+    expect(
+      describeStep("sum_quantity", { kind: "slab", quantity: "NetVolume", storey: null }),
+    ).toBe("Adding up the net volume of slabs");
+  });
+});
+
 describe("describeStep for counting", () => {
   it("names the kind, the filter and where", () => {
     expect(describeStep("count_elements", { kind: "door", storey: "3. Sal" })).toBe(
@@ -43,17 +54,6 @@ describe("describeStep for counting", () => {
     expect(describeStep("count_elements", { kind: "room", name: "Küche" })).toBe(
       "Counting rooms “Küche”",
     );
-  });
-});
-
-describe("describeStep for quantity totals", () => {
-  it("names the quantity in plain words, the kind and the storey", () => {
-    expect(
-      describeStep("sum_quantity", { kind: "wall", quantity: "NetSideArea", storey: "5. Sal" }),
-    ).toBe("Adding up the net side area of walls on 5. Sal");
-    expect(
-      describeStep("sum_quantity", { kind: "slab", quantity: "NetVolume", storey: null }),
-    ).toBe("Adding up the net volume of slabs");
   });
 });
 

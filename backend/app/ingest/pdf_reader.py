@@ -45,7 +45,7 @@ def read_pdf(path: Path, settings: Settings, progress: Progress) -> ExtractedDoc
         words = _pdf_words(page, px_per_pt)
         source = "pdf_text"
         if not words:  # scanned page: no text layer
-            words = ocr_words(gray, settings.ocr_langs)
+            words = ocr_words(gray, settings.ocr_langs, settings.ocr_engine)
             source = "ocr"
 
         walls = [[(x * px_per_pt, y * px_per_pt) for x, y in w] for w in hatched_regions(page)]

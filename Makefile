@@ -1,21 +1,35 @@
 # Run `make help` for the list. CI runs `make check`.
 
 LOCAL_ENV = DATABASE_URL=postgresql://bob:bob@postgres:5432/bob VALKEY_URL=redis://valkey:6379/0
+# Build and start in the background, then `make smoke` waits (up to SMOKE_TIMEOUT s) for
+# the API, a worker, the proxy and the UI. No `--wait`: that would also block on vision,
+# which the app works without. Follow the logs with `make logs`.
+UP_FLAGS = --build --detach
+SMOKE_TIMEOUT ?= 180
 
-.PHONY: help up up-aiven up-local down logs check backend-check vision-check frontend-check size-check scripts-check fmt dev-api dev-worker dev-web
+.PHONY: help up up-aiven up-local up-claude smoke down logs check backend-check vision-check frontend-check size-check scripts-check frontend-image-check runtime-image-check fmt dev-api dev-worker dev-web
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
 
 up: ## Run everything against Aiven (run `source scripts/aiven-env.sh` first)
 	@test -n "$$DATABASE_URL" -a -n "$$VALKEY_URL" || { echo "Run: source scripts/aiven-env.sh"; exit 1; }
-	docker compose up --build
+	docker compose up $(UP_FLAGS)
+	@$(MAKE) --no-print-directory smoke
 
 up-aiven: ## Run everything against Aiven: URLs from avn, passwords from your keyring
-	bash -c 'source scripts/aiven-env.sh && exec docker compose up --build'
+	bash -c 'source scripts/aiven-env.sh && exec docker compose up $(UP_FLAGS)'
+	@$(MAKE) --no-print-directory smoke
 
 up-local: ## Run everything offline with local Postgres + Valkey containers
-	$(LOCAL_ENV) docker compose --profile local up --build
+	$(LOCAL_ENV) docker compose --profile local up $(UP_FLAGS)
+	@$(MAKE) --no-print-directory smoke
+
+up-claude: ## Run locally with Claude: key from environment, keyring, or a hidden prompt
+	bash -c 'source scripts/claude-env.sh && $(MAKE) up-local'
+
+smoke: ## Check the running stack: API healthy, worker listening, nginx proxies /api, UI served
+	SMOKE_TIMEOUT=$(SMOKE_TIMEOUT) scripts/smoke.sh
 
 down: ## Stop all containers
 	docker compose --profile local down
@@ -40,6 +54,14 @@ size-check: ## No source file over 600 lines
 scripts-check: ## Tests for the helper scripts
 	scripts/bulk-issues-test.sh
 	scripts/aiven-env-test.sh
+	bash scripts/claude-env-test.sh
+	scripts/smoke-test.sh
+
+frontend-image-check: ## Frontend image starts without a backend and follows BACKEND_URL (needs Docker; CI runs it)
+	scripts/frontend-image-test.sh
+
+runtime-image-check: ## Single-container Runtime image passes smoke against throwaway DBs (needs Docker; CI runs it)
+	scripts/runtime-image-test.sh
 
 fmt: ## Auto-format everything
 	cd backend && uv run ruff format . && uv run ruff check --fix .

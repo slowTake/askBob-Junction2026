@@ -89,6 +89,8 @@ def run_verda_agent(
                 output_tokens=response.usage.completion_tokens,
                 cache_read_tokens=cached,
             )
+        else:  # still a request, with token counts we don't know
+            ctx.usage.add(input_tokens=0, output_tokens=0)
 
         choice = response.choices[0]
         if choice.finish_reason == "length":
@@ -107,7 +109,7 @@ def run_verda_agent(
                 answer = FinalAnswer.model_validate_json(final)
             except ValidationError as exc:
                 raise AgentError("bad_answer") from exc
-            yield {"type": "final", "answer": answer, "usage": ctx.usage.as_dict()}
+            yield {"type": "final", "answer": answer}
             return
         if not calls:
             raise AgentError("bad_answer")  # plain text despite tool_choice="required"

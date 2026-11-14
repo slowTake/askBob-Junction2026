@@ -27,8 +27,8 @@ export interface SketchSheet {
 export const SKETCH_MODE: NonNullable<UpscaleInfo["mode"]> = "sketch";
 
 /** Documents whose pages get the sketch redraw: raster images (backend `is_sketch_page`). */
-export function isSketchDocument(kind: string): boolean {
-  return kind === "image";
+export function isSketchDocument(kind: string, hasCadRooms = false): boolean {
+  return kind === "image" && !hasCadRooms;
 }
 
 /** The elements the plan layer offers: on a redrawn sketch, only the model's plan. */

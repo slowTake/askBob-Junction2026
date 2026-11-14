@@ -2,7 +2,6 @@
 
 import json
 import uuid
-from collections.abc import Sequence
 from typing import Any
 
 import pytest
@@ -61,7 +60,9 @@ def fakes(monkeypatch: pytest.MonkeyPatch) -> Fakes:
 
 
 def _run(
-    fast: str = "all", selected: Sequence[str] = (), documents: list[dict[str, Any]] | None = None
+    fast: str = "all",
+    selected: list[str] | None = None,
+    documents: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]] | None:
     ctx = ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # the tools are faked
     return fast_events("How many doors?", documents or DOC, ctx, _settings(fast), selected)
@@ -209,6 +210,6 @@ def test_a_storey_given_as_a_name_is_tried_as_a_storey(
 
 
 def test_the_default_answers_only_from_exact_elements(fakes: Fakes) -> None:
-    # Measured on the preview (D-032): detections were wrong on 6 of 6 raster counts.
+    # Measured on the preview (D-038): detections were wrong on 6 of 6 raster counts.
     settings = Settings(database_url="postgresql://unused", valkey_url="redis://unused")
     assert settings.fast_path == "exact"

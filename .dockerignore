@@ -1,0 +1,17 @@
+# Only for builds whose context is the repo root: the root Dockerfile (D-034).
+# The Compose builds use backend/, frontend/ and vision/ as context and their own files.
+*
+!backend
+!frontend
+!deploy
+frontend/node_modules
+frontend/dist
+backend/.venv
+backend/eval
+**/__pycache__
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache
+**/*_test.py
+# Local secrets never go into an image.
+**/.env*

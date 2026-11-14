@@ -17,13 +17,6 @@ export function describeStep(tool: string, input: Record<string, unknown>): stri
       return typeof input.unit === "string" && input.unit
         ? `Adding up the room areas of apartment ${input.unit}`
         : "Adding up the room areas";
-    case "count_elements": {
-      const filter = [input.subtype, input.category, input.name].find(
-        (v): v is string => typeof v === "string" && v !== "",
-      );
-      const where = typeof input.storey === "string" && input.storey ? ` on ${input.storey}` : page;
-      return `Counting ${kind}${filter ? ` “${filter}”` : ""}${where}`;
-    }
     case "sum_quantity": {
       // "NetSideArea" -> "net side area"
       const quantity =
@@ -32,6 +25,13 @@ export function describeStep(tool: string, input: Record<string, unknown>): stri
           : "quantity";
       const where = typeof input.storey === "string" && input.storey ? ` on ${input.storey}` : "";
       return `Adding up the ${quantity} of ${kind}${where}`;
+    }
+    case "count_elements": {
+      const filter = [input.subtype, input.category, input.name].find(
+        (v): v is string => typeof v === "string" && v !== "",
+      );
+      const where = typeof input.storey === "string" && input.storey ? ` on ${input.storey}` : page;
+      return `Counting ${kind}${filter ? ` “${filter}”` : ""}${where}`;
     }
     case "highlight": {
       const n = Array.isArray(input.element_ids) ? input.element_ids.length : 0;

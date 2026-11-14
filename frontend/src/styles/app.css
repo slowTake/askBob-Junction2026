@@ -247,6 +247,53 @@ a {
   gap: var(--s-2);
   margin-left: auto; /* push the actions to the right of the wordmark */
 }
+/* Export menu at the bottom of the documents panel: IFC, the redrawn sheet as SVG, Print.
+   It opens upward, as wide as its button. */
+.export-menu {
+  position: relative;
+  display: grid;
+}
+.export-caret {
+  width: 0.75em; /* sized to the label */
+  height: 0.45em;
+  fill: currentColor;
+}
+.export-list {
+  position: absolute;
+  z-index: 20;
+  display: grid;
+  min-width: 180px;
+  padding: var(--s-1) 0;
+  background: var(--surface);
+  box-shadow:
+    var(--shadow-pop),
+    inset 0 0 0 1px var(--line);
+}
+.export-list {
+  bottom: calc(100% + var(--s-1));
+  left: 0;
+  right: 0;
+}
+.export-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: var(--s-2) var(--s-4);
+  background: transparent;
+  color: var(--ink);
+  font: 400 14px/20px var(--font-text);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.export-item:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--surface-2);
+}
+.export-item:disabled,
+.export-item[aria-disabled="true"] {
+  color: var(--ink-3);
+  cursor: default;
+}
 .icon-only {
   width: 36px;
   padding: 0;

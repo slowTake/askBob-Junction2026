@@ -100,6 +100,22 @@ TOOLS: list[dict[str, Any]] = [
         },
     ),
     _tool(
+        "sum_quantity",
+        "Total of one base quantity over the elements of one kind in an IFC model, in SI "
+        "units: e.g. the net volume of all walls on a storey, the net side area or length "
+        "of all walls, the net floor area of all rooms (spaces) on a storey. Call this for "
+        "any such total instead of adding element quantities yourself. Narrow with storey "
+        "(the storey's name, e.g. '3. Sal') and document_id. Returns the total with its "
+        "unit, how many elements were summed and how many lacked the quantity, totals per "
+        "storey, and the elements summed (at most 50 listed), to cite and highlight.",
+        {
+            "kind": {"type": "string", "enum": KINDS},
+            "quantity": {"type": "string", "enum": QUANTITIES},
+            "storey": _nullable({"type": "string"}),
+            "document_id": _nullable({"type": "string"}),
+        },
+    ),
+    _tool(
         "count_elements",
         "Count elements of one kind; call this for every 'how many' question instead of "
         "counting find_elements results (those stop at 50). Narrow with subtype for "
@@ -117,22 +133,6 @@ TOOLS: list[dict[str, Any]] = [
             "storey": _nullable({"type": "string"}),
             "document_id": _nullable({"type": "string"}),
             "page_index": _nullable({"type": "integer"}),
-        },
-    ),
-    _tool(
-        "sum_quantity",
-        "Total of one base quantity over the elements of one kind in an IFC model, in SI "
-        "units: e.g. the net volume of all walls on a storey, the net side area or length "
-        "of all walls, the net floor area of all rooms (spaces) on a storey. Call this for "
-        "any such total instead of adding element quantities yourself. Narrow with storey "
-        "(the storey's name, e.g. '3. Sal') and document_id. Returns the total with its "
-        "unit, how many elements were summed and how many lacked the quantity, totals per "
-        "storey, and the elements summed (at most 50 listed), to cite and highlight.",
-        {
-            "kind": {"type": "string", "enum": KINDS},
-            "quantity": {"type": "string", "enum": QUANTITIES},
-            "storey": _nullable({"type": "string"}),
-            "document_id": _nullable({"type": "string"}),
         },
     ),
     *PLAN_TOOLS,
@@ -161,6 +161,13 @@ class AreaIn(_Strict):
     name: str | None = None
 
 
+class QuantityIn(_Strict):
+    kind: Literal[tuple(KINDS)]  # type: ignore[valid-type]
+    quantity: Literal[tuple(QUANTITIES)]  # type: ignore[valid-type]
+    storey: str | None = None
+    document_id: str | None = None
+
+
 class CountIn(_Strict):
     kind: Literal[tuple(KINDS)]  # type: ignore[valid-type]
     subtype: str | None = None
@@ -169,13 +176,6 @@ class CountIn(_Strict):
     storey: str | None = None
     document_id: str | None = None
     page_index: int | None = None
-
-
-class QuantityIn(_Strict):
-    kind: Literal[tuple(KINDS)]  # type: ignore[valid-type]
-    quantity: Literal[tuple(QUANTITIES)]  # type: ignore[valid-type]
-    storey: str | None = None
-    document_id: str | None = None
 
 
 class RegionIn(_Strict):
@@ -199,10 +199,10 @@ def run_tool(name: str, raw: Any, ctx: ToolContext) -> str | list[dict[str, Any]
             return _measure(RegionIn.model_validate(raw), ctx)
         if name == "sum_room_areas":
             return _areas(AreaIn.model_validate(raw), ctx)
-        if name == "count_elements":
-            return _count(CountIn.model_validate(raw), ctx)
         if name == "sum_quantity":
             return _quantity(QuantityIn.model_validate(raw), ctx)
+        if name == "count_elements":
+            return _count(CountIn.model_validate(raw), ctx)
         if name in PLAN_TOOL_NAMES:
             return run_plan_tool(name, raw, ctx)
     except ValidationError as exc:
@@ -309,50 +309,6 @@ def _areas(args: AreaIn, ctx: ToolContext) -> str:
     return json.dumps({"total_m2": total, "rooms_counted": len(counted), "rooms": listed})
 
 
-def countable(el: Element, page_index: int | None) -> Countable:
-    """The properties a count filters on; a room's printed label is its local name."""
-    props = el.properties or {}
-    return Countable(
-        str(el.id), el.kind, page_index, props.get("storey"), props.get("subtype"),
-        props.get("category"), props.get("local_name") or el.label, el.name,
-        str(el.document_id),
-    )  # fmt: skip
-
-
-def pages_counted(by_page: dict[tuple[str, int], int]) -> list[dict[str, Any]]:
-    """Counts per page, each with its document: page 0 of two documents is two pages."""
-    return [
-        {"document_id": document_id, "page_index": page_index, "count": n}
-        for (document_id, page_index), n in sorted(by_page.items())
-    ]
-
-
-def _count(args: CountIn, ctx: ToolContext) -> str:
-    query = (
-        select(Element, Page.index)
-        .outerjoin(Page, Element.page_id == Page.id)
-        .where(Element.document_id.in_(ctx.scope), Element.kind == args.kind)
-    )
-    if args.document_id:
-        query = query.where(Element.document_id == _uuid(args.document_id))
-    rows = ctx.db.execute(query).all()
-    by_id = {str(el.id): (el, page_index) for el, page_index in rows}
-    result = count(
-        [countable(el, page_index) for el, page_index in rows], args.kind,
-        subtype=args.subtype, category=args.category, name=args.name, storey=args.storey,
-        page_index=args.page_index, list_max=MAX_RESULTS,
-    )  # fmt: skip
-    return json.dumps(
-        {
-            "total": result.total,
-            "by_page": pages_counted(result.by_page),
-            "by_storey": result.by_storey,
-            "listed": len(result.listed),
-            "elements": [_describe(*by_id[c.element_id], ctx) for c in result.listed],
-        }
-    )
-
-
 def measured(el: Element) -> Measured:
     """What a quantity total reads from an element: its storey and SI quantities."""
     props = el.properties or {}
@@ -393,6 +349,50 @@ def _quantity(args: QuantityIn, ctx: ToolContext) -> str:
                 {**_describe(*by_id[m.element_id], ctx), args.quantity: m.quantities[args.quantity]}
                 for m in result.listed
             ],
+        }
+    )
+
+
+def countable(el: Element, page_index: int | None) -> Countable:
+    """The properties a count filters on; a room's printed label is its local name."""
+    props = el.properties or {}
+    return Countable(
+        str(el.id), el.kind, page_index, props.get("storey"), props.get("subtype"),
+        props.get("category"), props.get("local_name") or el.label, el.name,
+        str(el.document_id),
+    )  # fmt: skip
+
+
+def pages_counted(by_page: dict[tuple[str, int], int]) -> list[dict[str, Any]]:
+    """Counts per page, each with its document: page 0 of two documents is two pages."""
+    return [
+        {"document_id": document_id, "page_index": page_index, "count": n}
+        for (document_id, page_index), n in sorted(by_page.items())
+    ]
+
+
+def _count(args: CountIn, ctx: ToolContext) -> str:
+    query = (
+        select(Element, Page.index)
+        .outerjoin(Page, Element.page_id == Page.id)
+        .where(Element.document_id.in_(ctx.scope), Element.kind == args.kind)
+    )
+    if args.document_id:
+        query = query.where(Element.document_id == _uuid(args.document_id))
+    rows = ctx.db.execute(query).all()
+    by_id = {str(el.id): (el, page_index) for el, page_index in rows}
+    result = count(
+        [countable(el, page_index) for el, page_index in rows], args.kind,
+        subtype=args.subtype, category=args.category, name=args.name, storey=args.storey,
+        page_index=args.page_index, list_max=MAX_RESULTS,
+    )  # fmt: skip
+    return json.dumps(
+        {
+            "total": result.total,
+            "by_page": pages_counted(result.by_page),
+            "by_storey": result.by_storey,
+            "listed": len(result.listed),
+            "elements": [_describe(*by_id[c.element_id], ctx) for c in result.listed],
         }
     )
 

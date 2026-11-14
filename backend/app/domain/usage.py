@@ -14,6 +14,9 @@ class Usage:
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     requests: int = 0
+    # Requests the provider re-ran on another model after a refusal. Their tokens are
+    # billed at that model's price, so the question's cost is not one model's price.
+    fallback_requests: int = 0
 
     def add(
         self,
@@ -21,6 +24,7 @@ class Usage:
         output_tokens: int,
         cache_read_tokens: int = 0,
         cache_write_tokens: int = 0,
+        fallback: bool = False,
     ) -> None:
         """Count one model request."""
         self.input_tokens += input_tokens
@@ -28,6 +32,7 @@ class Usage:
         self.cache_read_tokens += cache_read_tokens
         self.cache_write_tokens += cache_write_tokens
         self.requests += 1
+        self.fallback_requests += fallback
 
     @property
     def total_input_tokens(self) -> int:
