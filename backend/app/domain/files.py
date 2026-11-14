@@ -2,10 +2,11 @@
 
 from typing import Literal
 
-DocumentKind = Literal["ifc", "pdf", "image"]
+DocumentKind = Literal["ifc", "pdf", "image", "dxf"]
 
 _EXTENSIONS: dict[str, DocumentKind] = {
     ".ifc": "ifc",
+    ".dxf": "dxf",
     ".pdf": "pdf",
     ".png": "image",
     ".jpg": "image",
@@ -21,6 +22,8 @@ _MAGIC: list[tuple[bytes, DocumentKind]] = [
     (b"II*\x00", "image"),
     (b"MM\x00*", "image"),
     (b"ISO-10303-21", "ifc"),
+    (b"0\nSECTION", "dxf"),
+    (b"0\r\nSECTION", "dxf"),
 ]
 
 
@@ -46,4 +49,4 @@ def extension_for(kind: DocumentKind, filename: str) -> str:
     ext = filename[dot:].lower() if dot != -1 else ""
     if ext in _EXTENSIONS and _EXTENSIONS[ext] == kind:
         return ext
-    return {"ifc": ".ifc", "pdf": ".pdf", "image": ".png"}[kind]
+    return {"ifc": ".ifc", "pdf": ".pdf", "image": ".png", "dxf": ".dxf"}[kind]

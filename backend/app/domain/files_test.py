@@ -31,3 +31,11 @@ def test_extension_for_keeps_matching_extension() -> None:
 
 def test_extension_for_replaces_mismatching_extension() -> None:
     assert extension_for("pdf", "plan.png") == ".pdf"
+
+
+def test_dxf_by_header_or_extension() -> None:
+    # ASCII DXF files start with group code 0 and "SECTION" (DXF reference, file structure).
+    assert detect_kind("x.bin", b"  0\nSECTION\n  2\nHEADER") == "dxf"
+    assert detect_kind("x.bin", b"0\r\nSECTION\r\n") == "dxf"
+    assert detect_kind("plan.DXF", b"999\ncomment") == "dxf"
+    assert extension_for("dxf", "plan.dxf") == ".dxf"
