@@ -8,7 +8,11 @@ UI can tell a grounded answer from a guess.
 from dataclasses import dataclass
 from typing import Literal
 
+from app.domain.extent import Target as ExtentTarget
+from app.domain.extent import element_extent
 from app.domain.geometry import BBox, Point, bbox_iou
+
+EvidenceTarget = ExtentTarget | Literal["region"]
 
 
 @dataclass(frozen=True)
@@ -19,9 +23,33 @@ class EvidenceItem:
     page_index: int | None
     bbox: BBox | None  # for elements: the element's extent (see domain/extent.py)
     ifc_guid: str | None
+    target: EvidenceTarget  # what bbox shows: the element, only its label, or a viewed region
     polygon: tuple[Point, ...] | None = None
     label_bbox: BBox | None = None
-    target: Literal["element", "label", "region"] = "region"
+
+
+def element_evidence(
+    element_id: str,
+    document_id: str,
+    page_id: str | None,
+    page_index: int | None,
+    kind: str,
+    bbox: BBox | None,
+    properties: dict[str, object],
+    ifc_guid: str | None,
+) -> EvidenceItem:
+    """Evidence for an element a tool returned or showed, located by its extent.
+
+    Every tool records elements through this, so a citation shows the same shape
+    whichever tool the agent used. `label_bbox` is set only when the extent is an
+    outline and the stored box is the printed name inside it.
+    """
+    extent = element_extent(kind, bbox, properties)
+    label = bbox if extent.polygon is not None and extent.bbox != bbox else None
+    return EvidenceItem(
+        element_id, document_id, page_id, page_index, extent.bbox, ifc_guid,
+        extent.target, extent.polygon, label,
+    )  # fmt: skip
 
 
 @dataclass(frozen=True)

@@ -70,6 +70,7 @@ export function PlanCanvas(props: Props) {
         {shown?.spotlight && (
           <Spotlight
             box={shown.spotlight}
+            polygon={shown.spotlightPolygon}
             pad={SPOTLIGHT_PAD_PX * u}
             width={width}
             height={height}
@@ -84,9 +85,17 @@ export function PlanCanvas(props: Props) {
   );
 }
 
-function Spotlight(props: { box: BBox; pad: number; width: number; height: number }) {
-  const { box, pad, width, height } = props;
+interface SpotlightProps {
+  box: BBox;
+  polygon: number[][] | null; // a room's outline: cut out exactly, so neighbours stay dimmed
+  pad: number;
+  width: number;
+  height: number;
+}
+
+function Spotlight({ box, polygon, pad, width, height }: SpotlightProps) {
   const mask = useId();
+  const points = polygon?.map((p) => p.join(",")).join(" ");
   const ring = {
     x: box[0] - pad,
     y: box[1] - pad,
@@ -98,11 +107,15 @@ function Spotlight(props: { box: BBox; pad: number; width: number; height: numbe
       <defs>
         <mask id={mask}>
           <rect width={width} height={height} fill="white" />
-          <rect {...ring} fill="black" />
+          {points ? <polygon points={points} fill="black" /> : <rect {...ring} fill="black" />}
         </mask>
       </defs>
       <rect width={width} height={height} className="spotlight-dim" mask={`url(#${mask})`} />
-      <rect {...ring} className="spotlight-ring" />
+      {points ? (
+        <polygon points={points} className="spotlight-ring" strokeLinejoin="round" />
+      ) : (
+        <rect {...ring} className="spotlight-ring" />
+      )}
     </g>
   );
 }
