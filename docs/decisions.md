@@ -24,6 +24,9 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-018 | 2026-11-14 | The plan is a pan/zoom canvas; nothing that appears moves it | Accepted |
 | D-019 | 2026-11-14 | Answers carry a numeric value; the eval scores it by question type | Accepted |
 | D-020 | 2026-11-14 | The Q&A agent can run on Kimi K3.1 Pro on Verda (`LLM_PROVIDER`) | Accepted |
+| D-021 | 2026-11-14 | A citation's box is the element's extent; the printed name is the fallback | Accepted |
+| D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
+| D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
@@ -293,11 +296,57 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 **Consequences:** Rooms with a found outline are framed as rooms with no re-ingest. Rooms without one stay "Label only" until their outline is found (#34).
 
+## D-022: A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** On PNG/JPG drawings and scanned PDF pages the readers only find OCR text, rooms flood-filled from their labels and low-confidence wall boxes. There are no door, window or fixture elements, so a question like "where is the exit?" gets the word EXIT highlighted instead of a door. Vector PDFs have exact walls and text but no doors or windows either (0% in the swiss_dwellings scores). We tested the pretrained CubiCasa5k model (#84) on dataset plans:
+- On CubiCasa's own Finnish plans its door, window, WC and sink counts were mostly within one of the dataset answers.
+- On a Swiss sheet, cropped to the drawing and enlarged 1.5×: doors 41/43, WCs 5/6, washbasins 3/3, bathtubs 2/3, windows 14/20.
+
+**Decision:**
+- **A separate `vision` service** (`vision/`) runs the model on CPU-only PyTorch. The worker sends it each page image over HTTP. The model is about 17M parameters, so a CPU is enough, and the backend image stays free of PyTorch.
+- **Model code and weights are fetched when the image is built, not committed.** CubiCasa5k's code and weights are CC BY-NC 4.0: fine for this non-commercial challenge in a private repo, but they must not ship in a product without permission. Their post-processing file is also over our 600-line limit.
+- **What the service does with a page:**
+  - **Crop:** a framed sheet (a line spanning the page) is cropped to the drawing, so the title block and legend aren't read as fixtures.
+  - **Scale:** framed sheets are enlarged 1.5×, and other images stay at 1×. This was measured on one Swiss floor (0.75× and 1× scored worse); a proper auto-scale is follow-up work.
+  - **Network:** runs in overlapping tiles, so memory doesn't grow with page size. Full precision, because fp16 output crashed CubiCasa's door post-processing. One pass by default; `VISION_ROTATIONS=4` averages four rotated passes as in CubiCasa's notebook.
+  - **Polygons:** CubiCasa's own post-processing turns the output into polygons, mapped back to original-image pixels.
+- **What its output becomes:** the same elements the DXF reader produces, with `source: "vision"`.
+  - **Doors and windows** become `door` / `window` (confidence 0.7).
+  - **WCs, washbasins, sinks and bathtubs** become `fixture` with `subtype` `wc`, `washbasin`, `sink` or `bathtub`, so they map to `IfcSanitaryTerminal`. A sink inside a kitchen region is a `sink`; anywhere else it's a `washbasin`. Other objects are fixtures with `properties.object`.
+  - **Rooms and walls:** on images and scanned pages, model rooms give OCR room labels their outline (replacing the flood fill), and model walls replace the pixel wall boxes. On vector PDF pages the model adds only doors, windows and fixtures; walls and text stay from the PDF.
+- **Fallback:** if the service is not configured, unreachable or fails, ingest runs exactly as before, and the page records `meta.vision` as `unavailable` or `failed`.
+
+**Consequences:**
+- Raster plans get doors, windows and fixtures the agent can count, highlight and cite.
+- A Swiss sheet takes a minute or more on CPU, because CubiCasa's post-processing is slow at 1.5×. Ingest runs in the background with progress events, so this is acceptable for now.
+- Windows on Swiss drawings stay weak until the model is fine-tuned on Swiss data. The swiss_dwellings DXFs give exact labels for their PNGs.
+- Auto-scale, door-to-room connections (exits) and a faster polygon step are separate issues.
+
+## D-023: The `vision` service works within a fixed pixel budget, whatever the upload
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** A 10200 × 6600 px US piping plan took the whole machine down. The backend shrinks images to 8000 px wide, and D-022 then cropped the framed sheet and enlarged it 1.5×, so the network read 11304 × 7347 = 83 Mpx. Its output is 44 floats per pixel, kept for the whole page because CubiCasa's polygon step needs them: 14.6 GB for one copy, on a 15 GB laptop.
+
+**Decision:**
+- **Scale from a pixel budget.** The scale is D-022's desired zoom (1.5× for framed sheets, 1× otherwise), capped so the network reads at most 16 Mpx. Small drawings are still enlarged; big sheets are shrunk. If the cap would push the scale below 0.35×, walls would be about a pixel thick, so the page is skipped: `method: "skipped_too_large"`, with no elements.
+- **Labels-only path for anything over 4 Mpx.** Each tile's 44 channels are reduced at once to two bytes per pixel, the room class and the object class, and each pixel comes from the one tile whose middle covers it. Rooms, walls and objects are traced from those label maps. Door and window pixels count as wall when tracing rooms, so two bedrooms joined by a doorway stay two rooms.
+- **CubiCasa's detailed polygon step** (all 44 channels, snapped corners) only runs on inputs up to 4 Mpx. That covers CubiCasa-style plans and the cropped Swiss A4 sheets.
+- **Memory cap:** the `vision` container is limited to 6 GB. If a page still needs more, only that container is killed, and the backend falls back to pixel heuristics (`vision: unavailable`/`failed`).
+
+**Consequences:**
+- Memory no longer grows with the upload: labels for a 16 Mpx page are 32 MB, and the network works one 1024 px tile at a time.
+- Big sheets get rougher outlines (traced regions instead of snapped polygons), and two touching objects of one class can merge into one.
+- Very large or dense sheets are skipped rather than read badly.
+- The model still runs on drawings that aren't floor plans, such as piping plans, and finds nonsense there. Detecting those is follow-up work.
+
 ## D-025: The server counts: `count_elements`, not the model adding up search results
 
 **Date:** 2026-11-14 · **Status:** Accepted
 
-**Context:** Counts are 76% of the preview questions (6,076 of 7,990). The agent had no counting tool, so it listed elements with `find_elements` and counted the list. That tool returns at most 50 results, so every count over 50 was wrong (the Maleva IFC model has 846 walls), and smaller counts depended on the model counting a JSON list (#93). (D-022 to D-024 are taken by open PRs #85, #87 and #88.)
+**Context:** Counts are 76% of the preview questions (6,076 of 7,990). The agent had no counting tool, so it listed elements with `find_elements` and counted the list. That tool returns at most 50 results, so every count over 50 was wrong (the Maleva IFC model has 846 walls), and smaller counts depended on the model counting a JSON list (#93). (D-022 and D-023 went to the vision service; D-024 is taken by open PR #92.)
 
 **Decision:** A `count_elements` agent tool, like `sum_room_areas` for areas. The rules are a pure `count` (`app/domain/counting.py`): elements of one required kind, narrowed by fixture `subtype`, room `category`, printed room `name` (exact, ignoring case and runs of spaces, so "Küche" doesn't count "Wohnküche"), IFC `storey`, document and page. An element missing a property never matches a filter on it. The tool returns the exact total, counts per page and per storey, and lists the first 50 elements, which become citable evidence. The prompt sends every "how many" question to it. `ANSWER_FORMAT` goes to 4 so answers counted the old way aren't served from the cache.
 

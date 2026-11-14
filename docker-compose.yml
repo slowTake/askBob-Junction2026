@@ -45,6 +45,42 @@ services:
   worker:
     <<: *backend
     command: ["python", "-m", "app.worker"]
+    environment:
+      - DATABASE_URL
+      - VALKEY_URL
+      - ANTHROPIC_API_KEY
+      - CLAUDE_MODEL
+      - CLAUDE_EFFORT
+      - LLM_PROVIDER
+      - VERDA_API_KEY
+      - VERDA_MODEL
+      - DATA_DIR=/data
+      - VISION_URL=http://vision:8001
+    depends_on:
+      postgres: { condition: service_healthy, required: false }
+      valkey: { condition: service_healthy, required: false }
+      vision: { condition: service_started, required: false }
+
+  # Floor-plan model for raster pages (D-022). Internal only: no published port.
+  vision:
+    build: ./vision
+    environment:
+      - VISION_ROTATIONS
+    # Safety net (D-023): if a page ever needs more, only this container dies and
+    # ingest falls back to pixel heuristics; the host and the other services stay up.
+    mem_limit: 6g
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')",
+        ]
+      interval: 15s
+      start_period: 60s
+      retries: 6
+    restart: unless-stopped
 
   frontend:
     build: ./frontend

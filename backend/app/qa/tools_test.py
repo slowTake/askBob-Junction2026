@@ -9,7 +9,7 @@ from app.domain.counting import Countable
 from app.domain.ifc_mapping import IFC_KINDS
 from app.domain.kinds import DRAWING_KINDS
 from app.models import Element
-from app.qa.tools import KINDS, TOOLS, AreaIn, CountIn, FindIn, countable
+from app.qa.tools import KINDS, TOOLS, AreaIn, CountIn, FindIn, countable, shown_properties
 
 
 def test_every_ifc_kind_can_be_filtered() -> None:
@@ -80,3 +80,10 @@ def test_stored_element_becomes_countable() -> None:
     assert countable(room, 0) == Countable(
         str(uuid.UUID(int=2)), "room", 0, None, None, "kitchen", "Küche"
     )
+
+
+def test_search_results_show_fixture_subtype_and_room_category() -> None:
+    # D-022: "how many toilets" is answered from fixtures with subtype "wc"; model
+    # rooms carry a category. Layout details (polygon_px) stay out of search results.
+    properties = {"subtype": "wc", "category": "bathroom", "area_m2": 4.2, "polygon_px": [[0, 0]]}
+    assert shown_properties(properties) == {"subtype": "wc", "category": "bathroom", "area_m2": 4.2}

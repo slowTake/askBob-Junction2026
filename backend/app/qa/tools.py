@@ -327,10 +327,17 @@ def _describe(el: Element, page_index: int | None, ctx: ToolContext) -> dict[str
         "bbox": [round(v) for v in el.bbox] if el.bbox else None, "ifc_guid": el.ifc_guid,
         "source": el.source, "confidence": round(el.confidence, 2),
     }  # fmt: skip
-    for key in ("area_m2", "number", "unit", "outdoor", "shaft"):
-        if key in el.properties:
-            out[key] = el.properties[key]
+    out.update(shown_properties(el.properties))
     return {k: v for k, v in out.items() if v is not None}
+
+
+# Properties worth showing in every search result. `subtype` (wc, washbasin, ...) and
+# `category` come from the floor-plan model too (D-022). get_element shows them all.
+_SHOWN = ("area_m2", "number", "unit", "outdoor", "shaft", "subtype", "category")
+
+
+def shown_properties(properties: dict[str, Any]) -> dict[str, Any]:
+    return {key: properties[key] for key in _SHOWN if key in properties}
 
 
 def _page(page_id: str, ctx: ToolContext) -> Page:
