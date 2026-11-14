@@ -35,3 +35,11 @@ def test_area() -> None:
 def test_mm_per_px() -> None:
     # 150 dpi -> one pixel is 25.4 / 150 = 0.16933 mm on paper; at 1:50 that is 8.4667 mm.
     assert mm_per_px(150, 50) == pytest.approx(8.46667, rel=1e-4)
+
+
+def test_scale_inside_a_title_line() -> None:
+    # Swiss dataset title lines, one per language.
+    assert parse_scale("Massstab 1:200 (A3) · Masse in Metern") == 200
+    assert parse_scale("Échelle 1:100 (A3) · Cotes en mètres") == 100
+    assert parse_scale("Scala 1:50") == 50
+    assert parse_scale("ratio 21:9") is None  # not a 1:n scale

@@ -30,3 +30,13 @@ def test_classify_door_dimension_scale_area() -> None:
 
 def test_classify_falls_back_to_text() -> None:
     assert classify("3H+K").kind == "text"
+
+
+def test_classify_swiss_labels() -> None:
+    stanza = classify("Stanza")
+    assert (stanza.kind, stanza.label, stanza.name) == ("room", "Stanza", "room (Stanza)")
+    assert classify("2.01").kind == "room_number"
+    assert classify("U1.05").kind == "room_number"
+    assert classify("Whg. A").kind == "unit"
+    assert classify("Whg. A").label == "A"
+    assert classify("15.61 m²").properties == {"area_m2": 15.61}
