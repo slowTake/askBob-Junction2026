@@ -1,6 +1,6 @@
 """The agent is told what the user is looking at and what they selected on the plan."""
 
-from app.qa.prompts import scope_message, selected_note, viewing_note
+from app.qa.prompts import budget_note, scope_message, selected_note, viewing_note
 
 DOCS: list[dict[str, object]] = [
     {"id": "d1", "filename": "plan.dxf", "kind": "dxf", "page_count": 1},
@@ -44,3 +44,17 @@ def test_selected_note_names_the_element_and_where_it_is() -> None:
         'room "Kitchen" (element_id e1, page_index 0)'
     )
     assert selected_note("door", None, "e2", None) == "door (element_id e2)"
+
+
+def test_the_step_budget_comes_before_the_question() -> None:
+    assert scope_message("How many rooms?", DOCS, tool_rounds=11) == (
+        "Documents in scope:\n- d1: plan.dxf (dxf, 1 pages)\n\n"
+        + budget_note(11)
+        + "\n\nQuestion: How many rooms?"
+    )
+
+
+def test_budget_note_counts_rounds_and_asks_for_an_early_answer() -> None:
+    note = budget_note(11)
+    assert note.startswith("You have at most 11 rounds of tool calls")
+    assert "1 round of tool calls" in budget_note(1)  # singular
