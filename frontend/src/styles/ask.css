@@ -230,13 +230,13 @@
   align-items: flex-end;
   gap: var(--s-2);
 }
+/* Two lines tall, fixed: no drag handle, no growing; longer text scrolls inside. */
 .ask-input-row .text-input {
-  height: auto;
-  min-height: 44px;
-  max-height: 160px;
+  height: 56px; /* 2 x 20px lines + 2 x 8px padding */
   padding: var(--s-2) var(--s-3);
-  resize: vertical;
   line-height: 20px;
+  resize: none;
+  overflow-y: auto;
 }
 .ask-input-row .btn {
   height: 44px;

@@ -141,6 +141,7 @@ export function AskPanel(props: Props) {
           </div>
         )}
         <div className="ask-input-row">
+          {/* Two lines tall, fixed: Enter sends, Shift+Enter starts a new line. */}
           <textarea
             ref={input}
             className="text-input"
