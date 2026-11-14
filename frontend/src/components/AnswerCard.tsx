@@ -8,7 +8,7 @@ interface Props {
   onCitation: (citation: Citation) => void;
 }
 
-/** The latest answer is the black, polarity-flipped card; older ones are white. */
+/** The latest answer is a card with an accent rule; older turns fall back to plain text. */
 export function AnswerCard({ turn, latest, onCitation }: Props) {
   const { answer, error, steps, pending } = turn;
   return (
@@ -29,11 +29,11 @@ export function AnswerCard({ turn, latest, onCitation }: Props) {
       {answer && (
         <>
           <div className="chip-row">
-            <span className={`badge ${answer.verified ? "badge-solid" : "badge-outline"}`}>
-              {answer.verified ? "Verified sources" : "Not verified"}
+            <span className={`badge ${answer.verified ? "badge-ok" : "badge-warn"}`}>
+              {answer.verified ? "✓ Verified sources" : "! Not verified"}
             </span>
-            <span className="badge badge-outline">{answer.confidence} confidence</span>
-            {answer.cached && <span className="badge badge-outline">cached</span>}
+            <span className="badge badge-plain">{answer.confidence} confidence</span>
+            {answer.cached && <span className="badge badge-plain">cached</span>}
           </div>
           <p className="answer-text">{answer.answer}</p>
           {answer.citations.length > 0 && (
@@ -46,7 +46,8 @@ export function AnswerCard({ turn, latest, onCitation }: Props) {
                   onClick={() => onCitation(c)}
                   title={c.verified ? "Show on drawing" : "This citation could not be verified"}
                 >
-                  {i + 1}. {c.note || "source"}
+                  <span className="citation-num">{i + 1}</span>
+                  {c.note || "source"}
                 </button>
               ))}
             </div>

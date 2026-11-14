@@ -127,7 +127,7 @@ export function DrawingViewer(props: Props) {
       </div>
       {focus && focusIsHere(focus, pageIndex) && (
         <div className="focus-banner">
-          <span className={`badge ${focus.verified ? "badge-dark" : "badge-light"}`}>
+          <span className={`badge ${focus.verified ? "badge-ok" : "badge-warn"}`}>
             {focus.verified ? "Verified source" : "Unverified"}
           </span>
           <span className="body-sm">{focus.note}</span>

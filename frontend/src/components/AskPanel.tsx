@@ -39,7 +39,7 @@ export function AskPanel({ turns, busy, canAsk, scopeLabel, onAsk, onCitation }:
 
   return (
     <aside className="ask-panel">
-      <h2 className="display-sm">Ask the drawings</h2>
+      <h2 className="eyebrow">Ask the drawings</h2>
       <div className="turns">
         {turns.length === 0 && (
           <div className="chip-row">

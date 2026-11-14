@@ -13,7 +13,8 @@ interface SceneHandle {
   render: () => void;
 }
 
-// Monochrome, per DESIGN.md: no accent colour. The cited element turns black.
+// Neutral model; the cited element takes the accent blue (DESIGN.md, D-012).
+// The canvas is transparent so the theme's desk colour shows behind it.
 const SOLID = new THREE.MeshStandardMaterial({ color: 0xe2e2e2, roughness: 0.9 });
 const SPACE = new THREE.MeshStandardMaterial({
   color: 0xffffff,
@@ -21,14 +22,14 @@ const SPACE = new THREE.MeshStandardMaterial({
   opacity: 0.12,
   depthWrite: false,
 });
-const HIGHLIGHT = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.6 });
+const HIGHLIGHT = new THREE.MeshStandardMaterial({ color: 0x0f62fe, roughness: 0.6 });
 const HIGHLIGHT_SPACE = new THREE.MeshStandardMaterial({
-  color: 0x000000,
+  color: 0x0f62fe,
   transparent: true,
   opacity: 0.45,
   depthWrite: false,
 });
-const EDGES = new THREE.LineBasicMaterial({ color: 0x4b4b4b });
+const EDGES = new THREE.LineBasicMaterial({ color: 0x6f6f6f });
 
 /** IFC model rendered from the backend's mesh JSON (one mesh per IFC GlobalId). */
 export function ModelViewer({ documentId, highlightGuid }: Props) {
@@ -40,9 +41,9 @@ export function ModelViewer({ documentId, highlightGuid }: Props) {
     const el = host.current;
     if (!el) return;
     let disposed = false;
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setClearColor(0xffffff);
+    renderer.setClearColor(0x000000, 0);
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();

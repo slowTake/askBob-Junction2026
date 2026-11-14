@@ -1,48 +1,140 @@
 /* Design tokens from DESIGN.md (repo root). Change values there first, then here.
-   Fonts: the display/text faces in DESIGN.md are proprietary; Inter is the substitute
-   DESIGN.md itself recommends. */
+   Light is the drafting-table palette; dark borrows the night-shift panels (D-012).
+   Components use these tokens only, never literal colours. */
 
 :root {
-  /* colors */
-  --primary: #000000;
-  --on-primary: #ffffff;
-  --ink: #000000;
-  --body: #5e5e5e;
-  --mute: #afafaf;
-  --hairline-mid: #4b4b4b;
-  --canvas: #ffffff;
-  --canvas-soft: #efefef;
-  --canvas-softer: #f3f3f3;
-  --surface-pressed: #e2e2e2;
-  --link: #0000ee;
-  --on-dark: #ffffff;
-  --black-elevated: #282828;
+  color-scheme: light;
 
-  /* typography */
-  --font-display: "Inter", system-ui, "Helvetica Neue", Arial, sans-serif;
-  --font-text: "Inter", system-ui, "Helvetica Neue", Arial, sans-serif;
+  /* surfaces */
+  --canvas: #f4f4f4; /* the desk behind panels and sheets */
+  --surface: #ffffff; /* panels, cards */
+  --surface-2: #e8e8e8; /* hover, selected row */
+  --surface-3: #e0e0e0; /* tags, pressed */
+  --line: #e0e0e0;
+  --line-strong: #8d8d8d;
+  --paper: #ffffff; /* scanned sheets stay white paper in both themes */
 
-  /* radius */
-  --r-none: 0px;
-  --r-md: 8px;
-  --r-lg: 12px;
-  --r-xl: 16px;
-  --r-pill: 999px;
-  --r-pill-tab: 36px;
+  /* text */
+  --ink: #161616;
+  --ink-2: #525252;
+  --ink-3: #8d8d8d;
+
+  /* accent: the only brand colour */
+  --accent: #0f62fe;
+  --accent-hover: #0050e6;
+  --accent-soft: #edf5ff;
+  --accent-ink: #0043ce;
+  --on-accent: #ffffff;
+
+  /* app bar */
+  --bar: #161616;
+  --bar-line: #393939;
+  --on-bar: #f4f4f4;
+  --on-bar-2: #c6c6c6;
+
+  /* status (not the accent) */
+  --ok: #198038;
+  --ok-soft: #defbe6;
+  --ok-ink: #0e6027;
+  --warn: #8e6a00;
+  --warn-soft: #fcf4d6;
+  --warn-ink: #684e00;
+  --danger: #da1e28;
+  --danger-soft: #fff1f1;
+  --danger-ink: #a2191f;
+
+  /* drawing overlays */
+  --dim: rgba(22, 22, 22, 0.45);
+  --paper-ink: #525252;
+  --paper-mark: #0f62fe; /* marks drawn on the white sheet, same in both themes */
+  --paper-mark-soft: rgba(15, 98, 254, 0.05);
+
+  /* type */
+  --font-text: "IBM Plex Sans", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  /* radius: square by default */
+  --r-0: 0px;
+  --r-1: 2px;
   --r-full: 9999px;
 
   /* spacing (4 px base) */
-  --s-xxs: 4px;
-  --s-xs: 6px;
-  --s-sm: 8px;
-  --s-md: 12px;
-  --s-lg: 16px;
-  --s-xl: 20px;
-  --s-2xl: 24px;
-  --s-3xl: 32px;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
 
-  /* elevation */
-  --shadow-1: rgba(0, 0, 0, 0.12) 0px 4px 16px 0px;
-  --shadow-2: rgba(0, 0, 0, 0.16) 0px 4px 16px 0px;
-  --shadow-3: rgba(0, 0, 0, 0.16) 0px 2px 8px 0px;
+  --bar-h: 48px;
+  --shadow-pop: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --canvas: #0c0d10;
+    --surface: #121318;
+    --surface-2: #1c1e25;
+    --surface-3: #262932;
+    --line: #22252c;
+    --line-strong: #3a3e47;
+    --ink: #e6e7eb;
+    --ink-2: #8b909a;
+    --ink-3: #5f6570;
+    --accent: #78a9ff;
+    --accent-hover: #a6c8ff;
+    --accent-soft: rgba(120, 169, 255, 0.14);
+    --accent-ink: #a6c8ff;
+    --on-accent: #0c0d10;
+    --bar: #121318;
+    --bar-line: #22252c;
+    --on-bar: #e6e7eb;
+    --on-bar-2: #8b909a;
+    --ok: #4cc38a;
+    --ok-soft: rgba(76, 195, 138, 0.14);
+    --ok-ink: #6fdcaa;
+    --warn: #e0b03c;
+    --warn-soft: rgba(224, 176, 60, 0.14);
+    --warn-ink: #f1c96b;
+    --danger: #ff8389;
+    --danger-soft: rgba(255, 131, 137, 0.14);
+    --danger-ink: #ffb3b8;
+    --dim: rgba(6, 7, 10, 0.62);
+    --shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #0c0d10;
+  --surface: #121318;
+  --surface-2: #1c1e25;
+  --surface-3: #262932;
+  --line: #22252c;
+  --line-strong: #3a3e47;
+  --ink: #e6e7eb;
+  --ink-2: #8b909a;
+  --ink-3: #5f6570;
+  --accent: #78a9ff;
+  --accent-hover: #a6c8ff;
+  --accent-soft: rgba(120, 169, 255, 0.14);
+  --accent-ink: #a6c8ff;
+  --on-accent: #0c0d10;
+  --bar: #121318;
+  --bar-line: #22252c;
+  --on-bar: #e6e7eb;
+  --on-bar-2: #8b909a;
+  --ok: #4cc38a;
+  --ok-soft: rgba(76, 195, 138, 0.14);
+  --ok-ink: #6fdcaa;
+  --warn: #e0b03c;
+  --warn-soft: rgba(224, 176, 60, 0.14);
+  --warn-ink: #f1c96b;
+  --danger: #ff8389;
+  --danger-soft: rgba(255, 131, 137, 0.14);
+  --danger-ink: #ffb3b8;
+  --dim: rgba(6, 7, 10, 0.62);
+  --shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.5);
 }
