@@ -10,8 +10,10 @@ settings:
   resolution: 1920x1080
   voice:
     provider: elevenlabs
-    voice_id: "" # TBD: pick after a test clip (Peter approves)
-    model_id: "" # TBD: check current ElevenLabs docs
+    voice_id: "" # pick with `make voices`, try with `make voice-test VOICE=<id>`
+    model_id: eleven_v4 # highest quality per ElevenLabs docs (2026-11-14); supports Finnish
+    output_format: mp3_44100_128
+    approved: false # set true after listening to the test clip; `make voice` needs it
 
 # DRAFT voiceover. Numbers marked X/Y come from backend/eval once we have them.
 # Segment target_s values set the video timeline and must add up to <= settings.target_s.

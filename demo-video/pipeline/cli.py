@@ -4,29 +4,35 @@ Run from demo-video/: `uv run python -m pipeline.cli <step>`, or use the Makefil
 """
 
 import argparse
+from collections.abc import Callable
 import subprocess
 import sys
 from pathlib import Path
 
 import yaml
 
-from pipeline.cache import clip_filename, clip_key
 from pipeline.captions import cues_for_segment, to_srt
+from pipeline.elevenlabs import ElevenLabsError
 from pipeline.keys import ENV_VAR, KeyMissing, get_key, key_source, store_hint
 from pipeline.plan import Plan, PlanError, parse_plan, plan_report
 from pipeline.timing import Verdict, duration_verdict
+from pipeline.voice import clip_path, cmd_voice, cmd_voice_test, cmd_voices, voice_settings
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "out"
 
 NOT_YET = {
-    "voice": "ElevenLabs clip per segment into out/audio/ (handoff phase 2)",
     "record": "Playwright take per segment into out/recordings/ (handoff phase 3)",
     "assemble": "ffmpeg: recordings + audio + captions -> out/final.mp4 (handoff phase 4)",
     "review": "Gemini critique of out/final.mp4 against checklist.md (handoff phase 5)",
 }
 # Steps that call an API fetch their key first, so a missing key fails before any work.
-NEEDS_KEY = {"voice": "elevenlabs", "review": "gemini"}
+NEEDS_KEY = {
+    "voices": "elevenlabs",
+    "voice-test": "elevenlabs",
+    "voice": "elevenlabs",
+    "review": "gemini",
+}
 
 
 def cmd_keys() -> int:
@@ -88,11 +94,10 @@ def cmd_check(plan: Plan, video: Path) -> int:
 
 
 def cmd_captions(plan: Plan, settings: dict) -> int:
-    voice = settings.get("voice", {})
-    voice_id, model_id = voice.get("voice_id", ""), voice.get("model_id", "")
+    vs = voice_settings(settings)
     cues, start = [], 0.0
     for index, seg in enumerate(plan.segments, start=1):
-        clip = OUT / "audio" / clip_filename(index, seg.id, clip_key(seg.voiceover, voice_id, model_id))
+        clip = clip_path(OUT / "audio", index, seg, vs)
         if not clip.exists():
             print(f"FAIL: missing voice clip {clip.name}; run `make voice` first")
             return 1
@@ -105,6 +110,14 @@ def cmd_captions(plan: Plan, settings: dict) -> int:
     return 0
 
 
+def _api(step: Callable[[], int]) -> int:
+    try:
+        return step()
+    except ElevenLabsError as err:
+        print(f"FAIL: ElevenLabs {err}")
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pipeline")
     parser.add_argument("--plan", type=Path, default=ROOT / "video.yaml")
@@ -114,18 +127,26 @@ def main(argv: list[str] | None = None) -> int:
     check.add_argument("video", type=Path, nargs="?", default=OUT / "final.mp4")
     sub.add_parser("captions", help="out/captions.srt from voiceover text + clip lengths")
     sub.add_parser("keys", help="check the API keys can be found (never prints them)")
+    voices = sub.add_parser("voices", help="list ElevenLabs voices to pick from")
+    voices.add_argument("--search", default="")
+    test = sub.add_parser("voice-test", help="generate only the first segment's clip")
+    test.add_argument("--voice", default="", help="voice_id to try (overrides video.yaml)")
+    sub.add_parser("voice", help="all clips; needs voice.approved: true in video.yaml")
     for name, what in NOT_YET.items():
         sub.add_parser(name, help=f"not implemented yet: {what}")
     args = parser.parse_args(argv)
 
     if args.step == "keys":
         return cmd_keys()
+    key = ""
     if args.step in NEEDS_KEY:
         try:
-            get_key(NEEDS_KEY[args.step])  # the implemented step will pass this to its client
+            key = get_key(NEEDS_KEY[args.step])
         except KeyMissing as err:
             print(f"FAIL: {err}")
             return 1
+    if args.step == "voices":
+        return _api(lambda: cmd_voices(key, args.search))
 
     try:
         plan, settings = load_plan(args.plan)
@@ -139,6 +160,13 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_check(plan, args.video)
     if args.step == "captions":
         return cmd_captions(plan, settings)
+    audio = OUT / "audio"
+    if args.step == "voice-test":
+        vs = voice_settings(settings, args.voice)
+        return _api(lambda: cmd_voice_test(key, plan, vs, audio, probe_duration))
+    if args.step == "voice":
+        vs = voice_settings(settings)
+        return _api(lambda: cmd_voice(key, plan, vs, audio, probe_duration))
     print(f"not implemented yet: {NOT_YET[args.step]}")
     return 2
 

@@ -2,7 +2,7 @@
 
 RUN = uv run python -m pipeline.cli
 
-.PHONY: help keys plan voice record captions assemble review check all clean
+.PHONY: help keys plan voices voice-test voice record captions assemble review check all clean
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -13,7 +13,13 @@ keys: ## Check the Gemini and ElevenLabs keys can be found (never prints them)
 plan: ## Word budget per segment; fails if the script can't fit
 	$(RUN) plan
 
-voice: plan ## (stub) ElevenLabs clip per segment -> out/audio/
+voices: ## List ElevenLabs voices (optional: SEARCH=narration)
+	$(RUN) voices $(if $(SEARCH),--search "$(SEARCH)")
+
+voice-test: plan ## One test clip for the first segment (optional: VOICE=<voice_id>)
+	$(RUN) voice-test $(if $(VOICE),--voice $(VOICE))
+
+voice: plan ## All clips -> out/audio/; needs voice.approved: true in video.yaml
 	$(RUN) voice
 
 record: ## (stub) Playwright take per segment -> out/recordings/
