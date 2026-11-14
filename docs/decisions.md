@@ -368,5 +368,6 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - About a third of rooms still leak through doorways drawn without a door swing, or lose part of their area to fixtures the rules don't absorb.
 - Because the doorway line itself isn't drawn, a door's swing area counts toward the room on the other side of the door.
 - Closing doorways fixes both and is the next step.
-- OCR takes about 8–13 s per Swiss sheet on CPU.
-- `eval/swiss_rooms.py` re-measures all of this on the dataset.
+- OCR takes about 8–15 s per Swiss sheet on CPU.
+- RapidOCR's recogniser has no accented letters ("Pièce" reads as "Piece"), so room names are now matched without accents.
+- The app's own image reader, scored with `eval/swiss_rooms.py` on the same 8 floors: 70% of rooms named, 66% outlined, 36% with the area within 5% of the DXF.
