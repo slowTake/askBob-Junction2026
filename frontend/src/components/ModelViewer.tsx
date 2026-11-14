@@ -7,6 +7,7 @@ import { isTranslucent, materialRole, type MaterialRole } from "../lib/materials
 interface Props {
   documentId: string;
   highlightGuid: string | null;
+  omitted?: number; // meshes left out of a very large model (they are still in the data)
 }
 
 interface SceneHandle {
@@ -43,7 +44,7 @@ const HIGHLIGHT_SEE_THROUGH = new THREE.MeshStandardMaterial({
 const EDGES = new THREE.LineBasicMaterial({ color: 0x6f6f6f });
 
 /** IFC model rendered from the backend's mesh JSON (one mesh per IFC GlobalId). */
-export function ModelViewer({ documentId, highlightGuid }: Props) {
+export function ModelViewer({ documentId, highlightGuid, omitted = 0 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const handle = useRef<SceneHandle | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
@@ -144,6 +145,12 @@ export function ModelViewer({ documentId, highlightGuid }: Props) {
           {status === "empty" && "The model has no geometry."}
           {status === "error" && "No 3D model yet. Drawings get one once their scale is known."}
         </div>
+      )}
+      {status === "ready" && omitted > 0 && (
+        <p className="model-note">
+          Large model: {omitted.toLocaleString()} small parts are not drawn in 3D. They are still
+          counted in answers.
+        </p>
       )}
     </div>
   );
