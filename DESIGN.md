@@ -95,6 +95,7 @@ Square corners everywhere; badges get 2 px. No drop shadows on panels or cards. 
 - **Answer:** only the latest answer is a card. Older turns are plain text in `ink-2`. Tool steps stream in mono. Badges: verified (ok), not verified (warn), confidence and cached (plain).
 - **Citation chip:** accent-soft fill with a square numbered tile. The number matches the mark on the drawing. Unverified citations are outlined and struck through.
 - **Drawing overlay:** a cited region gets a `paper-mark` ring and the rest of the sheet dims (D-007's spotlight, now in blue).
+- **Redrawn page:** an Original / Redrawn switch above the plan. Before a page is upscaled, Redrawn shows one centred **Upscale** button over the dimmed page. The redraw is white paper like the original: walls solid `redraw-line`, rooms as faint `redraw-room` outlines with the name in bold and the area underneath in mono, doors and windows as outlined boxes, all text at one size per page, and a scale bar top left. What the upscale pass added is dashed in `redraw-added`. One overlay serves both views (D-022).
 - **3D:** the canvas is transparent over the desk colour; the cited element turns `paper-mark` blue in both themes (three.js materials can't read CSS tokens, so the value is repeated in `ModelViewer.tsx`).
 
 ## Accessibility

@@ -39,6 +39,15 @@ export interface PageInfo {
   dpi: number | null;
   mm_per_px: number | null;
   label: string | null; // e.g. the storey of an IFC floor plan
+  /** Set once the page had its upscale vision pass (#82); missing on older servers. */
+  upscale?: { added: number; model: string } | null;
+}
+
+/** POST /api/documents/{id}/pages/{index}/upscale */
+export interface UpscaleResult {
+  added: number;
+  cached: boolean;
+  page: PageInfo;
 }
 
 export interface DocumentInfo {

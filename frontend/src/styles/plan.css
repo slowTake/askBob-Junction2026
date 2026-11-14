@@ -93,3 +93,89 @@
   stroke: var(--paper-mark);
   stroke-width: calc(3px * var(--u));
 }
+
+/* ---------- the redrawn page (#82) ----------
+   One line weight, one font, one symbol per kind on every page and format. Widths are in
+   screen pixels (× --u), so the redraw reads the same at every zoom. */
+.clean-sheet {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+.clean-bg {
+  fill: var(--paper);
+}
+.clean-room {
+  fill: var(--redraw-room);
+  stroke: var(--redraw-faint);
+  stroke-width: calc(1px * var(--u));
+}
+.clean-wall {
+  fill: var(--redraw-line);
+  stroke: var(--redraw-line);
+  stroke-width: calc(1px * var(--u));
+}
+.clean-door,
+.clean-window {
+  fill: var(--paper);
+  stroke: var(--redraw-line);
+  stroke-width: calc(1.5px * var(--u));
+}
+.clean-window {
+  fill: var(--redraw-room);
+}
+.clean-sheet .is-added {
+  stroke: var(--redraw-added);
+  stroke-dasharray: calc(4px * var(--u)) calc(3px * var(--u));
+}
+.clean-wall.is-added {
+  fill: none;
+  stroke-width: calc(2px * var(--u));
+}
+.clean-text {
+  fill: var(--redraw-text);
+  font-family: var(--font-text);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.clean-room-name {
+  fill: var(--redraw-line);
+  font-weight: 600;
+}
+.clean-room-area,
+.clean-dimension,
+.clean-area {
+  font-family: var(--font-mono);
+}
+.clean-scale path {
+  stroke: var(--redraw-line);
+  fill: none;
+}
+.clean-scale text {
+  fill: var(--redraw-text);
+  font-family: var(--font-text);
+  dominant-baseline: central;
+}
+
+.upscale-prompt {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--s-6);
+  background: var(--dim);
+}
+.upscale-card {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-3);
+  max-width: 360px;
+  padding: var(--s-5);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  text-align: center;
+}
+.upscale-error {
+  color: var(--danger-ink);
+}

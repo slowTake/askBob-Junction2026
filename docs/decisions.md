@@ -29,6 +29,8 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
 | D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
+| D-025 | 2026-11-14 | Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates | Accepted |
+
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
@@ -389,3 +391,15 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - `too_many_steps` remains for a model that still gives no answer on its last turn.
 
 **Consequences:** On the same five drawings, 8 of 8 non-raster questions now end with an answer (2 of 6 scored ones correct). A forced answer can be wrong; before, there was no answer. The three causes above are not fixed by this: they need model facts for IFC, a way to read schedule tables, and elements to count on raster plans (#93, D-022). The Claude path is covered by tests with a fake client only, since no one has an Anthropic key (D-020).
+
+## D-025: Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** Scanned pages are hard to read, and ingest misses walls, doors, windows and room names, so the agent can't cite them either (#82). #54 built a client-side redraw from the extracted elements, but its PR merged into a dead branch, and main has since moved to the pan/zoom canvas (D-016, D-018). Every vision call costs money, so it must not run on every ingest.
+
+**Decision:** A **Redrawn** view next to **Original** in the plan toolbar. Before a page is upscaled it shows one centred **Upscale** button. `POST /api/documents/{id}/pages/{index}/upscale` sends the page image, shrunk to at most `UPSCALE_MAX_SIDE` (1568 px) on its longest side, with the elements ingest found, to `UPSCALE_MODEL` (default `claude-haiku-5-5`) once. The pure rules in `app/domain/upscale.py` read its answer: only rooms, doors, windows and walls; confidence capped at 0.9 and dropped below 0.3; malformed or off-page entries skipped, never repaired; a candidate overlapping an element of the same group by half the smaller box is a duplicate and ingest wins (D-014). Added elements are stored with `source = "upscale"`; a room gets its box as an `approximate` outline and no area. The page row is locked during the call, and the result is cached in `page.meta.upscale` per document version and `UPSCALE_FORMAT`, so a second click is free. Each upscale bumps `document.meta.upscales`, which is part of the answer cache key, and the agent prompt says upscale boxes are approximate and must be checked like OCR.
+
+The redraw (`frontend/src/lib/redraw.ts`, ported from #54) is an SVG in the page image's own pixel coordinates, drawn over the image and under the one overlay, so citations, highlights and the plan layer land on the same spot in both views. It is uniform on every format: walls filled (their DXF outline when stored, else their box), doors and windows as outlined boxes, room names bold with the computed area underneath, every other label at one size per page (1/100 of the page width, room names 1.5×) whatever the OCR box height. Unclassified OCR text below 0.6 confidence or without a letter or digit is left out; classified kinds are kept. What the upscale pass added is dashed in its own colour. The redraw stays white paper in both themes, like the original (D-012).
+
+**Consequences:** The redraw is only as good as extraction plus one vision pass: a vision model's boxes are approximate and can still miss elements, and doors and windows are boxes, not swing symbols. Low-resolution scans give tiny text at fit zoom. A re-ingest replaces the pages, so a page has to be upscaled again. The 0.6 text cut-off and the 1/100 text size are first guesses from one cubicasa page.
