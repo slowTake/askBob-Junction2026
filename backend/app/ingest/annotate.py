@@ -116,7 +116,15 @@ def annotate_page(
     model_rooms = vision is not None and not vision_objects_only
     rooms = [el for el in elements if el.kind == "room" and el.bbox is not None]
     label_points = [bbox_center(el.bbox) for el in rooms if el.bbox is not None]
-    traced = traced_outlines(gray, words, label_points, dpi)
+    # Room numbers not linked to a name still mark a room: counting them stops a region
+    # that holds two rooms' labels from being given to one of them (D-024).
+    linked = {el.properties.get("number") for el in rooms}
+    other_rooms = [
+        bbox_center(el.bbox)
+        for el in elements
+        if el.kind == "room_number" and el.bbox is not None and el.label not in linked
+    ]
+    traced = traced_outlines(gray, words, label_points + other_rooms, dpi)[: len(rooms)]
     sources: Counter[str] = Counter()
     for el, centre, from_lines in zip(rooms, label_points, traced, strict=True):
         # Outline sources in order (D-024): the drawing's own lines, the floor-plan

@@ -157,3 +157,16 @@ def test_without_closed_lines_the_model_room_is_the_fallback() -> None:
     kitchen = next(e for e in elements if e.text == "Küche")
     assert kitchen.properties["outline_source"] == "model"
     assert meta["room_outlines"] == {"model": 1}
+
+
+def test_another_rooms_number_stops_a_merged_region_being_one_room() -> None:
+    # One closed region holds the kitchen's name and another room's number ("1.02",
+    # linked to no name): it is two rooms run together, so the kitchen doesn't get it.
+    import cv2
+
+    page = np.full((400, 600), 255, np.uint8)  # the region is ~17% of the page: a room size
+    cv2.rectangle(page, (20, 20), (280, 180), 0, 3)
+    words = [Word((40.0, 90.0, 90.0, 105.0), "Küche"), Word((220.0, 90.0, 250.0, 105.0), "1.02")]
+    elements, _, _ = annotate_page(page, words, "ocr", None)
+    kitchen = next(e for e in elements if e.text == "Küche")
+    assert kitchen.properties.get("outline_source") != "traced"
