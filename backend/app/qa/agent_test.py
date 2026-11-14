@@ -103,9 +103,12 @@ def claude(monkeypatch: pytest.MonkeyPatch) -> FakeClaude:
     return client
 
 
-def _loop() -> list[dict[str, Any]]:
-    ctx = ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
-    return list(run_agent("How many bedrooms?", [], ctx, LOOP_SETTINGS))
+def _ctx() -> ToolContext:
+    return ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
+
+
+def _loop(ctx: ToolContext | None = None) -> list[dict[str, Any]]:
+    return list(run_agent("How many bedrooms?", [], ctx or _ctx(), LOOP_SETTINGS))
 
 
 def test_the_last_turn_takes_no_tool_calls_and_asks_for_the_answer(claude: FakeClaude) -> None:
@@ -133,6 +136,38 @@ def test_the_question_states_the_step_budget(claude: FakeClaude) -> None:
     _loop()
     # max_agent_turns is 3, and the last turn is the answer: 2 rounds of tool calls.
     assert "at most 2 rounds of tool calls" in claude.requests[0]["messages"][0]["content"]
+
+
+def test_usage_counts_cache_reads_and_writes_apart(claude: FakeClaude) -> None:
+    first, second = _tool_turn("t1"), _answer_turn()
+    first.usage.cache_creation_input_tokens = 900
+    second.usage.cache_read_input_tokens = 900
+    claude.responses = [first, second]
+    ctx = _ctx()
+    events = _loop(ctx)
+    assert events[-1].keys() == {"type", "answer"}  # usage is read from the context
+    # Each request: 100 uncached input + 10 output tokens.
+    assert ctx.usage.as_dict() == {
+        "input_tokens": 200,
+        "output_tokens": 20,
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 900,
+        "requests": 2,
+        "fallback_requests": 0,
+    }
+
+
+def test_usage_counts_requests_a_fallback_model_answered(claude: FakeClaude) -> None:
+    first, second = _tool_turn("t1"), _answer_turn()
+    # The API reports the attempt that served a declined request as a fallback_message.
+    second.usage.iterations = [
+        SimpleNamespace(type="message"),
+        SimpleNamespace(type="fallback_message"),
+    ]
+    claude.responses = [first, second]
+    ctx = _ctx()
+    _loop(ctx)
+    assert (ctx.usage.requests, ctx.usage.fallback_requests) == (2, 1)
 
 
 def test_claude_request_omits_unused_filters_instead_of_compiling_nullable_unions(
