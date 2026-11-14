@@ -2,7 +2,7 @@
 
 LOCAL_ENV = DATABASE_URL=postgresql://bob:bob@postgres:5432/bob VALKEY_URL=redis://valkey:6379/0
 
-.PHONY: help up up-aiven up-local down logs check backend-check vision-check frontend-check size-check scripts-check fmt dev-api dev-worker dev-web
+.PHONY: help up up-aiven up-local up-claude down logs check backend-check vision-check frontend-check size-check scripts-check fmt dev-api dev-worker dev-web
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -16,6 +16,9 @@ up-aiven: ## Run everything against Aiven: URLs from avn, passwords from your ke
 
 up-local: ## Run everything offline with local Postgres + Valkey containers
 	$(LOCAL_ENV) docker compose --profile local up --build
+
+up-claude: ## Run locally with Claude: key from environment, keyring, or a hidden prompt
+	bash -c 'source scripts/claude-env.sh && $(MAKE) up-local'
 
 down: ## Stop all containers
 	docker compose --profile local down
@@ -40,6 +43,7 @@ size-check: ## No source file over 600 lines
 scripts-check: ## Tests for the helper scripts
 	scripts/bulk-issues-test.sh
 	scripts/aiven-env-test.sh
+	bash scripts/claude-env-test.sh
 
 fmt: ## Auto-format everything
 	cd backend && uv run ruff format . && uv run ruff check --fix .

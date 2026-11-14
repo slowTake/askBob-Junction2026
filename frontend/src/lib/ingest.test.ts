@@ -4,6 +4,15 @@ import { isBusy, statusLine } from "./ingest";
 const doc = (status: string, error_message: string | null = null) => ({ status, error_message });
 
 describe("statusLine", () => {
+  it("identifies room boundaries taken from the matching CAD drawing", () => {
+    expect(
+      statusLine({ ...doc("ready"), meta: { companion_status: "matched" } }, undefined, 1),
+    ).toMatchObject({
+      label: "Ready · CAD rooms",
+      detail: "Room boundaries from the matching DXF drawing.",
+    });
+    expect(statusLine(doc("ready"), undefined, 1).label).toBe("Ready");
+  });
   it("says a queued document waits for the worker", () => {
     expect(statusLine(doc("queued"), undefined, 1)).toMatchObject({
       label: "Queued",

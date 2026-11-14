@@ -62,6 +62,7 @@ services:
       - VERDA_MODEL
       - DATA_DIR=/data
       - VISION_URL=http://vision:8001
+      - VISION_TIMEOUT_S=${VISION_TIMEOUT_S:-90}
     depends_on:
       postgres: { condition: service_healthy, required: false }
       valkey: { condition: service_healthy, required: false }

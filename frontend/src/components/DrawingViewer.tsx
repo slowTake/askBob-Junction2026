@@ -44,6 +44,8 @@ export function DrawingViewer(props: Props) {
   const [hovered, setHovered] = useState<ElementInfo | null>(null);
   const [selected, setSelected] = useState<ElementInfo[]>([]); // click, or Shift+click for more
   const [imageLoaded, setImageLoaded] = useState<string | null>(null);
+  const [imageFailed, setImageFailed] = useState<string | null>(null);
+  const [imageAttempt, setImageAttempt] = useState(0);
   const [framed, setFramed] = useState<PlanTarget | null>(null);
   const [sheetMode, setSheetMode] = useState<SheetMode>("original");
   const [elementsVersion, setElementsVersion] = useState(0); // bumped when upscale adds some
@@ -86,7 +88,12 @@ export function DrawingViewer(props: Props) {
   const w = page?.width_px ?? 0;
   const h = page?.height_px ?? 0;
   const size = useMemo(() => (w && h ? { width: w, height: h } : null), [w, h]);
-  const src = api.pageImageUrl(documentId, pageIndex);
+  const src = `${api.pageImageUrl(documentId, pageIndex)}?attempt=${imageAttempt}`;
+  useEffect(() => {
+    if (imageLoaded === src || imageFailed === src) return;
+    const timer = window.setTimeout(() => setImageFailed(src), 30_000);
+    return () => window.clearTimeout(timer);
+  }, [src, imageLoaded, imageFailed]);
   // Fit frames the drawing's ink, not the sheet's paper margins (#83).
   const content = useInkBox(src, size);
   const {
@@ -109,11 +116,13 @@ export function DrawingViewer(props: Props) {
   const elements = ready && loaded ? loaded.elements : NO_ELEMENTS;
   const shown = onPage(target, pageIndex, elements);
   const added = page?.upscale?.added ?? null;
-  const redrawn = sheetMode === "redrawn" && added !== null;
+  const cadRooms = doc?.meta.companion_status === "matched";
+  const availableRedraw = cadRooms || added !== null;
+  const redrawn = sheetMode === "redrawn" && availableRedraw;
   const mmPerPx = page?.mm_per_px ?? null;
   // A raster image is redrawn whole by the model; its redraw shows only the model's plan.
-  const sketchDoc = doc ? isSketchDocument(doc.kind) : false;
-  const sketch = redrawn && page?.upscale?.mode === SKETCH_MODE;
+  const sketchDoc = doc ? isSketchDocument(doc.kind, cadRooms) : false;
+  const sketch = redrawn && !cadRooms && page?.upscale?.mode === SKETCH_MODE;
   const redraw = useMemo(() => {
     if (!redrawn || !ready || !w || !h) return null;
     if (sketch) return <SketchSheetSvg sheet={buildSketchSheet(elements)} width={w} height={h} />;
@@ -228,11 +237,15 @@ export function DrawingViewer(props: Props) {
             selectedIds={selectedIds}
             onHover={pointAt}
             onSelect={select}
-            onLoad={() => setImageLoaded(src)}
+            onLoad={() => {
+              setImageFailed(null);
+              setImageLoaded(src);
+            }}
+            onError={() => setImageFailed(src)}
             redraw={redraw}
           />
         )}
-        {sheetMode === "redrawn" && page && added === null && (
+        {sheetMode === "redrawn" && page && !availableRedraw && (
           <UpscalePrompt
             busy={upscale.busy}
             error={upscale.error}
@@ -244,6 +257,17 @@ export function DrawingViewer(props: Props) {
           <div className="viewer-note">The drawing could not be loaded.</div>
         ) : doc && !page ? (
           <div className="viewer-note">This document has no drawing pages.</div>
+        ) : imageFailed === src ? (
+          <div className="viewer-note" role="alert">
+            The drawing image could not be loaded.{" "}
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setImageAttempt((attempt) => attempt + 1)}
+            >
+              Retry
+            </button>
+          </div>
         ) : (
           imageLoaded !== src && <div className="viewer-note is-loading">Loading drawing…</div>
         )}

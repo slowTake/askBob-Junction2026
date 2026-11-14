@@ -16,6 +16,7 @@ from rq.job import Job
 from app.config import get_settings
 from app.db import session_scope
 from app.domain.recovery import IN_FLIGHT
+from app.ingest.companions import load_companion, refresh_companion_images
 from app.ingest.errors import ReaderError
 from app.ingest.persist import replace_contents
 from app.ingest.pipeline import build
@@ -38,12 +39,15 @@ def ingest_document(document_id: str) -> None:
             kind, source = doc.kind, original_path(doc_id, str(doc.meta.get("extension", "")))
         _emit(document_id, "processing", "reading", 0.0)
 
+        companion = load_companion(doc_id) if kind == "image" else None
         built = build(
             source,
             kind,
             get_settings(),
             model_ifc_path(doc_id),
             lambda stage, fraction: _emit(document_id, "processing", stage, round(fraction, 3)),
+            companion=companion.data if companion else None,
+            companion_info=companion.info if companion else None,
         )
         if built.mesh is not None:
             raw = json.dumps(built.mesh, separators=(",", ":")).encode()
@@ -65,6 +69,10 @@ def ingest_document(document_id: str) -> None:
         mark_failed(document_id, code)
         return
     _emit(document_id, "ready", "done", 1.0)
+    try:
+        refresh_companion_images(doc_id)
+    except Exception:
+        log.warning("could not refresh related raster documents", exc_info=True)
 
 
 def mark_failed(document_id: str, code: str) -> None:

@@ -5,6 +5,7 @@ Codes are the abbreviations printed inside rooms and next to fixtures, e.g.
 """
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 from app.domain.kinds import CodeKind
@@ -65,6 +66,13 @@ CODES: dict[str, Code] = {
 
 _DOOR_TAG = re.compile(r"^(0[6-9]|1[0-2])$")
 
+
+def _fold(text: str) -> str:
+    """Lower case, single spaces, accents removed: "Séjour/repas" -> "sejour/repas"."""
+    decomposed = unicodedata.normalize("NFKD", " ".join(text.split()).lower())
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
 # Full room names as printed (German, French, Italian, English) -> (category, outdoor).
 # Collected from the ROOM_TEXT layer of the dataset's swiss_dwellings DXFs.
 _ROOM_NAMES: dict[str, tuple[str, bool]] = {}
@@ -91,7 +99,7 @@ for _category, _outdoor, _names in [
     ("terrace", True, "Terrasse|Terrazza|Terrace"),
 ]:
     for _name in _names.split("|"):
-        _ROOM_NAMES[_name.lower()] = (_category, _outdoor)
+        _ROOM_NAMES[_fold(_name)] = (_category, _outdoor)
 
 _UNIT = re.compile(
     r"^(?:App\.?|Apt\.?|Whg\.?|Apartment|Appartement|Wohnung|Appartamento)\s+([A-Z0-9]{1,3})$",
@@ -100,8 +108,9 @@ _UNIT = re.compile(
 
 
 def lookup_room_name(text: str) -> tuple[str, bool] | None:
-    """A printed room name -> (category, is_outdoor). Exact match, ignoring case."""
-    return _ROOM_NAMES.get(" ".join(text.split()).lower())
+    """A printed room name -> (category, is_outdoor). Exact match, ignoring case,
+    spacing and accents (an OCR without accented letters reads "Pièce" as "Piece")."""
+    return _ROOM_NAMES.get(_fold(text))
 
 
 def unit_label(text: str) -> str | None:

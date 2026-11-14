@@ -28,11 +28,16 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
 | D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
+| D-024 | 2026-11-14 | Raster rooms are traced from the drawing's lines; RapidOCR reads the text | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
 | D-027 | 2026-11-14 | Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates | Accepted |
 | D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029 |
 | D-029 | 2026-11-14 | Sketch check rounds show the draft in red over the photo, and the model is told where the ink is | Accepted |
+| D-025 | 2026-11-14 | Bound optional raster analysis and make Claude startup explicit (#106) | Accepted |
+| D-026 | 2026-11-14 | Room highlights require boundaries traced from the drawing (#103) | Accepted |
+| D-027 | 2026-11-14 | Match raster drawings to uploaded native DXF room boundaries (#108) | Accepted |
+| D-030 | 2026-11-14 | Matched CAD rooms survive the redraw integration (#108) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -365,6 +370,46 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 **Consequences:** Fit needs no backend change or re-ingest. A scan with a dark scanner border fits the whole sheet, as before. A reload loses the conversations. With no "New conversation" button there is no way to cancel a slow answer except a reload; a Stop button is the natural follow-up if that matters.
 
+## D-025: Bound optional raster analysis and make Claude startup explicit
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #106
+
+**Context:** One raster job waited over ten minutes for the vision service, blocking later uploads. A failed image request left the viewer saying Loading forever, and the Docker backend had no Anthropic key.
+
+**Decision:** Vision enrichment waits at most 90 seconds per page by default, configurable with `VISION_TIMEOUT_S`, before using the existing heuristic fallback. Raster readers emit progress before OCR, vision and annotation; transparent PNGs are composited onto white paper. Document API requests and viewer image loads stop waiting after 30 seconds, with a retry for failed images; uploads allow 120 seconds. `make up-claude` reads credentials from the environment, the OS keyring, or hidden terminal input and starts the local stack with the selected provider. It fails clearly without credentials in noninteractive use.
+
+**Consequences:** Slow CPU vision may produce fewer detected objects when it exceeds the budget. The vision server may finish its computation after its client disconnects. Keys stay outside the repository; existing containers must be recreated to apply changed credentials. Image retries reload the image without reprocessing the document.
+
+## D-024: Raster rooms are traced from the drawing's lines; RapidOCR reads the text
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** On raster pages (PNG/JPG, scanned PDFs), a printed room label got its outline either from the floor-plan model (D-022), whose rooms are built from rectangles and merge neighbours (two bedrooms became one), or from a flood fill that leaks through doorways. Tesseract read only 42% of the Swiss room numbers at 150 DPI. A prototype (#103) on 8 Swiss preview floors (289 rooms), scored against their DXFs with the physical scale (DPI + printed "1:100") and no tuning against the answers:
+
+| | Tesseract + model rooms | RapidOCR + traced rooms |
+|---|---|---|
+| Room numbers read | 42% | 86% |
+| Room found as its own room | – | 66% |
+| Area within 5% of the DXF | – | 38% |
+
+**Decision:**
+- **Rooms come from the drawing's own lines,** as CAD "boundary" tools find them:
+  - **Lines:** stroke centre lines (skeleton) plus the outlines of wall bands, closed over their hatching.
+  - **Faces:** Shapely/GEOS extends near-touching ends, splits lines at crossings and finds every enclosed face (`polygonize`).
+  - **Which faces count as rooms:** page-sized and thin faces (wall interiors, hatching) are dropped. A label goes to the largest face around it that holds no other room's label. A face that touches only one room and is smaller than it (a counter, a tub) is part of that room.
+  - **Edge:** the outline is moved 2 px (at 150 DPI) out onto the wall face.
+- **Outline sources for a printed room label,** in order: traced face, then model room, then flood fill. The printed-area check applies to all of them.
+- **OCR:** RapidOCR (PaddleOCR's text detector and recogniser on ONNX Runtime; the models ship in the wheel) reads raster text in tiles. Tesseract stays as the fallback.
+
+**Consequences:**
+- Labelled rooms on raster plans follow their walls.
+- About a third of rooms still leak through doorways drawn without a door swing, or lose part of their area to fixtures the rules don't absorb.
+- Because the doorway line itself isn't drawn, a door's swing area counts toward the room on the other side of the door.
+- Closing doorways fixes both and is the next step.
+- OCR takes about 8–15 s per Swiss sheet on CPU.
+- RapidOCR's recogniser has no accented letters ("Pièce" reads as "Piece"), so room names are now matched without accents.
+- The app's own image reader, scored with `eval/swiss_rooms.py` on the same 8 floors: 70% of rooms named, 66% outlined, 36% with the area within 5% of the DXF.
+
 ## D-025: The server counts: `count_elements`, not the model adding up search results
 
 **Date:** 2026-11-14 · **Status:** Accepted
@@ -392,6 +437,25 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - `too_many_steps` remains for a model that still gives no answer on its last turn.
 
 **Consequences:** On the same five drawings, 8 of 8 non-raster questions now end with an answer (2 of 6 scored ones correct). A forced answer can be wrong; before, there was no answer. The three causes above are not fixed by this: they need model facts for IFC, a way to read schedule tables, and elements to count on raster plans (#93, D-022). The Claude path is covered by tests with a fake client only, since no one has an Anthropic key (D-020).
+## D-026: Room highlights require boundaries traced from the drawing
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #103 · **Supersedes in part:** D-024 room-outline fallbacks
+
+**Context:** The running app used Tesseract and model masks instead of the local prototype's RapidOCR and line tracing. It assigned one apartment-wide polygon to a bathroom and bedroom, and a jagged segmentation fragment to corridor 3.14. Model and flood-fill fallbacks can produce those shapes without proving a room boundary.
+
+**Decision:** Use the prototype's RapidOCR and drawing-line tracing for room highlights. Every candidate must contain its own label and no other room name or unlinked room number. If no traced boundary passes these checks and the existing printed-area check, retain the printed label for citation. For raster pages, model masks and raw flood fills cannot substitute for room boundaries or create unnamed room fragments; model walls, doors and fixtures remain available. Exact-scale CAD renderings retain their existing closed-region fallback, subject to the same room-label checks.
+
+**Consequences:** Some rooms have label-only citations when the drawing's lines do not establish their boundaries. On the two reported PNGs, the reader finds six and twelve separate traced rooms respectively, including the full corridor 3.14 instead of its small model fragment. Existing documents must be reprocessed to replace their stored geometry.
+
+## D-027: Match raster drawings to uploaded native DXF room boundaries
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #108
+
+**Context:** Raster line tracing cannot reliably recover all semantic spaces, especially an open kitchen beside a living area with no separating wall. The dataset supplies a corresponding DXF with exact room polygons and names. On the reported floor, OCR plus tracing located only part of the 17-room plan reliably.
+
+**Decision:** Match uploaded raster/DXF files by filename stem, ignoring case. Use DXF text alignment and shared room numbers to fit a deterministic scale/rotation/translation. Require at least three labels, 75% agreement and a pixel residual within the page-size budget; reject ambiguous CAD revisions and polygons outside the raster. Preserve the raster image and map all native CAD rooms, names, areas and provenance into its page. The existing IFC export is built from these same rooms. Store the companion hash and alignment quality. Either upload order triggers a refresh once, including when a companion arrives during image processing; failed registration never loops. Native CAD companions bypass optional model segmentation. Existing raster behavior remains when no reliable companion exists.
+
+**Consequences:** Exact semantic splits require the corresponding CAD file. OCR is used for registration, and can miss individual rooms without losing their CAD geometry. The reported 17-room drawing aligns on 16 labels with 0.39 px RMS error and retains all 17 separate spaces. A pair with fewer than three reliable shared numbers is left unmatched. Different DXFs with an identical filename stem are rejected rather than selecting a revision silently.
 
 ## D-027: Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates
 
@@ -438,3 +502,13 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 - The user still sees only the clean redraw. The overlay is only the model's input.
 
 **Consequences:** On the test image the walls now land within 3 px of the ink, in three rounds (about 33k tokens in and 8k out, about 76 s). A dark border or shadow inside the photo can widen the box; the prompt names those cases so the model can set the box aside.
+
+## D-030: Matched CAD rooms survive the redraw integration
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #108
+
+**Context:** Main's new sketch redraw applies to image documents, including a PNG whose rooms now come from its native DXF companion. Generating another model-made set of rooms would mix approximate and exact geometry and could duplicate quantities.
+
+**Decision:** A matched CAD PNG renders its clean sheet from the existing CAD elements immediately. Its upscale endpoint returns a no-op without model calls or element changes. Other raster sketches retain main's model redraw. Preserve the PNG image load/error timeout and retry behavior alongside the redraw UI; allow the synchronous sketch API request the server's default bounded claim budget rather than the normal 30-second document request budget.
+
+**Consequences:** CAD-matched room geometry, identifiers and areas remain unchanged when switching views or requesting upscale. PNG-only sketches continue to use the model loop. Main and the earlier unmerged branches used some overlapping decision IDs; the existing entries are preserved and are distinguished by their titles and issue references.

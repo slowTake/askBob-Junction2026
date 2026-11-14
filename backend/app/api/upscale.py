@@ -65,6 +65,16 @@ def upscale(document_id: uuid.UUID, index: int, db: DB) -> dict[str, Any]:
     )
     if page is None:
         raise AppError("not_found", "Page not found", 404)
+    if page.meta.get("companion_dxf"):
+        # Native CAD geometry already supplies the clean plan. Do not add a model's
+        # second set of rooms to the same PNG, which would duplicate its quantities.
+        return ok(
+            {
+                "added": 0,
+                "cached": True,
+                "page": PageOut.model_validate(page).model_dump(mode="json"),
+            }
+        )
     try:
         if is_sketch_page(doc.kind):
             result, page = redraw_sketch(db, doc, page, get_settings(), ask_sketch, clock)

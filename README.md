@@ -55,6 +55,27 @@ make up-aiven      # UI on http://localhost:8080, API on :8000
 
 **Offline**, with local Postgres and Valkey containers: `make up-local`.
 
+**With Claude locally:** run `make up-claude`. It uses `ANTHROPIC_API_KEY` from
+your environment, then the Linux keyring entry `service anthropic`, or asks for
+the key with hidden input. To save it in the keyring first, run
+`secret-tool store --label="Anthropic API key" service anthropic` and paste it at
+the prompt. The key is never written to the repository. For Aiven, run
+`source scripts/claude-env.sh && make up-aiven`.
+Changing a key requires recreating the backend (`docker compose restart` keeps
+the old environment); the `make up-*` commands apply environment changes.
+
+Raster ingest reports OCR, geometry and annotation progress. The optional vision
+model has a 90-second wait budget per page, then ingest continues with pixel
+heuristics. Set `VISION_TIMEOUT_S` when starting Docker to allow a longer wait.
+
+**Exact room boundaries with a matching DXF:** upload `floor.png` and `floor.dxf`
+(the filename before the extension must match). Either upload order works. The PNG
+keeps its original appearance, while the native DXF supplies every room's identity,
+polygon and area, including open-plan kitchens and rooms OCR missed. Registration
+uses the shared printed room numbers and rejects poor or ambiguous matches. The
+document shows **Ready · CAD rooms** when this succeeds. Uploads without a valid
+companion keep their raster reading; uncertain room boundaries are label-only.
+
 **On Kimi instead of Claude** (D-020; needs your own Verda key, see [docs/verda-setup.md](docs/verda-setup.md)): pass the provider and key to the one command that starts the app.
 
 ```bash

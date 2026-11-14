@@ -19,8 +19,9 @@ from app.bim.ifc_plans import floor_plans
 from app.bim.ifc_writer import write_model
 from app.config import Settings
 from app.ingest.errors import ReaderError
+from app.ingest.fusion import fuse_rooms
 from app.ingest.registry import READERS
-from app.ingest.types import ExtractedElement, ExtractedPage, Progress
+from app.ingest.types import ExtractedDocument, ExtractedElement, ExtractedPage, Progress
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +37,13 @@ class BuiltDocument:
 
 
 def build(
-    path: Path, kind: str, settings: Settings, model_out: Path, progress: Progress
+    path: Path,
+    kind: str,
+    settings: Settings,
+    model_out: Path,
+    progress: Progress,
+    companion: ExtractedDocument | None = None,
+    companion_info: dict[str, Any] | None = None,
 ) -> BuiltDocument:
     """Read any supported file into pages, indexed elements, an IFC model and a mesh."""
     warnings: list[str] = []
@@ -48,7 +55,17 @@ def build(
         reader = READERS.get(kind)
         if reader is None:
             raise ReaderError("unreadable_file", f"no reader for {kind}")
-        extracted = reader(path, settings, lambda stage, f: progress(stage, 0.6 * f))
+        reader_settings = (
+            settings.model_copy(update={"vision_url": None})
+            if kind == "image" and companion is not None
+            else settings
+        )
+        extracted = reader(path, reader_settings, lambda stage, f: progress(stage, 0.6 * f))
+        if kind == "image" and companion is not None:
+            progress("aligning", 0.62)
+            extracted = fuse_rooms(extracted, companion, companion_info or {})
+        if companion_info is not None:
+            extracted.meta["companion_attempt"] = companion_info
         pages, meta = extracted.pages, extracted.meta
         found = [_on_page(el, page.index) for page in pages for el in page.elements]
         found += extracted.elements

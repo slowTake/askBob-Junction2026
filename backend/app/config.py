@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # The floor-plan model service (D-022); unset means ingest uses pixel heuristics.
     vision_url: str | None = None
-    vision_timeout_s: int = 600  # a large sheet takes minutes on CPU
+    vision_timeout_s: int = 90  # optional enrichment must not block the ingest queue for minutes
 
     # Upscale (#82, D-027): one cheap vision call per page, on demand.
     upscale_model: str = "claude-haiku-5-5"  # with LLM_PROVIDER=verda, `verda_model` is used
@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     sketch_deadline_s: float = 600.0  # no new check round starts after this
 
     render_dpi: int = 150
-    ocr_langs: str = "fin+swe+eng"
+    ocr_langs: str = "fin+swe+eng"  # Tesseract only
+    ocr_engine: Literal["rapid", "tesseract"] = "rapid"  # D-024; Tesseract is also the fallback
     max_upload_mb: int = 200
     answer_cache_ttl_s: int = 86_400
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8080"]
