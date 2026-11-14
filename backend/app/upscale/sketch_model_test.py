@@ -192,3 +192,34 @@ def test_the_verda_provider_says_so_instead_of_falling_back(
 def test_the_schema_holds_the_whole_plan_and_a_verdict() -> None:
     assert PLAN_SCHEMA["required"] == ["matches", "walls", "doors", "windows", "rooms", "texts"]
     assert PLAN_SCHEMA["additionalProperties"] is False
+
+
+def test_the_measured_ink_box_is_told_to_the_model_in_every_round(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    messages = _claude(monkeypatch)
+    ink = (254, 272, 2314, 2277)
+    ask_sketch(SketchAsk(PHOTO, 2576, 2576, ink=ink), _settings())
+    ask_sketch(SketchAsk(PHOTO, 2576, 2576, DRAFT, {"walls": []}, ink=ink), _settings())
+
+    for call in messages.calls:
+        text = " ".join(b["text"] for b in call["messages"][0]["content"] if b["type"] == "text")
+        assert "x 254 to 2314" in text and "y 272 to 2277" in text
+
+
+def test_without_an_ink_box_nothing_is_said_about_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    messages = _claude(monkeypatch)
+    ask_sketch(SketchAsk(PHOTO, 2576, 2000), _settings())
+    [call] = messages.calls
+    text = " ".join(b["text"] for b in call["messages"][0]["content"] if b["type"] == "text")
+    assert "ink" not in text
+
+
+def test_a_check_round_says_the_draft_is_drawn_in_red_over_the_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    messages = _claude(monkeypatch)
+    ask_sketch(SketchAsk(PHOTO, 100, 80, draft_png=DRAFT, draft={"walls": []}), _settings())
+    [call] = messages.calls
+    text = " ".join(b["text"] for b in call["messages"][0]["content"] if b["type"] == "text")
+    assert "in red" in text

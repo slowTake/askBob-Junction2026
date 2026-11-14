@@ -1,8 +1,8 @@
 """The sketch redraw's loop (#82): draw, compare, correct.
 
 Round 1: the model authors the whole plan from the photo. Each later round: the tidied
-draft is rendered with the same shapes the frontend draws, and the model compares that
-render with the photo and either says it matches or returns a corrected plan. The loop
+draft is drawn in red over the photo with the same shapes the frontend draws, and the
+model compares the two and either says it matches or returns a corrected plan. The loop
 stops when it matches, after `max_rounds`, or when `time_left()` says no new round may
 start.
 
@@ -49,6 +49,7 @@ def run_loop(
     render: Renderer,
     words: Sequence[Word],
     time_left: Callable[[], bool],
+    ink: tuple[int, int, int, int] | None = None,
 ) -> Redraw:
     """Raises VisionError when the first round fails; a later failure keeps the draft."""
     scale = width / page_w
@@ -57,7 +58,7 @@ def run_loop(
         plan = scale_plan(parse_plan(look.data, width, height), 1 / scale)
         return confirm_written(tidy(plan, page_w, page_h), words, page_w, page_h)
 
-    look = ask(SketchAsk(photo_png, width, height))
+    look = ask(SketchAsk(photo_png, width, height, ink=ink))
     tokens = [look.input_tokens, look.output_tokens]
     model = look.model
     try:
@@ -71,7 +72,7 @@ def run_loop(
     while rounds < max_rounds and time_left():
         shapes = sketch_shapes(plan, page_w, page_h)
         draft = SketchAsk(
-            photo_png, width, height, render(shapes), plan_json(scale_plan(plan, scale))
+            photo_png, width, height, render(shapes), plan_json(scale_plan(plan, scale)), ink
         )
         rounds += 1
         try:

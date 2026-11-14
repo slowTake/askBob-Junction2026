@@ -42,7 +42,7 @@ from app.models import LABEL_MAX, NAME_MAX, Document, Element, Page
 from app.storage import page_image_path
 from app.upscale.sketch_loop import Redraw, run_loop
 from app.upscale.sketch_model import SketchAsk
-from app.upscale.sketch_render import render_png
+from app.upscale.sketch_render import ink_box, render_png
 from app.upscale.vision import Look
 
 log = logging.getLogger(__name__)
@@ -75,6 +75,7 @@ def redraw_sketch(
     with Image.open(path) as image:
         buffer = io.BytesIO()
         image.convert("RGB").resize((width, height)).save(buffer, format="PNG")
+    photo = buffer.getvalue()
     words = _words(db, page)
     token = uuid.uuid4().hex
     page.meta = {**page.meta, RUN_KEY: {"token": token, "started_s": now()}}
@@ -85,12 +86,13 @@ def redraw_sketch(
     deadline = now() + settings.sketch_deadline_s
     try:
         redraw = run_loop(
-            buffer.getvalue(), width, height, page_w, page_h,
+            photo, width, height, page_w, page_h,
             max_rounds=settings.sketch_max_rounds,
             ask=lambda a: ask(a, settings),
-            render=lambda shapes: render_png(shapes, page_w, page_h, width, height),
+            render=lambda shapes: render_png(shapes, page_w, page_h, width, height, photo),
             words=words,
             time_left=lambda: now() < deadline,
+            ink=ink_box(photo),
         )  # fmt: skip
         return _store(db, ids, version, token, redraw)
     except BaseException:
