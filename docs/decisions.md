@@ -27,19 +27,21 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-021 | 2026-11-14 | A citation's box is the element's extent; the printed name is the fallback | Accepted |
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
-| D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Superseded in part by D-032 |
+| D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Superseded in part by D-034 |
 | D-024 | 2026-11-14 | Raster rooms are traced from the drawing's lines; RapidOCR reads the text | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
 | D-027 | 2026-11-14 | Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates | Accepted |
-| D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029, D-032 |
+| D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029, D-034 |
 | D-029 | 2026-11-14 | Sketch check rounds show the draft in red over the photo, and the model is told where the ink is | Accepted |
 | D-025 | 2026-11-14 | Bound optional raster analysis and make Claude startup explicit (#106) | Accepted |
 | D-026 | 2026-11-14 | Room highlights require boundaries traced from the drawing (#103) | Accepted |
 | D-027 | 2026-11-14 | Match raster drawings to uploaded native DXF room boundaries (#108) | Accepted |
 | D-030 | 2026-11-14 | Matched CAD rooms survive the redraw integration (#108) | Accepted |
 | D-031 | 2026-11-14 | Claude omits unused tool filters to stay within strict-schema limits (#111) | Accepted |
-| D-032 | 2026-11-14 | One Export menu holds Download IFC, Download SVG and Print (#109) | Accepted |
+| D-032 | 2026-11-14 | `make up-*` start in the background and smoke-check the stack (#107) | Accepted |
+| D-033 | 2026-11-14 | The UI's nginx finds the backend per request, at an address from `BACKEND_URL` (#107, #64) | Accepted |
+| D-034 | 2026-11-14 | One Export menu holds Download IFC, Download SVG and Print (#109) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -356,7 +358,7 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 ## D-024: Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document
 
-**Date:** 2026-11-14 · **Status:** Superseded in part by D-032 (where Download IFC shows) · **Supersedes in part:** D-018
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-034 (where Download IFC shows) · **Supersedes in part:** D-018
 
 **Context:** Fit framed the whole sheet, so scans and PDF pages showed wide paper margins around a small drawing. Framing the detected elements instead failed on sparse scans (one OCR'd letter made Fit zoom onto it). Agent highlights zoomed the plan in after every answer, with a "Shown by the assistant" banner on top. The chat kept one conversation for all documents, so switching drawings mixed answers about different plans (#83).
 
@@ -475,7 +477,7 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 ## D-028: On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured
 
-**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) and D-032 (where Download SVG and Print live) · **Refines:** D-027 (for raster image pages only)
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) and D-034 (where Download SVG and Print live) · **Refines:** D-027 (for raster image pages only)
 
 **Context:** The demo shows a photo of a hand-drawn floor plan (a napkin sketch) turned into a clean plan with one button (#82). D-027's pass asks a small model once for what ingest *missed* and draws boxes. On a sketch, ingest's OCR and line detection are the unreliable part, so filling its gaps keeps its noise; boxes cannot show a door swing; and one unchecked answer has no way to notice its own mistakes. The owner's rules: one button; redraw, never invent (no measurement unless written on the sketch); a stronger, slower model is allowed for this path; output is the Redrawn view plus Download SVG and Print, no DXF.
 
@@ -526,7 +528,36 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 **Consequences:** The request has five union parameters and 15 optional tool parameters, within Claude's documented limits. No tools or filters are removed. Future schema additions must keep the combined tool/answer budget within provider limits.
 
-## D-032: One Export menu holds Download IFC, Download SVG and Print
+## D-032: `make up-*` start in the background and smoke-check the stack
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #107 (part)
+
+**Context:** `make up`, `up-aiven` and `up-local` ran `docker compose up --build` in the foreground, so nothing checked that the started stack was actually reachable. A stack could look up while :8080 returned 502 (nginx with a stale backend address, #64), no worker listened, or the UI build was broken, and people found out in the browser.
+
+**Decision:**
+- The `up-*` targets run `docker compose up --build --detach`, then `make smoke` with a 180 s budget. Logs are followed with `make logs`. No `--wait`: it would also block on vision's healthcheck, and the app works without vision (ingest falls back to pixel heuristics).
+- `scripts/smoke.sh` checks from the host, retrying for up to `SMOKE_TIMEOUT` seconds (default 60): `/api/health` on :8000 reports `"ok":true` (it always answers 200, so the body is read), `ingest_workers` is above 0 (waited for too, because the worker registers with the queue a moment after it starts; a missing count fails), `/api/health` through :8080 also answers (nginx proxy), and :8080 serves the UI page. Each failure names the likely cause and the command to look further. `API_URL` and `WEB_URL` override the ports.
+- `scripts/smoke-test.sh` tests it against local fake servers and runs in `make check` and CI.
+
+**Consequences:** `make up-*` return to the prompt with a pass or a named failure instead of streaming logs. A broken proxy or a stopped frontend shows up as a failed proxy check (the #64 cause is fixed by D-033). The rest of #107 (`make dev`, `make doctor`, keyring helper, per-checkout project names) is still open.
+
+## D-033: The UI's nginx finds the backend per request, at an address from `BACKEND_URL`
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #107 (part), fixes #64
+
+**Context:** `frontend/nginx.conf` had `proxy_pass http://backend:8000;`. nginx resolves a literal host once at start-up, so it kept a recreated backend's old IP and :8080 returned 502 (#64), and it refused to start at all when no `backend` host existed. That blocks deploying the UI image on its own, which we are trying on Aiven Runtime (project `junction-stoa-winners`, app `askBob`, aws-eu-central-1); the Compose-to-Runtime route would also create extra Postgres and Valkey services from our offline-profile containers.
+
+**Decision:**
+- The config becomes `frontend/nginx.conf.template`, filled by the nginx image's entrypoint at start-up (only `BACKEND_URL` and `NGINX_LOCAL_RESOLVERS` are substituted).
+- `proxy_pass` uses a variable built from `BACKEND_URL` (Dockerfile default `http://backend:8000`), with `resolver` set to the container's own DNS servers from `/etc/resolv.conf` (`NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1`), cached 10 s. Not Docker's `127.0.0.11`, which does not exist outside Docker networks.
+- `BACKEND_URL` must be `http(s)://host[:port]`: with a variable, nginx would send a URL's path in place of every request path. `frontend/docker-entrypoint.d/16-check-proxy.envsh` drops a trailing slash and stops the container, saying why, on a path or when `/etc/resolv.conf` has no nameserver.
+- nginx's resolver ignores `resolv.conf` search domains, so outside Compose the host must be a full name (`api.example.com`).
+- The backend gets its own host name in `Host` (nginx's default) with SNI on and its certificate checked against the image's CA bundle, so an HTTPS backend behind a router works; the browser's host goes in `X-Forwarded-Host`, and `X-Forwarded-Proto` keeps an incoming one from a TLS-terminating router. The backend only reads the request path.
+- `scripts/frontend-image-test.sh` (CI containers job, `make frontend-image-check`) checks the image starts without a backend, proxies to `BACKEND_URL` (also with a trailing slash), follows a backend recreated on a new IP, and refuses a path or a missing nameserver.
+
+**Consequences:** Recreating the backend no longer needs a frontend restart (verified on the local stack with the backend moved to a new IP, plus SSE on `/api/events`). The UI image can be deployed alone; until a backend is hosted, its `/api` calls return 502. Hosting the API, worker and vision on Runtime is not decided here: the shared `/data` volume and vision's 6 GB need checking first.
+
+## D-034: One Export menu holds Download IFC, Download SVG and Print
 
 **Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #109 · **Supersedes in part:** D-024 (Download IFC above the plan), D-028 (Download SVG and Print in the plan toolbar)
 

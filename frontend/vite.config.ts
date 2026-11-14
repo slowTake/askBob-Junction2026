@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 // In dev, Vite serves the UI on :5173 and proxies /api to the backend on :8000.
-// In Docker, nginx does the same job (see nginx.conf).
+// In Docker, nginx does the same job (see nginx.conf.template).
 export default defineConfig({
   plugins: [react()],
   server: {
