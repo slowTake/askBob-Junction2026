@@ -23,6 +23,7 @@ export interface PageInfo {
   height_px: number;
   dpi: number | null;
   mm_per_px: number | null;
+  label: string | null; // e.g. the storey of an IFC floor plan
 }
 
 export interface DocumentInfo {

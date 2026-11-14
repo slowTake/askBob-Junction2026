@@ -48,6 +48,7 @@
   --paper-ink: #525252;
   --paper-mark: #0f62fe; /* marks drawn on the white sheet, same in both themes */
   --paper-mark-soft: rgba(15, 98, 254, 0.05);
+  --paper-mark-strong: rgba(15, 98, 254, 0.28);
 
   /* type */
   --font-text: "IBM Plex Sans", system-ui, "Helvetica Neue", Arial, sans-serif;
