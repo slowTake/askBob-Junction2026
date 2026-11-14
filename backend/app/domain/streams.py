@@ -10,8 +10,13 @@ def sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
 
 
-def answer_cache_key(question: str, document_versions: list[str], model: str) -> str:
-    """Same question (ignoring case and spacing) over the same document versions."""
+def answer_cache_key(
+    question: str, document_versions: list[str], model: str, context: str = ""
+) -> str:
+    """Same question (ignoring case and spacing) over the same document versions.
+
+    `context` is what the user looked at and selected; it can change what "this" means.
+    """
     normalized = " ".join(question.lower().split())
-    payload = json.dumps([normalized, sorted(document_versions), model])
+    payload = json.dumps([normalized, sorted(document_versions), model, context])
     return "answer:" + hashlib.sha256(payload.encode()).hexdigest()

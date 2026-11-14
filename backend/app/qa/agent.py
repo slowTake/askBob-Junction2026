@@ -83,14 +83,23 @@ def _client() -> anthropic.Anthropic:
 
 
 def run_agent(
-    question: str, documents: list[dict[str, Any]], ctx: ToolContext, settings: Settings
+    question: str,
+    documents: list[dict[str, Any]],
+    ctx: ToolContext,
+    settings: Settings,
+    viewing: str | None = None,
+    selected: str | None = None,
 ) -> Iterator[dict[str, Any]]:
-    """Yield `step` per tool call, `view` per plan change, then one `final`."""
+    """Yield `step` per tool call, `view` per plan change, then one `final`.
+
+    `viewing` and `selected` describe the page on screen and the clicked element.
+    """
     client = _client()
     if not (client.api_key or client.auth_token or client.credentials):
         # Without this the SDK raises a bare TypeError on the first request.
         raise AgentError("llm_not_configured")
-    messages: list[Any] = [{"role": "user", "content": scope_message(question, documents)}]
+    first = scope_message(question, documents, viewing, selected)
+    messages: list[Any] = [{"role": "user", "content": first}]
     usage = {"input_tokens": 0, "output_tokens": 0}
 
     for _ in range(settings.max_agent_turns):
