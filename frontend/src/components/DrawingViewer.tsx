@@ -87,12 +87,15 @@ export function DrawingViewer(props: Props) {
   if (lit.key !== litKey) setLit({ key: litKey, ids: new Set(litKey ? litKey.split(" ") : []) });
   const highlighted = lit.ids;
 
-  // Fly to a new target once: when the page is laid out and, for agent views, its elements
+  // React to a new target once: when the page is laid out and, for agent views, its elements
   // are known. Adjusting state while rendering, so there is no frame in between.
+  // A cited source the user clicked is flown to; the agent's highlights don't zoom: the plan
+  // stays fitted with the highlight drawn on it (⌖ zooms to it on demand).
   const frameable = shown?.frame && (target?.kind === "citation" || ready);
   if (target !== framed && laidOut && (target === null || frameable)) {
     setFramed(target);
-    if (shown?.frame) frame(shown.frame);
+    if (target?.kind === "citation" && shown?.frame) frame(shown.frame);
+    else if (target?.kind === "view") fit();
   }
 
   // Pointing at nothing (a wall, a gap between rooms) keeps the last element in the bar.
@@ -163,7 +166,7 @@ export function DrawingViewer(props: Props) {
         ) : (
           imageLoaded !== src && <div className="viewer-note is-loading">Loading drawing…</div>
         )}
-        {shown && <TargetBanner shown={shown} onClear={onClearTarget} />}
+        {shown && shown.verified !== null && <TargetBanner shown={shown} onClear={onClearTarget} />}
         <div className="zoom-controls" data-no-pan>
           {shown?.frame && (
             <button
@@ -207,16 +210,13 @@ export function DrawingViewer(props: Props) {
   );
 }
 
+/** For a source the user clicked: whether it's verified, and a way to clear it. */
 function TargetBanner({ shown, onClear }: { shown: TargetOnPage; onClear: () => void }) {
   return (
     <div className="target-banner" data-no-pan>
-      {shown.verified === null ? (
-        <span className="badge badge-accent">Shown by the assistant</span>
-      ) : (
-        <span className={`badge ${shown.verified ? "badge-ok" : "badge-warn"}`}>
-          {shown.verified ? "✓ Verified source" : "! Unverified source"}
-        </span>
-      )}
+      <span className={`badge ${shown.verified ? "badge-ok" : "badge-warn"}`}>
+        {shown.verified ? "✓ Verified source" : "! Unverified source"}
+      </span>
       {shown.labelOnly && (
         <span
           className="badge badge-plain"
