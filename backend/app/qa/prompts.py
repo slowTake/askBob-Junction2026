@@ -2,6 +2,8 @@
 Per-request facts (which documents are in scope) go in the user message instead.
 """
 
+from collections.abc import Sequence
+
 SYSTEM_PROMPT = """\
 You answer questions from site engineers about construction drawings and building \
 models. Your answers must be correct and verifiable: an engineer checks each answer \
@@ -67,9 +69,12 @@ def scope_message(
     question: str,
     documents: list[dict[str, object]],
     viewing: str | None = None,
-    selected: str | None = None,
+    selected: Sequence[str] = (),
 ) -> str:
-    """The user turn: documents in scope, what the user is looking at, then the question."""
+    """The user turn: documents in scope, what the user is looking at, then the question.
+
+    `selected` holds one `selected_note` per element the user selected on the plan.
+    """
     lines = [
         f"- {d['id']}: {d['filename']} ({d['kind']}, {d['page_count']} pages)" for d in documents
     ]
@@ -77,10 +82,17 @@ def scope_message(
     context = []
     if viewing:
         context.append(f"The user is looking at {viewing}.")
-    if selected:
+    if len(selected) == 1:
         context.append(
-            f"The user selected {selected} on the plan. "
+            f"The user selected {selected[0]} on the plan. "
             '"This", "here" and "it" refer to it: call get_element for its details.'
+        )
+    elif selected:
+        listed = "\n".join(f"- {note}" for note in selected)
+        context.append(
+            f"The user selected these elements on the plan:\n{listed}\n"
+            '"These", "them" and "the selected ones" refer to them: '
+            "call get_element for each one's details."
         )
     parts = [f"Documents in scope:\n{listing}", *(["\n".join(context)] if context else [])]
     return "\n\n".join([*parts, f"Question: {question}"])

@@ -59,7 +59,7 @@ def answer_stream(
                 versions,
                 settings.llm_model,
                 ANSWER_FORMAT,
-                f"{viewing or ''}|{selected or ''}",
+                f"{viewing or ''}|{'|'.join(selected)}",  # one element: same key as before
             )
             cached = cache_get(key)
             if cached is not None:
@@ -120,10 +120,10 @@ def _scope(db: Any, document_ids: list[str]) -> list[Document]:
 
 def _context_notes(
     db: Any, docs: list[Document], context: AskContextIn | None
-) -> tuple[str | None, str | None]:
-    """Describe the page on screen and the clicked element, if they are in scope."""
+) -> tuple[str | None, list[str]]:
+    """Describe the page on screen and the selected elements that are in scope."""
     if context is None:
-        return None, None
+        return None, []
     in_scope = {d.id: d for d in docs}
     viewing = None
     doc = in_scope.get(context.document_id) if context.document_id else None
@@ -136,16 +136,18 @@ def _context_notes(
             viewing = viewing_note(
                 doc.filename, str(doc.id), page.index, doc.page_count, str(label) if label else None
             )
-    selected = None
-    element = db.get(Element, context.element_id) if context.element_id else None
-    if element is not None and element.document_id in in_scope:
+    selected: list[str] = []
+    for element_id in context.selected_ids():
+        element = db.get(Element, element_id)
+        if element is None or element.document_id not in in_scope:
+            continue
         page_index = (
             db.scalar(select(Page.index).where(Page.id == element.page_id))
             if element.page_id
             else None
         )
         title = element.text or element.name or element.label
-        selected = selected_note(element.kind, title, str(element.id), page_index)
+        selected.append(selected_note(element.kind, title, str(element.id), page_index))
     return viewing, selected
 
 

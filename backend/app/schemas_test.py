@@ -1,8 +1,11 @@
 import uuid
 from datetime import UTC, datetime
 
+import pytest
+from pydantic import ValidationError
+
 from app.domain.ingest_errors import MESSAGES
-from app.schemas import DocumentOut, PageOut
+from app.schemas import MAX_SELECTED, AskContextIn, DocumentOut, PageOut
 
 
 def _doc(**overrides: object) -> DocumentOut:
@@ -32,3 +35,26 @@ def test_page_label_is_the_storey() -> None:
             "mm_per_px": None, "meta": {"storey": "Level 1", "words": 3}}  # fmt: skip
     dumped = PageOut.model_validate(page).model_dump()
     assert dumped["label"] == "Level 1" and "meta" not in dumped
+
+
+# What the user selected on the plan, as the ask request carries it.
+A, B, C = (uuid.UUID(int=n) for n in (1, 2, 3))
+
+
+def test_selected_ids_keep_click_order_without_duplicates() -> None:
+    context = AskContextIn(element_ids=[B, A, B, C])
+    assert context.selected_ids() == [B, A, C]
+
+
+def test_a_single_element_id_still_works() -> None:
+    # Older clients send one clicked element as element_id.
+    assert AskContextIn(element_id=A).selected_ids() == [A]
+    assert AskContextIn(element_id=A, element_ids=[B]).selected_ids() == [B, A]
+    assert AskContextIn().selected_ids() == []
+
+
+def test_too_many_selected_elements_are_refused() -> None:
+    ids = [uuid.UUID(int=n) for n in range(MAX_SELECTED + 1)]
+    with pytest.raises(ValidationError):
+        AskContextIn(element_ids=ids)
+    assert len(AskContextIn(element_ids=ids[:MAX_SELECTED]).selected_ids()) == MAX_SELECTED
