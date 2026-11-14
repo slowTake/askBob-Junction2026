@@ -120,11 +120,22 @@ def dedupe_words(words: list[Word]) -> list[Word]:
     return sorted(kept, key=lambda w: (w.bbox[1], w.bbox[0]))
 
 
+_CUDA = {"on": False}
+
+
+def use_cuda(on: bool) -> None:
+    """Run RapidOCR's models on CUDA (the OCR service on a GPU host, #119)."""
+    _CUDA["on"] = on
+    _rapid_engine.cache_clear()
+
+
 @lru_cache
 def _rapid_engine() -> Any:
     from rapidocr_onnxruntime import RapidOCR
 
-    return RapidOCR()
+    if not _CUDA["on"]:
+        return RapidOCR()
+    return RapidOCR(det_use_cuda=True, cls_use_cuda=True, rec_use_cuda=True)
 
 
 def _rapid_words(gray: Gray) -> list[Word]:

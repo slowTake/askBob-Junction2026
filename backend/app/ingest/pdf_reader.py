@@ -11,7 +11,7 @@ from app.domain.geometry import scale_bbox
 from app.domain.tokens import Word
 from app.ingest.annotate import annotate_page
 from app.ingest.errors import ReaderError
-from app.ingest.ocr import ocr_words
+from app.ingest.ocr_client import page_words
 from app.ingest.pdf_vector import hatched_regions
 from app.ingest.types import ExtractedDocument, ExtractedPage, Progress
 from app.ingest.vision_client import analyse_page
@@ -45,7 +45,7 @@ def read_pdf(path: Path, settings: Settings, progress: Progress) -> ExtractedDoc
         words = _pdf_words(page, px_per_pt)
         source = "pdf_text"
         if not words:  # scanned page: no text layer
-            words = ocr_words(gray, settings.ocr_langs, settings.ocr_engine)
+            words = page_words(gray, settings)
             source = "ocr"
 
         walls = [[(x * px_per_pt, y * px_per_pt) for x, y in w] for w in hatched_regions(page)]
