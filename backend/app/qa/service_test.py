@@ -3,6 +3,7 @@ closing event what the question used (#98)."""
 
 from app.domain.usage import Usage
 from app.qa.agent import ANSWER_SCHEMA, FinalAnswer
+from app.qa.answer_table import AnswerTable
 from app.qa.service import _payload, _stats
 from app.qa.tools import ToolContext
 
@@ -55,3 +56,18 @@ def test_schema_requires_value_and_unit() -> None:
     required = ANSWER_SCHEMA["required"]
     assert isinstance(required, list)
     assert {"value", "unit"} <= set(required)
+
+
+def test_payload_carries_structured_table_and_defaults_for_older_answers() -> None:
+    answer = _answer(3, "count")
+    assert _payload(answer, _ctx())["table"] == {"columns": [], "rows": []}
+    answer.table = AnswerTable.model_validate(
+        {
+            "columns": ["Floor", "Windows"],
+            "rows": [{"cells": ["Ground", "3"], "citation": 0}],
+        }
+    )
+    assert _payload(answer, _ctx())["table"] == answer.table.model_dump()
+    required = ANSWER_SCHEMA["required"]
+    assert isinstance(required, list)
+    assert "table" in required

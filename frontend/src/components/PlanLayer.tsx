@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type CSSProperties } from "react";
 import type { ElementInfo } from "../api/types";
 import { drawOrder, layerOf, shapeOf, type LayerKey } from "../lib/planLayer";
 
@@ -6,6 +6,7 @@ interface Props {
   elements: ElementInfo[];
   visible: Set<LayerKey>;
   highlighted: Set<string>; // element ids lit up by the agent or a citation
+  highlightColors: ReadonlyMap<string, string>;
   selectedIds: ReadonlySet<string>; // keep its identity while it doesn't change (memo)
   onHover: (el: ElementInfo | null) => void;
   onSelect: (el: ElementInfo, additive: boolean) => void; // additive: Shift held
@@ -21,6 +22,7 @@ export const PlanLayer = memo(function PlanLayer({
   elements,
   visible,
   highlighted,
+  highlightColors,
   selectedIds,
   onHover,
   onSelect,
@@ -43,6 +45,9 @@ export const PlanLayer = memo(function PlanLayer({
         ].join(" ");
         const handlers = {
           className,
+          style: lit
+            ? ({ "--highlight-color": highlightColors.get(el.id) } as CSSProperties)
+            : undefined,
           onMouseEnter: () => onHover(el),
           onMouseLeave: () => onHover(null),
           onClick: (e: React.MouseEvent) => {

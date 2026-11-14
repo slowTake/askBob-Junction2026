@@ -2,6 +2,8 @@ import type { Citation, PlanView } from "../api/types";
 import type { Turn } from "../hooks/useAsk";
 import { answerBlocks } from "../lib/answerText";
 import { currentStatus } from "../lib/steps";
+import { AnswerTable } from "./AnswerTable";
+import { answerActions } from "../lib/answerActions";
 
 interface Props {
   turn: Turn;
@@ -13,6 +15,7 @@ interface Props {
 /** One question and its answer. Every answer stays readable; the latest has an accent rule. */
 export function AnswerCard({ turn, latest, onCitation, onShowView }: Props) {
   const { answer, error, steps, pending } = turn;
+  const actions = answerActions(answer?.table, answer?.citations ?? [], turn.views);
   return (
     <article className={`turn${latest ? " is-latest" : ""}`}>
       <div className="question">
@@ -47,26 +50,31 @@ export function AnswerCard({ turn, latest, onCitation, onShowView }: Props) {
                 ),
               )}
             </div>
-            <div className="chip-row">
-              <span className={`badge ${answer.verified ? "badge-ok" : "badge-warn"}`}>
-                {answer.verified ? "✓ Verified sources" : "! Not verified"}
-              </span>
-              <span className="badge badge-plain">{answer.confidence} confidence</span>
-              {answer.method === "server" && (
-                <span
-                  className="badge badge-plain"
-                  title="Counted or added up by the server from the cited elements, not by the language model"
-                >
-                  computed by the server
-                </span>
-              )}
-              {answer.cached && <span className="badge badge-plain">cached</span>}
-            </div>
-            {turn.views.length > 0 && (
+            {!!answer.table?.rows.length && (
+              <AnswerTable
+                table={answer.table}
+                citations={answer.citations}
+                onCitation={onCitation}
+              />
+            )}
+            {(answer.method === "server" || answer.cached) && (
+              <div className="chip-row">
+                {answer.method === "server" && (
+                  <span
+                    className="badge badge-plain"
+                    title="Counted or added up by the server from the cited elements, not by the language model"
+                  >
+                    computed by the server
+                  </span>
+                )}
+                {answer.cached && <span className="badge badge-plain">cached</span>}
+              </div>
+            )}
+            {actions.views.length > 0 && (
               <div className="answer-section">
                 <span className="section-label">On the plan</span>
                 <div className="chip-row">
-                  {turn.views.map((v, i) => (
+                  {actions.views.map((v, i) => (
                     <button
                       key={i}
                       type="button"
@@ -79,11 +87,13 @@ export function AnswerCard({ turn, latest, onCitation, onShowView }: Props) {
                 </div>
               </div>
             )}
-            {answer.citations.length > 0 && (
-              <div className="answer-section">
-                <span className="section-label">Sources</span>
+            {actions.sources.length > 0 && (
+              <details className="answer-section answer-sources">
+                <summary>
+                  {actions.sources.length} source{actions.sources.length === 1 ? "" : "s"}
+                </summary>
                 <div className="chip-row">
-                  {answer.citations.map((c, i) => (
+                  {actions.sources.map(({ citation: c, index: i }) => (
                     <button
                       key={i}
                       type="button"
@@ -98,7 +108,7 @@ export function AnswerCard({ turn, latest, onCitation, onShowView }: Props) {
                     </button>
                   ))}
                 </div>
-              </div>
+              </details>
             )}
             {answer.caveats && <p className="caveats">{answer.caveats}</p>}
           </>

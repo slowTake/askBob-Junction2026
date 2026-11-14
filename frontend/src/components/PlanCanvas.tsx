@@ -1,9 +1,10 @@
-import { useId, type CSSProperties, type ReactNode } from "react";
+import { useId, useMemo, type CSSProperties, type ReactNode } from "react";
 import type { ElementInfo, PlanView } from "../api/types";
 import type { BBox, Camera } from "../lib/camera";
 import type { LayerKey } from "../lib/planLayer";
 import { readingOrder, type TargetOnPage } from "../lib/target";
 import { PlanLayer } from "./PlanLayer";
+import { highlightColors } from "../lib/highlightColors";
 
 interface Props {
   src: string;
@@ -35,6 +36,7 @@ const SPOTLIGHT_PAD_PX = 10;
 export function PlanCanvas(props: Props) {
   const { camera, width, height, shown } = props;
   const u = 1 / camera.scale;
+  const colors = useMemo(() => highlightColors(props.elements), [props.elements]);
   const numbered =
     shown && shown.highlightIds.length > 1 ? readingOrder(props.elements, props.highlighted) : [];
   return (
@@ -69,6 +71,7 @@ export function PlanCanvas(props: Props) {
           elements={props.elements}
           visible={props.layers}
           highlighted={props.highlighted}
+          highlightColors={colors}
           selectedIds={props.selectedIds}
           onHover={props.onHover}
           onSelect={props.onSelect}
@@ -84,7 +87,7 @@ export function PlanCanvas(props: Props) {
         )}
         {shown?.line && <MeasureLine line={shown.line} u={u} />}
         {numbered.map((el, i) => (
-          <Badge key={el.id} box={el.bbox as BBox} n={i + 1} u={u} />
+          <Badge key={el.id} box={el.bbox as BBox} n={i + 1} u={u} color={colors.get(el.id)} />
         ))}
       </svg>
     </div>
@@ -141,9 +144,13 @@ function MeasureLine({ line, u }: { line: NonNullable<PlanView["line"]>; u: numb
   );
 }
 
-function Badge({ box, n, u }: { box: BBox; n: number; u: number }) {
+function Badge({ box, n, u, color }: { box: BBox; n: number; u: number; color?: string }) {
   return (
-    <g className="plan-badge" transform={`translate(${box[0]} ${box[1]})`}>
+    <g
+      className="plan-badge"
+      transform={`translate(${box[0]} ${box[1]})`}
+      style={{ "--highlight-color": color } as CSSProperties}
+    >
       <circle r={9 * u} />
       <text fontSize={11 * u} dy={4 * u}>
         {n}
