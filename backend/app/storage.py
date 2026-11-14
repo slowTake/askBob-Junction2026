@@ -29,7 +29,7 @@ def model_ifc_path(document_id: uuid.UUID) -> Path:
 
 
 def mesh_path(document_id: uuid.UUID) -> Path:
-    return document_dir(document_id) / "mesh.json"
+    return document_dir(document_id) / "mesh.json.gz"  # gzip: meshes compress about 5x
 
 
 def write_bytes(path: Path, data: bytes) -> None:

@@ -1,5 +1,6 @@
 """The ingest job, run by the RQ worker: build (read -> IFC -> index -> mesh), save, publish."""
 
+import gzip
 import json
 import logging
 import uuid
@@ -36,14 +37,17 @@ def ingest_document(document_id: str) -> None:
             lambda stage, fraction: _emit(document_id, "processing", stage, round(fraction, 3)),
         )
         if built.mesh is not None:
-            write_bytes(mesh_path(doc_id), json.dumps(built.mesh, separators=(",", ":")).encode())
+            raw = json.dumps(built.mesh, separators=(",", ":")).encode()
+            write_bytes(mesh_path(doc_id), gzip.compress(raw, compresslevel=6))
         _emit(document_id, "processing", "saving", 0.95)
         with session_scope() as db:
             doc = db.get_one(Document, doc_id)
             count = replace_contents(db, doc, built)
             doc.has_model = built.mesh is not None
             doc.page_count = len(built.pages)
-            doc.meta = {**doc.meta, **built.meta, "elements": count, "warnings": built.warnings}
+            omitted = built.mesh.get("omitted", 0) if built.mesh else 0
+            doc.meta = {**doc.meta, **built.meta, "elements": count, "warnings": built.warnings,
+                        "meshes_omitted": omitted}  # fmt: skip
             doc.version += 1
             doc.status = "ready"
     except Exception as exc:
