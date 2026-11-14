@@ -19,7 +19,7 @@ from app.envelope import AppError, ok
 from app.models import Document, Element, Page
 from app.schemas import DocumentDetailOut, DocumentOut, ElementOut
 from app.storage import document_dir, mesh_path, model_ifc_path, original_path, page_image_path
-from app.valkey import QueueError, enqueue_ingest, publish_event
+from app.valkey import QueueError, cancel_ingest, enqueue_ingest, publish_event
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 DB = Annotated[Session, Depends(get_db)]
@@ -117,6 +117,7 @@ def delete_document(document_id: uuid.UUID, db: DB) -> dict[str, Any]:
     doc = _document(db, document_id)
     db.delete(doc)
     db.commit()
+    cancel_ingest(str(document_id))  # #120: free the worker now, not at the job timeout
     shutil.rmtree(document_dir(document_id), ignore_errors=True)
     publish_event({"type": "document", "document_id": str(document_id), "status": "deleted"})
     return ok({"id": str(document_id)})
