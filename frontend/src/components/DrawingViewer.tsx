@@ -200,7 +200,6 @@ export function DrawingViewer(props: Props) {
           onToggleLayer={toggleLayer}
           sheet={sheetMode}
           onSheet={setSheetMode}
-          upscale={page?.upscale ?? null}
           onDownload={
             redraw ? () => downloadSheet(viewportRef.current, w, h, doc.filename, pageIndex) : null
           }
