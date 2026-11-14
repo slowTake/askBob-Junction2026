@@ -2,7 +2,7 @@
 
 from app.domain.ifc_mapping import IFC_KINDS
 from app.domain.kinds import DRAWING_KINDS
-from app.qa.tools import KINDS, TOOLS, FindIn
+from app.qa.tools import KINDS, TOOLS, AreaIn, FindIn
 
 
 def test_every_ifc_kind_can_be_filtered() -> None:
@@ -24,3 +24,9 @@ def test_tool_schema_offers_the_same_kinds() -> None:
     enum = find["input_schema"]["properties"]["kind"]["anyOf"][0]["enum"]
     assert enum == KINDS
     assert len(set(KINDS)) == len(KINDS)  # no duplicates in the enum
+
+
+def test_area_tool_input_is_validated() -> None:
+    area = next(t for t in TOOLS if t["name"] == "sum_room_areas")
+    assert set(area["input_schema"]["required"]) == {"document_id", "unit", "name"}
+    assert AreaIn.model_validate({"document_id": None, "unit": "A", "name": None}).unit == "A"
