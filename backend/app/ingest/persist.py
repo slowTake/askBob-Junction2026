@@ -3,8 +3,9 @@
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from app.domain.text import clip
 from app.ingest.types import ExtractedDocument, ExtractedElement
-from app.models import Document, Element, Page
+from app.models import LABEL_MAX, NAME_MAX, Document, Element, Page
 from app.storage import page_image_path, write_bytes
 
 
@@ -43,8 +44,8 @@ def _row(doc: Document, page: Page | None, ex: ExtractedElement) -> Element:
         page_id=page.id if page else None,
         kind=ex.kind,
         text=ex.text,
-        label=ex.label,
-        name=ex.name,
+        label=clip(ex.label, LABEL_MAX),  # one long token must not fail the whole document
+        name=clip(ex.name, NAME_MAX),
         value_mm=ex.value_mm,
         bbox=[round(v, 1) for v in ex.bbox] if ex.bbox else None,
         footprint_mm=[[round(x, 1), round(y, 1)] for x, y in ex.footprint_mm]

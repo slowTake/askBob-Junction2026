@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { Citation, DocumentDetail, ElementInfo } from "../api/types";
+import { focusBox, focusIsHere } from "../lib/focus";
 import { scrollToCenter } from "../lib/viewport";
 import { focusZoom, stepZoom } from "../lib/zoom";
 
@@ -57,22 +58,23 @@ export function DrawingViewer(props: Props) {
 
   useEffect(() => {
     const el = scroller.current;
-    if (!el || !page || !focus?.bbox) return;
+    const cited = focusBox(focus, pageIndex);
+    if (!el || !page || !cited) return;
     const target = scrollToCenter(
-      focus.bbox,
+      cited,
       { width: page.width_px, height: page.height_px },
       el.clientWidth * effectiveZoom,
       { width: el.clientWidth, height: el.clientHeight },
     );
     el.scrollTo({ ...target, behavior: "smooth" });
-  }, [focus, page, effectiveZoom]);
+  }, [focus, page, pageIndex, effectiveZoom]);
 
   if (!detail) return <div className="viewer-empty">Loading drawing…</div>;
   if (!page) return <div className="viewer-empty">This document has no drawing pages.</div>;
 
   const w = page.width_px;
   const h = page.height_px;
-  const box = focus?.bbox ?? null;
+  const box = focusBox(focus, pageIndex);
 
   return (
     <div className="viewer">
@@ -123,7 +125,7 @@ export function DrawingViewer(props: Props) {
           </button>
         </div>
       </div>
-      {focus && (
+      {focus && focusIsHere(focus, pageIndex) && (
         <div className="focus-banner">
           <span className={`badge ${focus.verified ? "badge-dark" : "badge-light"}`}>
             {focus.verified ? "Verified source" : "Unverified"}
