@@ -31,3 +31,14 @@ describe("describeStep for the area and plan tools", () => {
     expect(describeStep("measure_between", {})).toBe("Measuring between two elements");
   });
 });
+
+describe("describeStep for quantity totals", () => {
+  it("names the quantity in plain words, the kind and the storey", () => {
+    expect(
+      describeStep("sum_quantity", { kind: "wall", quantity: "NetSideArea", storey: "5. Sal" }),
+    ).toBe("Adding up the net side area of walls on 5. Sal");
+    expect(
+      describeStep("sum_quantity", { kind: "slab", quantity: "NetVolume", storey: null }),
+    ).toBe("Adding up the net volume of slabs");
+  });
+});

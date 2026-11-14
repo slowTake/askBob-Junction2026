@@ -16,6 +16,7 @@ from sqlalchemy import func, or_, select
 from app.domain.areas import RoomArea, net_area
 from app.domain.citations import EvidenceItem, element_evidence
 from app.domain.geometry import BBox, distance
+from app.domain.quantities import Measured, total_quantity
 from app.models import Element, Page
 from app.qa.context import ToolContext, ToolInputError, parse_id
 from app.qa.plan_tools import PLAN_TOOL_NAMES, PLAN_TOOLS, run_plan_tool
@@ -24,6 +25,9 @@ from app.storage import page_image_path
 KINDS = ["room", "room_number", "unit", "wall", "door", "window", "dimension", "scale", "area",
          "fixture", "text", "slab", "roof", "column", "beam", "stair", "railing", "storey",
          "element"]  # fmt: skip
+# IFC base quantities `sum_quantity` can total; units follow the name (domain/quantities.py).
+QUANTITIES = ["NetVolume", "GrossVolume", "NetSideArea", "GrossSideArea", "NetFloorArea",
+              "GrossFloorArea", "NetArea", "GrossArea", "Length", "Perimeter"]  # fmt: skip
 MAX_RESULTS = 50
 VIEW_MAX_SIDE = 1568  # longest image side Claude reads without downscaling
 VIEW_MIN_SIDE = 768
@@ -94,6 +98,22 @@ TOOLS: list[dict[str, Any]] = [
             "name": _nullable({"type": "string"}),
         },
     ),
+    _tool(
+        "sum_quantity",
+        "Total of one base quantity over the elements of one kind in an IFC model, in SI "
+        "units: e.g. the net volume of all walls on a storey, the net side area or length "
+        "of all walls, the net floor area of all rooms (spaces) on a storey. Call this for "
+        "any such total instead of adding element quantities yourself. Narrow with storey "
+        "(the storey's name, e.g. '3. Sal') and document_id. Returns the total with its "
+        "unit, how many elements were summed and how many lacked the quantity, totals per "
+        "storey, and the elements summed (at most 50 listed), to cite and highlight.",
+        {
+            "kind": {"type": "string", "enum": KINDS},
+            "quantity": {"type": "string", "enum": QUANTITIES},
+            "storey": _nullable({"type": "string"}),
+            "document_id": _nullable({"type": "string"}),
+        },
+    ),
     *PLAN_TOOLS,
 ]
 
@@ -120,6 +140,13 @@ class AreaIn(_Strict):
     name: str | None = None
 
 
+class QuantityIn(_Strict):
+    kind: Literal[tuple(KINDS)]  # type: ignore[valid-type]
+    quantity: Literal[tuple(QUANTITIES)]  # type: ignore[valid-type]
+    storey: str | None = None
+    document_id: str | None = None
+
+
 class RegionIn(_Strict):
     page_id: str
     x0: float
@@ -141,6 +168,8 @@ def run_tool(name: str, raw: Any, ctx: ToolContext) -> str | list[dict[str, Any]
             return _measure(RegionIn.model_validate(raw), ctx)
         if name == "sum_room_areas":
             return _areas(AreaIn.model_validate(raw), ctx)
+        if name == "sum_quantity":
+            return _quantity(QuantityIn.model_validate(raw), ctx)
         if name in PLAN_TOOL_NAMES:
             return run_plan_tool(name, raw, ctx)
     except ValidationError as exc:
@@ -245,6 +274,50 @@ def _areas(args: AreaIn, ctx: ToolContext) -> str:
     total, counted = net_area(rooms, unit=args.unit, name=args.name)
     listed = [_describe(*by_id[r.element_id], ctx) for r in counted]
     return json.dumps({"total_m2": total, "rooms_counted": len(counted), "rooms": listed})
+
+
+def measured(el: Element) -> Measured:
+    """What a quantity total reads from an element: its storey and SI quantities."""
+    props = el.properties or {}
+    return Measured(str(el.id), el.kind, props.get("storey"), props.get("quantities") or {})
+
+
+def _quantity(args: QuantityIn, ctx: ToolContext) -> str:
+    query = (
+        select(Element, Page.index)
+        .outerjoin(Page, Element.page_id == Page.id)
+        .where(Element.document_id.in_(ctx.scope), Element.kind == args.kind)
+    )
+    if args.document_id:
+        query = query.where(Element.document_id == _uuid(args.document_id))
+    rows = ctx.db.execute(query).all()
+    by_id = {str(el.id): (el, page_index) for el, page_index in rows}
+    items = [measured(el) for el, _ in rows]
+    result = total_quantity(
+        items, args.kind, args.quantity, storey=args.storey, list_max=MAX_RESULTS
+    )
+    if args.storey and result.summed + result.missing == 0:
+        # A misspelt storey would otherwise read as "the total is 0".
+        storeys = sorted({m.storey for m in items if m.storey})
+        raise ToolInputError(
+            f"no {args.kind} elements on storey {args.storey!r}; storeys with {args.kind} "
+            f"elements: {storeys}"
+        )
+    return json.dumps(
+        {
+            "total": result.total,
+            "unit": result.unit,
+            "quantity": args.quantity,
+            "elements_summed": result.summed,
+            "elements_without_quantity": result.missing,
+            "by_storey": result.by_storey,
+            "listed": len(result.listed),
+            "elements": [
+                {**_describe(*by_id[m.element_id], ctx), args.quantity: m.quantities[args.quantity]}
+                for m in result.listed
+            ],
+        }
+    )
 
 
 def _describe(el: Element, page_index: int | None, ctx: ToolContext) -> dict[str, Any]:
