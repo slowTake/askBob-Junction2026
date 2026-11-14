@@ -165,11 +165,14 @@ def model_ifc(document_id: uuid.UUID, db: DB) -> FileResponse:
 @router.get("/{document_id}/mesh")
 def mesh(document_id: uuid.UUID) -> FileResponse:
     # Stored gzipped; the browser decompresses it because of the Content-Encoding header.
-    return FileResponse(
-        _existing(mesh_path(document_id)),
-        media_type="application/json",
-        headers={"Content-Encoding": "gzip"},
-    )
+    gzipped = mesh_path(document_id)
+    if gzipped.is_file():
+        return FileResponse(
+            gzipped, media_type="application/json", headers={"Content-Encoding": "gzip"}
+        )
+    # Documents ingested before meshes were gzipped have a plain mesh.json.
+    plain = gzipped.with_suffix("")
+    return FileResponse(_existing(plain), media_type="application/json")
 
 
 def _document(db: Session, document_id: uuid.UUID) -> Document:
