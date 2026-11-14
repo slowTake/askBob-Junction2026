@@ -37,6 +37,13 @@ colors:
   both:
     paper: "#ffffff"
     paper-mark: "#0f62fe"
+  redraw:
+    bg: { light: "#ffffff", dark: "#15171c" }
+    line: { light: "#161616", dark: "#c9ccd3" }
+    text: { light: "#393939", dark: "#9aa0aa" }
+    faint: { light: "#c6c6c6", dark: "#3a3e47" }
+    room: { light: "#f6f8fb", dark: "#1a1d23" }
+    mark: { light: "#0f62fe", dark: "#78a9ff" }
   status:
     ok: { light: "#198038", dark: "#4cc38a" }
     warn: { light: "#8e6a00", dark: "#e0b03c" }
@@ -95,6 +102,7 @@ Square corners everywhere; badges get 2 px. No drop shadows on panels or cards. 
 - **Answer:** only the latest answer is a card. Older turns are plain text in `ink-2`. Tool steps stream in mono. Badges: verified (ok), not verified (warn), confidence and cached (plain).
 - **Citation chip:** accent-soft fill with a square numbered tile. The number matches the mark on the drawing. Unverified citations are outlined and struck through.
 - **Drawing overlay:** a cited region gets a `paper-mark` ring and the rest of the sheet dims (D-007's spotlight, now in blue).
+- **Clean redraw:** an Original / Clean switch per page. Clean redraws the extracted elements in the page's own pixel coordinates: walls as solid `redraw-line` fills, rooms as faint `redraw-room` outlines with the code in bold and the area underneath in mono, dimensions in mono, other text in Plex Sans, and a small scale bar in the top-left margin. It follows the theme (light lines on a dark sheet in dark mode), and on it the overlay's `paper-mark` becomes `redraw-mark`. One overlay layer serves both views, so citations and highlights land on the same spot (D-013).
 - **3D:** the canvas is transparent over the desk colour; the cited element turns `paper-mark` blue in both themes (three.js materials can't read CSS tokens, so the value is repeated in `ModelViewer.tsx`).
 
 ## Accessibility

@@ -141,3 +141,13 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 
 **Consequences:** Components must use tokens only, so a theme change is a token change. The one exception is the 3D viewer: three.js materials can't read CSS variables, so `ModelViewer.tsx` repeats the `paper-mark` blue and keeps it in both themes. The clean redraw (#54) is the only view that inverts in dark mode. The highlight tool (#55) will revisit how cited regions are drawn.
 
+
+## D-013: Clean redraw of a drawing page shares the original's coordinates
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** Scanned pages look rough on screen and in the demo video, while the mockup's clean plan looked professional (#54). Ingest already extracts walls (bbox only), room labels with a flood-filled outline (`properties.polygon_px`, page pixels) and area (`properties.area_m2`), dimensions and text, all in the page image's pixel coordinates. The highlight tool (#55) must mark whichever view the user is looking at.
+
+**Decision:** The Drawing tab gets an Original / Clean switch per page; Original stays the default and the choice is kept per page while the document is open. Clean is an SVG in the same `viewBox` as the page image (`0 0 width_px height_px`), built by the pure `frontend/src/lib/redraw.ts` from `GET /documents/{id}/elements`: walls as filled rectangles, room outlines from `polygon_px` with the printed code in bold and the computed area underneath (hidden when the drawing prints its own area inside the room, to avoid two areas), and every other labelled element as text centred on its box. A scale bar sits in the top-left margin when `mm_per_px` is known, because title blocks sit along the bottom. Both views sit under **one** overlay SVG (spotlight, extracted elements, later #55's highlights), so a box lands on the same spot in both. A page with fewer than **3 walls** shows a note with a way back to the original instead of the redraw: without walls the redraw has no plan shape, and text alone on an empty sheet looks broken. No backend change: the room polygon is already in `properties`, so `footprint_mm` stays internal. The redraw is the only sheet that follows the theme (light lines on dark in dark mode, `--redraw-*` tokens); on it the overlay's `--paper-mark` is remapped to `--redraw-mark` so the ring keeps contrast.
+
+**Consequences:** The redraw is only as good as extraction: heuristic walls (confidence 0.3) can be missing or spurious, and doors and fixtures appear only once symbol counting (#38) produces them. The 3-wall threshold is a guess to revisit with real drawings. Text is sized from its box height, so OCR boxes that are too tall or too short show up directly. IFC documents are unaffected (they have no pages).
