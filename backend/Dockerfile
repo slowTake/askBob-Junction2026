@@ -1,8 +1,10 @@
 FROM python:3.12-slim
 
-# Tesseract with Finnish and Swedish for OCR on raster drawings.
+# Tesseract with Finnish and Swedish for OCR on raster drawings; DejaVu so rendered
+# pages draw accented letters (é, ä, ł...) instead of boxes.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-fin tesseract-ocr-swe \
+    fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /uvx /bin/
