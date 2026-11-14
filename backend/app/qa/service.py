@@ -17,7 +17,7 @@ from app.domain.citations import Citation, check_citations, citation_payload
 from app.domain.streams import answer_cache_key, sse
 from app.models import Document, Element, Page, QaLog
 from app.qa.agent import AgentError, FinalAnswer, run_agent
-from app.qa.prompts import selected_note, viewing_note
+from app.qa.prompts import SelectedElement, selected_notes, viewing_note
 from app.qa.tools import ToolContext
 from app.qa.verda_agent import run_verda_agent
 from app.schemas import AskContextIn
@@ -137,19 +137,23 @@ def _context_notes(
             viewing = viewing_note(
                 doc.filename, str(doc.id), page.index, doc.page_count, str(label) if label else None
             )
-    selected: list[str] = []
-    for element_id in context.selected_ids():
-        element = db.get(Element, element_id)
-        if element is None or element.document_id not in in_scope:
-            continue
-        page_index = (
-            db.scalar(select(Page.index).where(Page.id == element.page_id))
-            if element.page_id
-            else None
+    ids = context.selected_ids()
+    if not ids:
+        return viewing, []
+    # One query for every selected element and its page (PR #92 review: it was two per
+    # element, up to 40 round trips before every ask, cache hits included).
+    rows = db.execute(
+        select(Element, Page.index)
+        .outerjoin(Page, Page.id == Element.page_id)
+        .where(Element.id.in_(ids))
+    ).all()
+    found = {
+        str(el.id): SelectedElement(
+            str(el.id), str(el.document_id), el.kind, el.text or el.name or el.label, index
         )
-        title = element.text or element.name or element.label
-        selected.append(selected_note(element.kind, title, str(element.id), page_index))
-    return viewing, selected
+        for el, index in rows
+    }
+    return viewing, selected_notes([str(i) for i in ids], found, {str(d) for d in in_scope})
 
 
 def _payload(answer: FinalAnswer, ctx: ToolContext) -> dict[str, Any]:

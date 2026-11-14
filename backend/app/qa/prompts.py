@@ -2,7 +2,8 @@
 Per-request facts (which documents are in scope) go in the user message instead.
 """
 
-from collections.abc import Sequence
+from collections.abc import Container, Mapping, Sequence
+from typing import NamedTuple
 
 SYSTEM_PROMPT = """\
 You answer questions from site engineers about construction drawings and building \
@@ -121,3 +122,26 @@ def selected_note(kind: str, title: str | None, element_id: str, page_index: int
     named = f' "{title}"' if title else ""
     where = f", page_index {page_index}" if page_index is not None else ""
     return f"{kind}{named} (element_id {element_id}{where})"
+
+
+class SelectedElement(NamedTuple):
+    """What the agent is told about one element the user selected."""
+
+    id: str
+    document_id: str
+    kind: str
+    title: str | None
+    page_index: int | None
+
+
+def selected_notes(
+    order: Sequence[str], found: Mapping[str, SelectedElement], in_scope: Container[str]
+) -> list[str]:
+    """One `selected_note` per selected element, in click order. Elements that are gone, or
+    in a document outside the question's scope, are left out."""
+    notes = []
+    for element_id in order:
+        el = found.get(element_id)
+        if el is not None and el.document_id in in_scope:
+            notes.append(selected_note(el.kind, el.title, el.id, el.page_index))
+    return notes
