@@ -1,6 +1,7 @@
 """Tesseract OCR for raster drawings, reading horizontal and vertical text."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 import cv2
@@ -32,21 +33,29 @@ def ocr_words(gray: Gray, requested_langs: str) -> list[Word]:
     image = gray
     if factor > 1:  # tesseract wants text ~20-30 px tall; small scans are upscaled first
         image = cv2.resize(gray, None, fx=factor, fy=factor, interpolation=cv2.INTER_CUBIC)
-    words = _ocr(image, langs)
     rotated = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+    # The two passes are independent tesseract processes: run them side by side.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        upright = pool.submit(_ocr, image, langs)
+        sideways = pool.submit(_ocr, rotated, langs)
+        words, rotated_words = upright.result(), sideways.result()
     height = float(image.shape[0])
-    for word in _ocr(rotated, langs):
+    for word in rotated_words:
         bbox = unrotate_bbox_cw90(word.bbox, height)
         if all(bbox_iou(bbox, w.bbox) < 0.5 for w in words):
             words.append(Word(bbox, word.text, word.confidence))
     return [Word(scale_bbox(w.bbox, 1 / factor), w.text, w.confidence) for w in words]
 
 
-def upscale_factor(longest_side_px: int, target_px: int = 3000, max_factor: int = 4) -> int:
-    """Integer upscale so the longest side reaches about `target_px`, capped."""
+def upscale_factor(longest_side_px: int, target_px: int = 3500, max_factor: float = 4.0) -> float:
+    """Scale so the longest side reaches `target_px` (never shrinks, capped at `max_factor`).
+
+    3500 px measured best on the dataset: smaller loses small text like room numbers,
+    larger was slower without finding more (Swiss plan: 3000 -> 29 numbers, 3500 -> 30).
+    """
     if longest_side_px <= 0 or longest_side_px >= target_px:
-        return 1
-    return min(max_factor, -(-target_px // longest_side_px))  # ceiling division
+        return 1.0
+    return min(max_factor, target_px / longest_side_px)
 
 
 def _ocr(image: Gray, langs: str) -> list[Word]:
