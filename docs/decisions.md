@@ -524,3 +524,17 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 **Decision:** Adapt only Claude's tool definitions: a required nullable filter becomes an optional property of its non-null type. Existing Pydantic handlers already default missing filters to None. Keep required inputs, enum constraints, strict validation, every tool and the structured answer. Deep-copy shared definitions so the Verda path is unchanged. Regression tests cover the actual request payload and the combined schema budget.
 
 **Consequences:** The request has five union parameters and 15 optional tool parameters, within Claude's documented limits. No tools or filters are removed. Future schema additions must keep the combined tool/answer budget within provider limits.
+
+## D-032: `make up-*` start in the background and smoke-check the stack
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #107 (part)
+
+**Context:** `make up`, `up-aiven` and `up-local` ran `docker compose up --build` in the foreground, so nothing checked that the started stack was actually reachable. A stack could look up while :8080 returned 502 (nginx with a stale backend address, #64), no worker listened, or the UI build was broken, and people found out in the browser.
+
+**Decision:**
+- The `up-*` targets run `docker compose up --build --detach --wait --wait-timeout 300`, then `make smoke`. Logs are followed with `make logs`.
+- `scripts/smoke.sh` checks from the host, retrying for up to `SMOKE_TIMEOUT` seconds (default 60): `/api/health` on :8000 reports `"ok":true` (it always answers 200, so the body is read), `ingest_workers` is above 0, `/api/health` through :8080 also answers (nginx proxy), and :8080 serves the UI page. Each failure names the likely cause and the command to look further. `API_URL` and `WEB_URL` override the ports.
+- `scripts/smoke-test.sh` tests it against local fake servers and runs in `make check` and CI.
+
+**Consequences:** `make up-*` return to the prompt with a pass or a named failure instead of streaming logs. A backend recreated while the frontend keeps running now shows up as a failed proxy check until #64 is fixed. The rest of #107 (`make dev`, `make doctor`, keyring helper, per-checkout project names) is still open.
+
