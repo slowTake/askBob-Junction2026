@@ -82,6 +82,12 @@ export interface Citation {
   page_index: number | null;
   bbox: BBox | null;
   ifc_guid: string | null;
+  /** The element's outline in page px (rooms), when the reader found one. */
+  polygon: number[][] | null;
+  /** The printed name's box; `bbox` is the whole element when `target` is "element". */
+  label_bbox: BBox | null;
+  /** What `bbox` shows: the element, only its label (outline unknown), or a viewed region. */
+  target: "element" | "label" | "region" | null;
   note: string;
   verified: boolean;
 }

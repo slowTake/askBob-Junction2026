@@ -86,3 +86,30 @@ def test_empty_box_is_not_a_region() -> None:
     cite = Citation(None, "page-1", (20, 20, 20, 40), "empty")
     _, ok = check_citations([cite], {}, [REGION])
     assert not ok
+
+
+ROOM_WITH_OUTLINE = EvidenceItem(
+    "el-2", "doc-1", "page-1", 0, (400, 300, 700, 500), None,
+    polygon=((400, 300), (700, 300), (700, 500), (400, 500)),
+    label_bbox=(500, 390, 539, 424), target="element",
+)  # fmt: skip
+
+
+def test_payload_for_room_carries_its_outline_and_label() -> None:
+    # #70: the spotlight must cover the room, with the label box kept as the fallback.
+    cite = Citation("el-2", None, None, "bathroom")
+    checked, _ = check_citations([cite], {"el-2": ROOM_WITH_OUTLINE}, [])
+    payload = citation_payload(checked[0])
+    assert payload["bbox"] == [400, 300, 700, 500]
+    assert payload["polygon"] == [[400, 300], [700, 300], [700, 500], [400, 500]]
+    assert payload["label_bbox"] == [500, 390, 539, 424]
+    assert payload["target"] == "element"
+
+
+def test_payload_for_region_and_unverified_citations_has_no_outline() -> None:
+    region, _ = check_citations([Citation(None, "page-1", (20, 20, 40, 40), "door")], {}, [REGION])
+    payload = citation_payload(region[0])
+    assert payload["target"] == "region"
+    assert payload["polygon"] is None
+    unknown, _ = check_citations([Citation("el-x", None, None, "guess")], {}, [])
+    assert citation_payload(unknown[0])["target"] is None
