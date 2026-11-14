@@ -22,6 +22,8 @@ const STAGES: Record<string, string> = {
   converted: "Converted",
   rendering: "Rendering pages",
   ocr: "Reading text (OCR)",
+  vision: "Reading drawing geometry",
+  annotating: "Finding rooms and labels",
   modelling: "Building the model",
   indexing: "Indexing elements",
   meshing: "Building the 3D view",

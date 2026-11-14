@@ -16,10 +16,11 @@ interface Props {
   layers: Set<LayerKey>;
   highlighted: Set<string>;
   shown: TargetOnPage | null;
-  selectedId: string | null;
+  selectedIds: ReadonlySet<string>;
   onHover: (el: ElementInfo | null) => void;
-  onSelect: (el: ElementInfo | null) => void;
+  onSelect: (el: ElementInfo | null, additive: boolean) => void; // null: the empty plan
   onLoad: () => void;
+  onError: () => void;
 }
 
 const SPOTLIGHT_PAD_PX = 10;
@@ -50,6 +51,7 @@ export function PlanCanvas(props: Props) {
         height={height}
         draggable={false}
         onLoad={props.onLoad}
+        onError={props.onError}
       />
       <svg
         className="sheet-overlay"
@@ -57,13 +59,13 @@ export function PlanCanvas(props: Props) {
         width={width}
         height={height}
         style={{ "--u": u } as CSSProperties}
-        onClick={() => props.onSelect(null)}
+        onClick={(e) => props.onSelect(null, e.shiftKey)}
       >
         <PlanLayer
           elements={props.elements}
           visible={props.layers}
           highlighted={props.highlighted}
-          selectedId={props.selectedId}
+          selectedIds={props.selectedIds}
           onHover={props.onHover}
           onSelect={props.onSelect}
         />
