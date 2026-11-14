@@ -1,17 +1,46 @@
 """Render CAD shapes to a page image, so DXF documents get a viewer page and citations."""
 
 import io
+import logging
+import os
 from dataclasses import dataclass
+from functools import lru_cache
 
 from PIL import Image, ImageDraw, ImageFont
 
 from app.domain.geometry import BBox, Point
 from app.ingest.dxf_shapes import Shape
 
+log = logging.getLogger(__name__)
+
 MAX_SIDE_PX = 3000
 MARGIN_PX = 40
 WALL_FILL = (150, 150, 150)
 ROOM_LINE = (200, 200, 200)
+
+# Pillow's built-in font is ASCII-only: "Séjour" came out as "S☐jour". These cover Latin,
+# Greek and Cyrillic. Docker and CI install the first (fonts-dejavu-core).
+FONT_CANDIDATES = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Debian, Ubuntu
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",  # Arch (ttf-dejavu)
+    "/usr/share/fonts/noto/NotoSans-Regular.ttf",  # Arch (noto-fonts)
+    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",  # Debian (fonts-noto-core)
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",  # macOS
+)
+
+
+@lru_cache
+def font_path() -> str | None:
+    path = next((p for p in FONT_CANDIDATES if os.path.isfile(p)), None)
+    if path is None:
+        log.warning("no Unicode font found: accented letters will be drawn as boxes")
+    return path
+
+
+@lru_cache(maxsize=128)
+def font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    path = font_path()
+    return ImageFont.truetype(path, size) if path else ImageFont.load_default(size=size)
 
 
 @dataclass(frozen=True)
@@ -75,13 +104,13 @@ SUPERSCRIPTS = {"²": "2", "³": "3"}
 def draw_text(
     draw: ImageDraw.ImageDraw, xy: Point, text: str, size: int, centred: bool = True
 ) -> None:
-    """Draw text; "m²"/"m³" get a real raised digit (the built-in font has no ² glyph).
+    """Draw text; "m²"/"m³" get a raised digit (the fallback font has no ² glyph).
 
     centred: xy is the middle of the text; otherwise xy is its left end on the baseline.
     """
-    font = ImageFont.load_default(size=size)
-    small = ImageFont.load_default(size=max(6, int(size * 0.6)))
-    parts = [(SUPERSCRIPTS[ch], small) if ch in SUPERSCRIPTS else (ch, font) for ch in text]
+    regular = font(size)
+    small = font(max(6, int(size * 0.6)))
+    parts = [(SUPERSCRIPTS[ch], small) if ch in SUPERSCRIPTS else (ch, regular) for ch in text]
     width = sum(draw.textlength(ch, font=f) for ch, f in parts)
     x, y = xy
     if centred:
