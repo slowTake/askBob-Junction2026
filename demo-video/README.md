@@ -15,13 +15,13 @@ Junction: the video must be "not a second longer than 2 minutes", enforced stric
   - Linux: `secret-tool store --label="ElevenLabs" service elevenlabs`, and the same with `service gemini`
   - macOS: `security add-generic-password -s elevenlabs -a "$USER" -w`, and the same with `-s gemini`
 
-  Pass a key to one command only, for example:
-  `ELEVENLABS_API_KEY=$(secret-tool lookup service elevenlabs) make voice`
+  That's all: the steps that call an API (`voice`, `review`) fetch their key from the keyring themselves, only for that run, and never print or save it. `make keys` checks that both keys can be found. A `GEMINI_API_KEY` or `ELEVENLABS_API_KEY` already set in the environment takes precedence.
 
 ## Steps
 
 | Command | What it does | Status |
 |---|---|---|
+| `make keys` | Checks the Gemini and ElevenLabs keys can be found; never prints them | works |
 | `make plan` | Word budget per segment at 2.3 words/s; fails if any segment is over | works |
 | `make voice` | One ElevenLabs clip per segment in `out/audio/`; only changed text is regenerated | stub |
 | `make record` | One scripted Playwright take per segment in `out/recordings/` | stub |
@@ -49,5 +49,6 @@ pipeline/plan.py      parse and validate video.yaml, word budget
 pipeline/timing.py    duration verdict (ok / warn / fail)
 pipeline/cache.py     voice-clip cache key and file names
 pipeline/captions.py  SRT cues from text and clip lengths
+pipeline/keys.py      API keys from the environment or the OS keyring, on demand
 pipeline/cli.py       the commands above (all I/O lives here)
 ```

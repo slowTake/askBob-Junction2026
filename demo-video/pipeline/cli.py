@@ -12,6 +12,7 @@ import yaml
 
 from pipeline.cache import clip_filename, clip_key
 from pipeline.captions import cues_for_segment, to_srt
+from pipeline.keys import ENV_VAR, KeyMissing, get_key, key_source, store_hint
 from pipeline.plan import Plan, PlanError, parse_plan, plan_report
 from pipeline.timing import Verdict, duration_verdict
 
@@ -24,6 +25,20 @@ NOT_YET = {
     "assemble": "ffmpeg: recordings + audio + captions -> out/final.mp4 (handoff phase 4)",
     "review": "Gemini critique of out/final.mp4 against checklist.md (handoff phase 5)",
 }
+# Steps that call an API fetch their key first, so a missing key fails before any work.
+NEEDS_KEY = {"voice": "elevenlabs", "review": "gemini"}
+
+
+def cmd_keys() -> int:
+    missing = 0
+    for service, env_var in ENV_VAR.items():
+        source = key_source(service)
+        if source is None:
+            missing += 1
+            print(f"{service:<11} MISSING  store it once with: {store_hint(service)}")
+        else:
+            print(f"{service:<11} found ({'$' + env_var if source == 'env' else 'OS keyring'})")
+    return 1 if missing else 0
 
 
 def load_plan(path: Path) -> tuple[Plan, dict]:
@@ -98,9 +113,19 @@ def main(argv: list[str] | None = None) -> int:
     check = sub.add_parser("check", help="ffprobe the final video; fails if too long")
     check.add_argument("video", type=Path, nargs="?", default=OUT / "final.mp4")
     sub.add_parser("captions", help="out/captions.srt from voiceover text + clip lengths")
+    sub.add_parser("keys", help="check the API keys can be found (never prints them)")
     for name, what in NOT_YET.items():
         sub.add_parser(name, help=f"not implemented yet: {what}")
     args = parser.parse_args(argv)
+
+    if args.step == "keys":
+        return cmd_keys()
+    if args.step in NEEDS_KEY:
+        try:
+            get_key(NEEDS_KEY[args.step])  # the implemented step will pass this to its client
+        except KeyMissing as err:
+            print(f"FAIL: {err}")
+            return 1
 
     try:
         plan, settings = load_plan(args.plan)

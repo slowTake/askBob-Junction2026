@@ -2,10 +2,13 @@
 
 RUN = uv run python -m pipeline.cli
 
-.PHONY: help plan voice record captions assemble review check all clean
+.PHONY: help keys plan voice record captions assemble review check all clean
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
+
+keys: ## Check the Gemini and ElevenLabs keys can be found (never prints them)
+	$(RUN) keys
 
 plan: ## Word budget per segment; fails if the script can't fit
 	$(RUN) plan
