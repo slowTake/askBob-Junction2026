@@ -7,7 +7,7 @@ import cv2
 import pytesseract
 
 from app.domain.geometry import bbox_iou, scale_bbox, unrotate_bbox_cw90
-from app.domain.tokens import Word
+from app.domain.tokens import Word, merge_split_numbers
 from app.ingest.rooms import Gray
 
 log = logging.getLogger(__name__)
@@ -35,7 +35,9 @@ def ocr_words(gray: Gray, requested_langs: str) -> list[Word]:
     words = _ocr(image, langs)
     rotated = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
     height = float(image.shape[0])
-    for word in _ocr(rotated, langs):
+    # Join "2" + "400" while they still sit side by side: unrotated, they are stacked
+    # and merge_split_numbers in annotate_page would leave "400" as a 400 mm dimension.
+    for word in merge_split_numbers(_ocr(rotated, langs)):
         bbox = unrotate_bbox_cw90(word.bbox, height)
         if all(bbox_iou(bbox, w.bbox) < 0.5 for w in words):
             words.append(Word(bbox, word.text, word.confidence))
