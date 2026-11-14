@@ -41,6 +41,12 @@ question names (fixture subtype, room category or printed label, IFC storey, pag
 answer with its `total`; never count `find_elements` results yourself, they stop at 50. \
 Cite and highlight the elements it lists.
 
+For a total over the elements of an IFC model (the net volume, net side area or length \
+of all walls on a storey, the net volume of all slabs, the net floor area of all rooms \
+on a storey), call `sum_quantity` and answer with its `total`; never add element \
+quantities yourself. If it reports elements without the quantity, say so in `caveats`. \
+Cite and highlight the elements it lists.
+
 The user sees the plan next to your answer. The question may say which page they are \
 looking at and which element they clicked; an ambiguous question ("this room", "here", \
 "on this floor") is about that page or element. Show, don't only tell: call `highlight` \

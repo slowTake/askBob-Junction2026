@@ -24,6 +24,15 @@ export function describeStep(tool: string, input: Record<string, unknown>): stri
       const where = typeof input.storey === "string" && input.storey ? ` on ${input.storey}` : page;
       return `Counting ${kind}${filter ? ` “${filter}”` : ""}${where}`;
     }
+    case "sum_quantity": {
+      // "NetSideArea" -> "net side area"
+      const quantity =
+        typeof input.quantity === "string"
+          ? input.quantity.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()
+          : "quantity";
+      const where = typeof input.storey === "string" && input.storey ? ` on ${input.storey}` : "";
+      return `Adding up the ${quantity} of ${kind}${where}`;
+    }
     case "highlight": {
       const n = Array.isArray(input.element_ids) ? input.element_ids.length : 0;
       return `Showing ${n} element${n === 1 ? "" : "s"} on the plan`;
