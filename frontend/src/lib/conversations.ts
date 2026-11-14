@@ -51,3 +51,14 @@ export function chatMilestone<T extends { id: string; pending: boolean }>(
   const last = turns.at(-1);
   return last ? `${last.id}:${last.pending ? "asking" : "done"}` : "";
 }
+
+/** The conversation on screen: the `pinned` one (picked in the list, or asked in) while its
+ * document exists, else the open document's. Pinning when asking keeps the answer in view
+ * when the agent's views or a clicked source open another document. */
+export function conversationShown(
+  pinned: string | null,
+  openId: string | null,
+  documentIds: readonly string[],
+): string | null {
+  return pinned !== null && documentIds.includes(pinned) ? pinned : openId;
+}

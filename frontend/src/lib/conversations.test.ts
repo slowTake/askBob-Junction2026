@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addTurn,
   chatMilestone,
+  conversationShown,
   dropConversation,
   isBusy,
   turnsOf,
@@ -88,5 +89,23 @@ describe("chatMilestone", () => {
     const before = [{ ...t("2", true), text: "Searching rooms" }];
     const after = [{ ...t("2", true), text: "Looking at the drawing" }];
     expect(chatMilestone(after)).toBe(chatMilestone(before));
+  });
+});
+
+describe("conversationShown", () => {
+  const docs = ["docA", "docB"];
+
+  it("follows the open document while no conversation is pinned", () => {
+    expect(conversationShown(null, "docB", docs)).toBe("docB");
+  });
+
+  it("stays on the pinned conversation when the agent or a source opens another document", () => {
+    // Asked in docA (pinned), then a view on docB opened: the chat stays on docA.
+    expect(conversationShown("docA", "docB", docs)).toBe("docA");
+  });
+
+  it("falls back to the open document when the pinned one was deleted", () => {
+    expect(conversationShown("gone", "docB", docs)).toBe("docB");
+    expect(conversationShown("gone", null, docs)).toBeNull();
   });
 });

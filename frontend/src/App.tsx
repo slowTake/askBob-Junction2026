@@ -12,6 +12,7 @@ import { useAsk } from "./hooks/useAsk";
 import { useDocuments } from "./hooks/useDocuments";
 import { useStoredFlag } from "./hooks/useStoredFlag";
 import { useTheme } from "./hooks/useTheme";
+import { conversationShown } from "./lib/conversations";
 import { pageIndexFor, type PageRef } from "./lib/pages";
 import { describe } from "./lib/planLayer";
 import type { PlanTarget } from "./lib/target";
@@ -44,10 +45,14 @@ export function App() {
   const asker = useAsk(showView);
 
   const selected = docs.documents.find((d) => d.id === selectedId) ?? docs.documents[0] ?? null;
-  // The conversation on screen: the document the user picked, else the open one.
+  // The conversation on screen: the one picked in the list or last asked in, else the open
+  // document's (see conversationShown).
   const [chatFor, setChatFor] = useState<string | null>(null);
-  const chatKey =
-    (chatFor && docs.documents.some((d) => d.id === chatFor) ? chatFor : selected?.id) ?? null;
+  const chatKey = conversationShown(
+    chatFor,
+    selected?.id ?? null,
+    docs.documents.map((d) => d.id),
+  );
   const ready = docs.documents.filter((d) => d.status === "ready");
   const views = selected ? availableViews(selected) : [];
   const activeView = pickView(view, views);
@@ -92,6 +97,8 @@ export function App() {
 
   const ask = (question: string, onlySelected: boolean) => {
     if (!chatKey) return;
+    // Pin it: the agent's views and clicked sources may open another document meanwhile.
+    setChatFor(chatKey);
     const onPlan = selected?.status === "ready" && activeView === "drawing";
     void asker.ask(chatKey, question, {
       documentIds: onlySelected && selected ? [selected.id] : [],
