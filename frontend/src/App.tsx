@@ -214,10 +214,6 @@ export function App() {
           focusSignal={focusSignal}
           onClearAbout={() => setAbout(null)}
           onAsk={ask}
-          onClear={() => {
-            if (chatKey) asker.clear(chatKey);
-            setTarget(null);
-          }}
           onCitation={showCitation}
           onShowView={showView}
         />

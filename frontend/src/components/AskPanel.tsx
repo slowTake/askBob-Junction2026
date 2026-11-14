@@ -20,7 +20,6 @@ interface Props {
   focusSignal: number; // changes when the input should take focus
   onClearAbout: () => void;
   onAsk: (question: string, onlySelected: boolean) => void;
-  onClear: () => void;
   onCitation: (citation: Citation) => void;
   onShowView: (view: PlanView) => void;
 }
@@ -55,11 +54,6 @@ export function AskPanel(props: Props) {
     <aside className="ask-panel" aria-label="Ask the drawings">
       <div className="ask-header">
         <h2 className="eyebrow">Ask the drawings</h2>
-        {turns.length > 0 && (
-          <button type="button" className="btn btn-subtle btn-sm" onClick={props.onClear}>
-            New conversation
-          </button>
-        )}
       </div>
       <div className="turns" ref={list}>
         {turns.length === 0 && (
