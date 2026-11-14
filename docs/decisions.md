@@ -29,10 +29,10 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
 | D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
-| D-025 | 2026-11-14 | Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
-| D-027 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-028 |
-| D-028 | 2026-11-14 | Sketch check rounds show the draft in red over the photo, and the model is told where the ink is | Accepted |
+| D-027 | 2026-11-14 | Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates | Accepted |
+| D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029 |
+| D-029 | 2026-11-14 | Sketch check rounds show the draft in red over the photo, and the model is told where the ink is | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -393,7 +393,7 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 **Consequences:** On the same five drawings, 8 of 8 non-raster questions now end with an answer (2 of 6 scored ones correct). A forced answer can be wrong; before, there was no answer. The three causes above are not fixed by this: they need model facts for IFC, a way to read schedule tables, and elements to count on raster plans (#93, D-022). The Claude path is covered by tests with a fake client only, since no one has an Anthropic key (D-020).
 
-## D-025: Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates
+## D-027: Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates
 
 **Date:** 2026-11-14 · **Status:** Accepted
 
@@ -407,14 +407,14 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 **Consequences:** The redraw is only as good as extraction plus one vision pass: a vision model's boxes are approximate and can still miss elements, and doors and windows are boxes, not swing symbols. Low-resolution scans give tiny text at fit zoom. A re-ingest replaces the pages, so a page has to be upscaled again. The 0.6 text cut-off and the 1/100 text size are first guesses from one cubicasa page.
 
-## D-027: On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured
+## D-028: On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured
 
-**Date:** 2026-11-14 · **Status:** Superseded in part by D-028 (how a check round shows the draft) · **Refines:** D-025 (for raster image pages only)
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) · **Refines:** D-027 (for raster image pages only)
 
-**Context:** The demo shows a photo of a hand-drawn floor plan (a napkin sketch) turned into a clean plan with one button (#82). D-025's pass asks a small model once for what ingest *missed* and draws boxes. On a sketch, ingest's OCR and line detection are the unreliable part, so filling its gaps keeps its noise; boxes cannot show a door swing; and one unchecked answer has no way to notice its own mistakes. The owner's rules: one button; redraw, never invent (no measurement unless written on the sketch); a stronger, slower model is allowed for this path; output is the Redrawn view plus Download SVG and Print, no DXF.
+**Context:** The demo shows a photo of a hand-drawn floor plan (a napkin sketch) turned into a clean plan with one button (#82). D-027's pass asks a small model once for what ingest *missed* and draws boxes. On a sketch, ingest's OCR and line detection are the unreliable part, so filling its gaps keeps its noise; boxes cannot show a door swing; and one unchecked answer has no way to notice its own mistakes. The owner's rules: one button; redraw, never invent (no measurement unless written on the sketch); a stronger, slower model is allowed for this path; output is the Redrawn view plus Download SVG and Print, no DXF.
 
 **Decision:**
-- **Which pages:** pages of raster image uploads (`Document.kind == "image"`). PDF, SVG, DXF, DWG and IFC keep D-025's gap-filling pass unchanged.
+- **Which pages:** pages of raster image uploads (`Document.kind == "image"`). PDF, SVG, DXF, DWG and IFC keep D-027's gap-filling pass unchanged.
 - **The model authors the whole plan.** `SKETCH_MODEL` (default `claude-opus-5-5`, effort `SKETCH_EFFORT`, default `high`, adaptive thinking, structured output, server-side refusal fallback) gets the photo at up to `SKETCH_MAX_SIDE` (2576 px) and returns walls (centre-line segments, outer or inner), doors (the opening on its wall, the hinge end, a point on the side it opens to), windows (a segment on the wall), rooms (the name exactly as written, a label point, an optional outline) and other written text. Ingest's elements are neither sent nor drawn.
 - **Draw, compare, correct.** The pure rules (`app/domain/sketch*.py`) skip malformed, off-image and zero-length entries, then tidy the plan in page pixels: near-axis walls (within 8°) are made straight, wall lines and ends within 1 % of the page are joined, doors and windows are projected onto their wall. The tidied plan becomes shapes (walls cut at openings, an open door leaf with a quarter-circle swing, windows as a double line, labels at one size), rendered with Pillow at the size the model was sent. Rounds 2 to `SKETCH_MAX_ROUNDS` (default 3) send the photo, that render and the current plan; the model answers that they match or returns the whole corrected plan. The loop stops on a match, after the last round, or once `SKETCH_DEADLINE_S` has passed. A failed check round keeps the last good draft; a failed first round fails the request.
 - **Stored as elements** with `source = "sketch"`, confidence 0.8, and their drawing in `properties` (page pixels), so the frontend draws exactly the shapes the model checked. Rooms get no area and no `value_mm`. Re-running replaces earlier `sketch` rows and any `upscale` rows of the page. The page caches the run in `meta.upscale` with `mode: "sketch"` and the rounds; `UPSCALE_FORMAT` goes to 3, and `PageOut.upscale` says the mode. The agent's prompt treats `sketch` elements as approximate and says a sketch has no scale.
@@ -426,11 +426,11 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 **Consequences:** A redraw takes minutes and costs a few strong-model calls (each round sends the photo, cached after the first, and a render). The plan is only as good as the model's reading: tidying straightens and joins but never adds a wall. OCR on handwriting is weak, so a dimension that really is written on a sketch can be dropped when OCR missed it; that loses information but never invents it. Line work in the redraw is relative to the page size, not to any real length. Not verified end to end against the real model when this was written (no API key was available).
 
 
-## D-028: Sketch check rounds show the draft in red over the photo, and the model is told where the ink is
+## D-029: Sketch check rounds show the draft in red over the photo, and the model is told where the ink is
 
-**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes:** the check-round render in D-027
+**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes:** the check-round render in D-028
 
-**Context:** In D-027 the model compared the photo with its draft as two separate pictures. Side by side, a draft that is a little smaller, larger or shifted against the drawing looks right, so a check round can accept a misplaced plan. The first runs against the real model (`claude-opus-5-5`, the napkin test image) were used to tune this.
+**Context:** In D-028 the model compared the photo with its draft as two separate pictures. Side by side, a draft that is a little smaller, larger or shifted against the drawing looks right, so a check round can accept a misplaced plan. The first runs against the real model (`claude-opus-5-5`, the napkin test image) were used to tune this.
 
 **Decision:**
 - In check rounds the draft is drawn in red over the photo, at the size the model was sent, instead of on white. The check prompt says red should cover each drawn line: a drawn line with no red on it, or red with no line under it, is an error. Position and size are checked before the parts. About one wall thickness of difference counts as in place, because hand-drawn lines wobble.
