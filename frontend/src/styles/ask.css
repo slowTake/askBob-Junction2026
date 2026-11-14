@@ -69,11 +69,31 @@
     inset 3px 0 0 var(--accent),
     inset 0 0 0 1px var(--line);
 }
+/* The answer as blocks (lib/answerText.ts): a summary, group headings, bullet lists. */
 .answer-text {
-  margin: 0;
+  display: grid;
+  gap: var(--s-2);
   font: 400 15px/23px var(--font-text);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.answer-text p,
+.answer-text ul {
+  margin: 0;
+}
+.answer-text > p:first-child:not(:only-child) {
+  font-weight: 500; /* the summary, when a list or more text follows */
+}
+.answer-text .answer-heading {
+  margin-top: var(--s-1);
+  font-weight: 600;
+}
+.answer-text .answer-heading + ul {
+  margin-top: calc(-1 * var(--s-1)); /* keep a group's items close to its heading */
+}
+.answer-text ul {
+  padding-left: 1.2em;
+  display: grid;
+  gap: 2px;
 }
 .answer-section {
   display: grid;

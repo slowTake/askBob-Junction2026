@@ -241,26 +241,11 @@ a {
   inset: 3px;
   background: var(--accent);
 }
-.crumbs {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  color: var(--on-bar-2);
-  overflow: hidden;
-  white-space: nowrap;
-}
-.crumbs b {
-  color: var(--on-bar);
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .nav-actions {
   display: flex;
   align-items: center;
   gap: var(--s-2);
+  margin-left: auto; /* push the actions to the right of the wordmark */
 }
 .icon-only {
   width: 36px;
@@ -325,11 +310,14 @@ a {
   grid-template-columns: minmax(0, 1fr) 420px;
 }
 
+/* A column: the list scrolls, the footer (Download IFC) stays at the bottom. */
 .sidebar {
-  padding: var(--s-4) 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: var(--s-4);
   background: var(--surface);
   border-right: 1px solid var(--line);
-  overflow-y: auto;
 }
 .sidebar .eyebrow {
   padding: 0 var(--s-4) var(--s-3);
@@ -337,8 +325,17 @@ a {
 .doc-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0 var(--s-4);
   display: grid;
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.sidebar-footer {
+  display: grid;
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line);
 }
 .doc-list li {
   display: flex;
