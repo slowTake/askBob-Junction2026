@@ -63,3 +63,10 @@ def test_wall_ring_splits_into_four_walls() -> None:
         (20.0, 170.0, 180.0, 180.0),
         (170.0, 20.0, 180.0, 180.0),
     ]
+
+
+def test_fill_that_reaches_the_page_edge_is_rejected() -> None:
+    page = _closed_room()
+    page[19:22, 60:80] = 255  # gap in the top wall: the fill escapes to the page edge
+    # Even with a generous area limit, touching the border means it leaked.
+    assert room_region(ink_mask(page), seed=(70, 60), erase=[], max_area_frac=1.0) is None
