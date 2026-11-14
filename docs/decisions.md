@@ -49,6 +49,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-039 | 2026-11-14 | The `vision` service can run on a Verda GPU; `make up-verda` points ingest at it (#118) | Accepted |
 | D-040 | 2026-11-14 | OCR can run as a service on the Verda GPU host (`OCR_URL`) (#119) | Accepted |
 | D-041 | 2026-11-14 | Deleting a document cancels its ingest job (#120) | Accepted |
+| D-042 | 2026-11-14 | Faster drop-in versions of three CubiCasa post-processing helpers, same output | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -687,4 +688,14 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 **Decision:** `DELETE /api/documents/{id}` calls `cancel_ingest` after the delete commits: a waiting job is cancelled, a running one gets RQ's stop-job command, which kills the job's process so the worker takes the next job. It never fails the delete: a job that finished meanwhile or an unreachable Valkey is logged and ignored. The failure callbacks already ignore a document that no longer exists.
 
 **Consequences:** A delete mid-ingest frees the worker within seconds. The killed job's partial work is discarded with the document. A worker running with RQ's `SimpleWorker` (no forked job process) could not be stopped this way; ours forks.
+
+## D-042: Faster drop-in versions of three CubiCasa post-processing helpers, same output
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-022
+
+**Context:** On the Verda V100 (D-039) a 1902 x 810 px Swiss plan took 0.8 s in the network and 24.6 s in CubiCasa's `get_polygons`. A profile put the time in three helpers of `floortrans/post_prosessing.py`: `drop_long_walls` (list membership checks inside an all-pairs loop), `get_polygon_class` (a full copy of the room map on each of 2 666 calls, only read) and `get_pxl_class` (945 000 single-pixel argmaxes).
+
+**Decision:** `vision/app/fast_post.py` holds versions with the same results: sets for membership with the list kept for order, no copy, and the whole map's argmax computed once per segmentation and indexed (ties go to the first class either way). At startup `install` rebinds the three names on CubiCasa's module, whose functions look them up there at call time; their code stays unedited and unvendored. Seeded tests compare each version with the original behaviour restated plainly.
+
+**Consequences:** On that plan `get_polygons` went from 24.6 s to 3.5 s with identical output (256 walls, 11 rooms, every coordinate equal), checked by running both on the same network output on the V100. `get_polygons` modifies its input, so any comparison must give each run a fresh copy. A change to the pinned `CUBICASA_COMMIT` must recheck that the three helpers still behave as restated in the tests.
 
