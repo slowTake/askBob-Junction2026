@@ -25,14 +25,26 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let response: Response;
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  parse: (response: Response) => Promise<T> = unwrap<T>,
+  timeoutMs = 30_000,
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    response = await fetch(path, init);
-  } catch {
+    const response = await fetch(path, { ...init, signal: controller.signal });
+    return await parse(response);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new ApiError("timeout", "The server took too long to respond. Please try again.");
+    }
+    if (error instanceof ApiError) throw error;
     throw new ApiError("network", "Cannot reach the server.");
+  } finally {
+    globalThis.clearTimeout(timer);
   }
-  return unwrap<T>(response);
 }
 
 async function unwrap<T>(response: Response): Promise<T> {
@@ -69,19 +81,32 @@ export const api = {
   uploadDocument: (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    return request<DocumentInfo>("/api/documents", { method: "POST", body: form });
+    return request<DocumentInfo>(
+      "/api/documents",
+      { method: "POST", body: form },
+      undefined,
+      120_000,
+    );
   },
 
   upscale: (id: string, index: number) =>
-    request<UpscaleResult>(`/api/documents/${id}/pages/${index}/upscale`, { method: "POST" }),
+    // Sketch redraws use main's bounded multi-round model loop, rather than a normal
+    // document request. Match the default server claim budget (600 + 3 * 300 s).
+    request<UpscaleResult>(
+      `/api/documents/${id}/pages/${index}/upscale`,
+      { method: "POST" },
+      undefined,
+      1_500_000,
+    ),
 
   pageImageUrl: (id: string, index: number) => `/api/documents/${id}/pages/${index}/image`,
   modelIfcUrl: (id: string) => `/api/documents/${id}/model.ifc`,
 
   async mesh(id: string): Promise<MeshData> {
-    const response = await fetch(`/api/documents/${id}/mesh`);
-    if (!response.ok) await unwrap(response); // throws the envelope's error
-    return (await response.json()) as MeshData;
+    return request(`/api/documents/${id}/mesh`, undefined, async (response) => {
+      if (!response.ok) await unwrap(response); // throws the envelope's error
+      return (await response.json()) as MeshData;
+    });
   },
 
   async ask(

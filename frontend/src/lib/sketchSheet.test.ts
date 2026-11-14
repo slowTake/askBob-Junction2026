@@ -160,6 +160,9 @@ describe("redrawScaleBar", () => {
 });
 
 describe("isSketchDocument", () => {
+  it("keeps a PNG with native CAD rooms out of model sketch generation", () => {
+    expect(isSketchDocument("image", true)).toBe(false);
+  });
   it("is true for raster image uploads, which get the sketch redraw", () => {
     expect(isSketchDocument("image")).toBe(true);
     for (const kind of ["pdf", "svg", "dxf", "dwg", "ifc"] as const) {

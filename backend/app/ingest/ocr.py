@@ -1,8 +1,15 @@
-"""Tesseract OCR for raster drawings, reading horizontal and vertical text."""
+"""OCR for raster drawings: RapidOCR first (D-024), Tesseract as the fallback.
+
+RapidOCR is PaddleOCR's neural text detector and recogniser on ONNX Runtime (models
+ship in the wheel). It finds small text Tesseract misses: 86% of Swiss room numbers
+at 150 DPI, against 42%. It reads a large page in overlapping tiles.
+"""
 
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
+from typing import Any
 
 import cv2
 import pytesseract
@@ -26,7 +33,17 @@ def _available_langs() -> frozenset[str]:
     return frozenset(pytesseract.get_languages(config=""))
 
 
-def ocr_words(gray: Gray, requested_langs: str) -> list[Word]:
+def ocr_words(gray: Gray, requested_langs: str, engine: str = "rapid") -> list[Word]:
+    """Words with boxes in page pixels. Any RapidOCR failure falls back to Tesseract."""
+    if engine == "rapid":
+        try:
+            return _rapid_words(gray)
+        except Exception:
+            log.warning("RapidOCR failed; reading the page with Tesseract", exc_info=True)
+    return _tesseract_words(gray, requested_langs)
+
+
+def _tesseract_words(gray: Gray, requested_langs: str) -> list[Word]:
     """OCR the page, then again rotated 90° clockwise to catch vertical dimension text."""
     langs = pick_langs(requested_langs, set(_available_langs()))
     factor = upscale_factor(max(gray.shape[:2]))
@@ -72,3 +89,72 @@ def _ocr(image: Gray, langs: str) -> list[Word]:
         x, y, w, h = (float(data[k][i]) for k in ("left", "top", "width", "height"))
         words.append(Word((x, y, x + w, y + h), text, conf / 100))
     return words
+
+
+# --- RapidOCR -------------------------------------------------------------------
+
+RAPID_TILE, RAPID_OVERLAP = 1600, 200
+RAPID_MIN_SCORE = 0.5
+RAPID_SMALL_PAGE_PX = 4000  # pages below this are enlarged x2: text ~12 px -> ~24 px
+_NON_LATIN = re.compile(r"[^\x20-\x7E\u00A0-\u024F²³°]")
+_EDGE_PUNCT = ".,;:!?|[](){}'\"`"
+
+
+def clean_text(text: str) -> str:
+    """Drop non-Latin noise (the default model also reads CJK) and stray edge punctuation."""
+    return _NON_LATIN.sub("", text).strip().strip(_EDGE_PUNCT).strip()
+
+
+def tile_starts(length: int, tile: int, overlap: int) -> list[int]:
+    if length <= tile:
+        return [0]
+    return sorted({*range(0, length - tile, tile - overlap), length - tile})
+
+
+def dedupe_words(words: list[Word]) -> list[Word]:
+    """Tiles overlap, so words near their edges are read twice: keep the surer one."""
+    kept: list[Word] = []
+    for w in sorted(words, key=lambda w: -w.confidence):
+        if all(bbox_iou(w.bbox, k.bbox) < 0.3 for k in kept):
+            kept.append(w)
+    return sorted(kept, key=lambda w: (w.bbox[1], w.bbox[0]))
+
+
+@lru_cache
+def _rapid_engine() -> Any:
+    from rapidocr_onnxruntime import RapidOCR
+
+    return RapidOCR()
+
+
+def _rapid_words(gray: Gray) -> list[Word]:
+    factor = 2.0 if max(gray.shape[:2]) < RAPID_SMALL_PAGE_PX else 1.0
+    image = gray
+    if factor > 1:
+        image = cv2.resize(gray, None, fx=factor, fy=factor, interpolation=cv2.INTER_CUBIC)
+    rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    h, w = image.shape[:2]
+    engine = _rapid_engine()
+    jobs = [(x, y) for y in tile_starts(h, RAPID_TILE, RAPID_OVERLAP)
+            for x in tile_starts(w, RAPID_TILE, RAPID_OVERLAP)]  # fmt: skip
+
+    def read(xy: tuple[int, int]) -> list[Word]:
+        x, y = xy
+        tile = rgb[y : y + RAPID_TILE, x : x + RAPID_TILE]
+        if tile.min() > 200:  # blank paper
+            return []
+        result, _ = engine(tile)
+        out = []
+        for quad, raw, score in result or []:
+            text = clean_text(str(raw))
+            if not text or float(score) < RAPID_MIN_SCORE:
+                continue
+            xs = [p[0] for p in quad]
+            ys = [p[1] for p in quad]
+            box = (x + min(xs), y + min(ys), x + max(xs), y + max(ys))
+            out.append(Word(scale_bbox(box, 1 / factor), text, float(score)))
+        return out
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        words = [word for part in pool.map(read, jobs) for word in part]
+    return dedupe_words(words)

@@ -13,6 +13,7 @@ import anthropic
 from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
+from app.qa.claude_format import claude_tools
 from app.qa.prompts import LAST_STEP_NOTE, SYSTEM_PROMPT, scope_message
 from app.qa.tools import TOOLS, ToolContext, ToolInputError, run_tool
 
@@ -118,7 +119,7 @@ def run_agent(
             system=[
                 {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}
             ],
-            tools=TOOLS,
+            tools=claude_tools(TOOLS),
             tool_choice={"type": "none" if last else "auto"},
             messages=messages,
             thinking={"type": "adaptive"},

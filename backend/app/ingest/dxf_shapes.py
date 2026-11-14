@@ -23,6 +23,8 @@ class Shape:
     kind: str = ""  # DXF entity type, e.g. ARC
     text: str | None = None
     text_height_mm: float = 0.0
+    text_halign: int = 0
+    text_valign: int = 0
 
 
 def shapes(entities: Any, to_mm: float, layer: str | None = None) -> Iterator[Shape]:
@@ -49,9 +51,15 @@ def _shape(e: Any, kind: str, layer: str, to_mm: float) -> Shape | None:
     if kind in ("TEXT", "MTEXT"):
         text = e.dxf.text if kind == "TEXT" else e.plain_text()
         insert = e.dxf.insert
-        height = float(e.dxf.get("height", 0) or e.dxf.get("char_height", 0) or 0)
+        height = float(e.dxf.get("height" if kind == "TEXT" else "char_height", 0) or 0)
+        if kind == "TEXT":
+            horizontal, vertical = int(e.dxf.get("halign", 0)), int(e.dxf.get("valign", 0))
+        else:
+            attachment = int(e.dxf.get("attachment_point", 1)) - 1
+            horizontal, vertical = attachment % 3, 3 - attachment // 3
         return Shape(role, layer, mm([insert]), False, text=" ".join(str(text).split()),
-                     text_height_mm=height * to_mm)  # fmt: skip
+                     text_height_mm=height * to_mm, text_halign=horizontal,
+                     text_valign=vertical)  # fmt: skip
     if kind == "LWPOLYLINE":
         points = mm(e.get_points("xy"))
         return Shape(role, layer, points, bool(e.closed) or _ends_meet(points))
