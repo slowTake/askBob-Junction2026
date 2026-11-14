@@ -30,6 +30,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
 | D-028 | 2026-11-14 | IFC base quantities are stored in SI units and totalled by the server | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
+| D-027 | 2026-11-14 | Every question reports what it used; the eval turns that into cost | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -389,3 +390,18 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - `too_many_steps` remains for a model that still gives no answer on its last turn.
 
 **Consequences:** On the same five drawings, 8 of 8 non-raster questions now end with an answer (2 of 6 scored ones correct). A forced answer can be wrong; before, there was no answer. The three causes above are not fixed by this: they need model facts for IFC, a way to read schedule tables, and elements to count on raster plans (#93, D-022). The Claude path is covered by tests with a fake client only, since no one has an Anthropic key (D-020).
+
+## D-027: Every question reports what it used; the eval turns that into cost
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-019
+
+**Context:** Low inference cost is a quarter of the judging, and we could not say what an answer costs. `/api/ask` counted input and output tokens, but only for answered questions, only into `qa_log`, and with cached input counted differently per provider. The eval printed accuracy and nothing about cost (#98).
+
+**Decision:**
+- **Usage is counted per question in one shape** (`app/domain/usage.py`): input tokens that were not cached, input read from the provider's prompt cache, input written to it, output tokens, and the number of model requests. It lives on the tool context, so a question that fails still reports what it used.
+- **The closing `done` event of `/api/ask` carries it**, with the model, the number of tool calls, the time and whether the answer came from the answer cache. The browser ignores the event's data today.
+- **`qa_log.input_tokens` now counts every input token**, cached or not. Before, the Claude loop left cached input out.
+- **The eval prices it** (`eval/prices.py`, dollars per million tokens). Anthropic's list prices are in the table. Verda shows its prices only in the Console, so they are passed with `--price MODEL=IN,OUT` or added to the table; a model without a price reports "price unknown", never a guess.
+- **`run_eval` prints** tokens, tool calls, seconds and cost per question, averages per source and type, and errors by code. Answers served from the answer cache made no model call and are left out of the averages. `--out` writes one line per question, so two runs can be compared.
+
+**Consequences:** A run now gives accuracy and cost side by side: on DeepSeek, eight questions about four preview drawings averaged 62,000 input tokens and 10 tool calls each. Prices are a hand-kept table and go stale when a provider changes them. No schema change: steps and cached tokens are in the event and the eval file, not in `qa_log`.
