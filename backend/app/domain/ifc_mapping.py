@@ -1,5 +1,6 @@
 """Map IFC classes and property sets onto our element model."""
 
+from collections.abc import Mapping
 from typing import Any
 
 _KINDS = {
@@ -31,15 +32,22 @@ def ifc_kind(ifc_class: str) -> str:
     return _KINDS.get(ifc_class, OTHER_KIND)
 
 
-def flatten_psets(psets: dict[str, dict[str, Any]], limit: int = 60) -> dict[str, Any]:
+UNNAMED_PSET = "Unnamed"
+
+
+def flatten_psets[K: str | None](
+    psets: Mapping[K, Mapping[str, Any]], limit: int = 60
+) -> dict[str, Any]:
     """{"Pset_WallCommon": {"IsExternal": True}} -> {"Pset_WallCommon.IsExternal": True}.
 
     Drops ifcopenshell's internal "id" keys and non-scalar values, keeps at most
-    `limit` properties (sorted by key so the result is deterministic).
+    `limit` properties (sorted by key so the result is deterministic). A set with
+    no name (a None key) is kept under UNNAMED_PSET: it often holds quantities.
     """
+    named = {UNNAMED_PSET if name is None else name: props for name, props in psets.items()}
     flat: dict[str, Any] = {}
-    for pset_name in sorted(psets):
-        for prop, value in sorted(psets[pset_name].items()):
+    for pset_name in sorted(named):
+        for prop, value in sorted(named[pset_name].items()):
             if prop == "id" or not isinstance(value, str | int | float | bool):
                 continue
             flat[f"{pset_name}.{prop}"] = value

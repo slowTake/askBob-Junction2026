@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.domain.ifc_mapping import flatten_psets, ifc_kind, zup_to_yup
 
 
@@ -16,6 +18,18 @@ def test_flatten_is_sorted_and_limited() -> None:
     psets = {"B": {"y": 1, "x": 2}, "A": {"z": 3}}
     assert list(flatten_psets(psets)) == ["A.z", "B.x", "B.y"]
     assert list(flatten_psets(psets, limit=2)) == ["A.z", "B.x"]
+
+
+def test_flatten_keeps_a_pset_with_no_name() -> None:
+    # hitos_arc.ifc: ifcopenshell returns quantity sets with no Name under a None key.
+    psets: dict[str | None, dict[str, Any]] = {
+        None: {"id": 1, "NetVolume": 0.27},
+        "Pset_BeamCommon": {"IsExternal": False},
+    }
+    assert flatten_psets(psets) == {
+        "Pset_BeamCommon.IsExternal": False,
+        "Unnamed.NetVolume": 0.27,
+    }
 
 
 def test_zup_to_yup() -> None:
