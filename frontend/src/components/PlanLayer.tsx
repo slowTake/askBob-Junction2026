@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { ElementInfo } from "../api/types";
 import { drawOrder, layerOf, shapeOf, type LayerKey } from "../lib/planLayer";
 
@@ -14,8 +15,9 @@ interface Props {
  * The interactive layer over a plan page, in page-pixel coordinates.
  * Rooms are always hoverable (an invisible hit area) even when their layer is hidden,
  * so the plan stays clean but still answers "what is this?".
+ * Memoised: panning and zooming re-render the page, never these hundreds of shapes.
  */
-export function PlanLayer({
+export const PlanLayer = memo(function PlanLayer({
   elements,
   visible,
   highlighted,
@@ -30,12 +32,13 @@ export function PlanLayer({
         const shape = shapeOf(el);
         if (!layer || !shape) return null;
         const shown = visible.has(layer);
-        if (!shown && layer !== "rooms" && !highlighted.has(el.id)) return null;
+        const lit = highlighted.has(el.id);
+        if (!shown && layer !== "rooms" && !lit) return null;
         const className = [
           "plan-el",
           `plan-${layer}`,
           shown ? "is-shown" : "is-hit-area",
-          highlighted.has(el.id) ? "is-highlighted" : "",
+          lit ? "is-highlighted" : "",
           el.id === selectedId ? "is-selected" : "",
         ].join(" ");
         const handlers = {
@@ -46,7 +49,6 @@ export function PlanLayer({
             e.stopPropagation();
             onSelect(el.id === selectedId ? null : el);
           },
-          vectorEffect: "non-scaling-stroke" as const,
         };
         return shape.type === "polygon" ? (
           <polygon key={el.id} points={shape.points} {...handlers} />
@@ -63,4 +65,4 @@ export function PlanLayer({
       })}
     </g>
   );
-}
+});
