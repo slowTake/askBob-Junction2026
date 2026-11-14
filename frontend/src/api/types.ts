@@ -40,13 +40,27 @@ export interface PageInfo {
   mm_per_px: number | null;
   label: string | null; // e.g. the storey of an IFC floor plan
   /** Set once the page had its upscale vision pass (#82); missing on older servers. */
-  upscale?: { added: number; model: string } | null;
+  upscale?: UpscaleInfo | null;
+}
+
+/**
+ * What the page's Redrawn view was made by: "sketch" when a model redrew a raster image
+ * page in `rounds` draw-and-check rounds, "fill" for the gap-filling pass. `mode` and
+ * `rounds` are missing on older servers.
+ */
+export interface UpscaleInfo {
+  added: number;
+  model: string;
+  mode?: "sketch" | "fill";
+  rounds?: number | null;
 }
 
 /** POST /api/documents/{id}/pages/{index}/upscale */
 export interface UpscaleResult {
   added: number;
   cached: boolean;
+  mode?: "sketch" | "fill";
+  rounds?: number;
   page: PageInfo;
 }
 

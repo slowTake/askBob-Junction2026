@@ -1,4 +1,5 @@
 import { LAYERS, type LayerKey } from "../lib/planLayer";
+import type { UpscaleInfo } from "../api/types";
 import type { SheetMode } from "../lib/redraw";
 
 interface Props {
@@ -10,7 +11,9 @@ interface Props {
   onToggleLayer: (key: LayerKey) => void;
   sheet: SheetMode;
   onSheet: (mode: SheetMode) => void;
-  added: number | null; // elements the upscale pass added to this page, once it ran
+  upscale: UpscaleInfo | null; // how the page was redrawn, once it was
+  onDownload: (() => void) | null; // set while the redrawn sheet is on screen
+  onPrint: (() => void) | null;
 }
 
 const SHEETS: { mode: SheetMode; label: string }[] = [
@@ -59,10 +62,16 @@ export function ViewerToolbar(props: Props) {
             {label}
           </button>
         ))}
-        {sheet === "redrawn" && props.added !== null && (
-          <span className="body-sm muted" title="Elements the upscale pass added to this page">
-            +{props.added} found
-          </span>
+        {sheet === "redrawn" && props.upscale && <RedrawNote upscale={props.upscale} />}
+        {sheet === "redrawn" && props.onDownload && (
+          <button type="button" className="btn btn-subtle btn-sm" onClick={props.onDownload}>
+            Download SVG
+          </button>
+        )}
+        {sheet === "redrawn" && props.onPrint && (
+          <button type="button" className="btn btn-subtle btn-sm" onClick={props.onPrint}>
+            Print
+          </button>
         )}
       </div>
       <div className="chip-row" role="group" aria-label="Show on the plan">
@@ -80,5 +89,24 @@ export function ViewerToolbar(props: Props) {
         ))}
       </div>
     </div>
+  );
+}
+
+function RedrawNote({ upscale }: { upscale: UpscaleInfo }) {
+  if (upscale.mode === "sketch") {
+    const rounds = upscale.rounds ?? 1;
+    return (
+      <span
+        className="body-sm muted"
+        title="Drawn by a vision model, then checked against the photo"
+      >
+        Drawn by {upscale.model} · {rounds} {rounds === 1 ? "round" : "rounds"}
+      </span>
+    );
+  }
+  return (
+    <span className="body-sm muted" title="Elements the upscale pass added to this page">
+      +{upscale.added} found
+    </span>
   );
 }
