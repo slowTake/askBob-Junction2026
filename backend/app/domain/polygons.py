@@ -3,7 +3,7 @@
 import math
 from collections.abc import Callable, Sequence
 
-from app.domain.geometry import BBox, Point
+from app.domain.geometry import BBox, Point, polygon_area
 
 
 def point_in_polygon(p: Point, polygon: list[Point]) -> bool:
@@ -95,4 +95,21 @@ def path_polygon(ops: list[tuple[str, list[Point]]]) -> list[Point]:
             last = pts[-1]
     if ops and ops[-1][0] != "re" and out and math.dist(last, out[0]) > 1e-6:
         out.append(last)
+    return out
+
+
+def clean_polygon(points: Sequence[Point], tolerance: float) -> list[Point] | None:
+    """Drop repeated vertices (within `tolerance`) and a closing duplicate of the first.
+
+    Returns None when fewer than 3 vertices remain or the shape has no area, so
+    callers never build geometry from a degenerate outline.
+    """
+    out: list[Point] = []
+    for p in points:
+        if not out or math.dist(p, out[-1]) > tolerance:
+            out.append((float(p[0]), float(p[1])))
+    if len(out) > 1 and math.dist(out[0], out[-1]) <= tolerance:
+        out.pop()
+    if len(out) < 3 or polygon_area(out) <= tolerance * tolerance:
+        return None
     return out

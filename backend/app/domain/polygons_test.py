@@ -1,4 +1,5 @@
 from app.domain.polygons import (
+    clean_polygon,
     cluster_boxes,
     cluster_by_endpoints,
     path_polygon,
@@ -71,3 +72,13 @@ def test_path_ops_to_polygon() -> None:
 
 def test_rect_op_becomes_four_corners() -> None:
     assert path_polygon([("re", [(1.0, 2.0), (4.0, 6.0)])]) == [(1, 2), (4, 2), (4, 6), (1, 6)]
+
+
+def test_clean_polygon_drops_repeats_and_closing_point() -> None:
+    raw = [(0.0, 0.0), (0.0, 0.0), (10.0, 0.0), (10.0, 5.0), (10.0, 5.0005), (0.0, 5.0), (0.0, 0.0)]
+    assert clean_polygon(raw, tolerance=0.01) == [(0, 0), (10, 0), (10, 5), (0, 5)]
+
+
+def test_clean_polygon_rejects_degenerate_shapes() -> None:
+    assert clean_polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 0.0)], tolerance=0.01) is None
+    assert clean_polygon([(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)], tolerance=0.01) is None  # no area
