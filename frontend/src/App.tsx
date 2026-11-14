@@ -8,6 +8,7 @@ import { EmptyState } from "./components/EmptyState";
 import { NavBar } from "./components/NavBar";
 import { useAsk } from "./hooks/useAsk";
 import { useDocuments } from "./hooks/useDocuments";
+import { pageIndexFor, type PageRef } from "./lib/pages";
 
 // three.js is large: load the 3D viewer only when the 3D tab opens.
 const ModelViewer = lazy(() =>
@@ -21,12 +22,13 @@ export function App() {
   const asker = useAsk();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<View>("drawing");
-  const [pageIndex, setPageIndex] = useState(0);
+  const [page, setPage] = useState<PageRef | null>(null);
   const [focus, setFocus] = useState<Citation | null>(null);
 
   const selected = docs.documents.find((d) => d.id === selectedId) ?? docs.documents[0] ?? null;
   const ready = docs.documents.filter((d) => d.status === "ready");
   const activeView: View = selected?.kind === "ifc" ? "model" : view;
+  const pageIndex = pageIndexFor(page, selected?.id ?? null);
 
   const upload = (files: File[]) => {
     files.forEach(
@@ -39,15 +41,16 @@ export function App() {
 
   const select = (id: string) => {
     setSelectedId(id);
-    setPageIndex(0);
+    setPage(null);
     setFocus(null);
   };
 
   const showCitation = (c: Citation) => {
+    const documentId = c.document_id ?? selected?.id ?? null;
     if (c.document_id && c.document_id !== selected?.id) setSelectedId(c.document_id);
     setFocus(c);
     if (c.page_index !== null && c.bbox) {
-      setPageIndex(c.page_index);
+      setPage(documentId ? { documentId, index: c.page_index } : null);
       setView("drawing");
     } else if (c.ifc_guid) {
       setView("model");
@@ -122,7 +125,7 @@ export function App() {
                   key={selected.id}
                   documentId={selected.id}
                   pageIndex={pageIndex}
-                  onPageChange={setPageIndex}
+                  onPageChange={(index) => setPage({ documentId: selected.id, index })}
                   focus={focus?.document_id === selected.id ? focus : null}
                   onClearFocus={() => setFocus(null)}
                 />
