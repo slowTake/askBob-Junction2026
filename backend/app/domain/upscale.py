@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from app.domain.geometry import BBox, bbox_area
 
 UPSCALE_SOURCE = "upscale"
-UPSCALE_FORMAT = 1  # bump when the prompt or the merge rules change: pages run again
+UPSCALE_FORMAT = 2  # bump when the prompt or the merge rules change: pages run again
 
 ADDABLE_KINDS = ("room", "door", "window", "wall")  # also the order they are listed in
 MAX_CONFIDENCE = 0.9  # a vision result is never exact
@@ -48,10 +48,13 @@ class Candidate:
 
 
 def image_scale(width_px: int, height_px: int, max_side: int) -> float:
-    """Factor that fits the page's longest side into `max_side`; never enlarges."""
+    """Factor that brings the page's longest side to `max_side`, shrinking or enlarging.
+
+    Small scans are enlarged: sent at their own size, the model sees too little.
+    """
     if width_px <= 0 or height_px <= 0 or max_side <= 0:
         raise ValueError("a page and its image need a size")
-    return min(1.0, max_side / max(width_px, height_px))
+    return max_side / max(width_px, height_px)
 
 
 def overlap(a: BBox, b: BBox) -> float:
