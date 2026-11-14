@@ -10,11 +10,12 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-004 | 2026-11-14 | A canonical building model with provenance; IFC is an export | Accepted |
 | D-005 | 2026-11-14 | Aiven for PostgreSQL and Aiven for Valkey; no Kafka/OpenSearch yet | Accepted |
 | D-006 | 2026-11-14 | Q&A agent answers only from tools, with server-checked citations | Accepted |
-| D-007 | 2026-11-14 | UI follows DESIGN.md; highlights by dimming, not colour | Accepted |
+| D-007 | 2026-11-14 | UI follows DESIGN.md; highlights by dimming, not colour | Superseded in part by D-012 |
 | D-008 | 2026-11-14 | CI enforces RULES.md; local git hooks come later | Accepted |
 | D-009 | 2026-11-14 | Kimi K3.1 Pro on Verda as a secondary LLM; keys in keyrings | Accepted |
 | D-010 | 2026-11-14 | A document is never left queued without a job | Accepted |
 | D-011 | 2026-11-14 | Demo video pipeline in `demo-video/`, outside tests and CI | Accepted |
+| D-012 | 2026-11-14 | Drafting-table theme with a dark mode; drawings stay paper | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -82,7 +83,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 
 ## D-007: UI follows DESIGN.md; highlights by dimming, not colour
 
-**Date:** 2026-11-14 · **Status:** Accepted
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-012 (styling, font, 3D highlight colour, answer card); the spotlight still applies
 
 **Context:** DESIGN.md defines a black-and-white system with pill controls and no accent colour. Drawings are themselves black lines on white, so a black outline alone gets lost.
 
@@ -129,3 +130,14 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 **Decision:** A separate uv project in `demo-video/` builds the video from one file, `video.yaml` (settings and segments). `make plan` checks the word budget, `make check` fails a final video over 115 s (target 110 s, Junction's limit 120 s, title cards included), and voice, recording, assembly and review steps are added as stubs to fill in. The pipeline is not part of the app: it is **exempt from RULES.md §3 (tests) and §8 (CI)**, and is not in `make check` or the CI workflow. RULES.md §5 still applies through the repo-wide file-size check, and §6 still applies: API keys come from the OS keyring per D-009, and media in `demo-video/out/` is git-ignored.
 
 **Consequences:** A broken pipeline can't block an app PR, but nothing catches its bugs except running it. Every product shot in the video must be a real recording of the app.
+
+## D-012: Drafting-table theme with a dark mode; drawings stay paper
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes in part:** D-007
+
+**Context:** The Uber-derived DESIGN.md (pill buttons, 52 px hero, black answer card, no accent) made the app read as a consumer product. We compared three mockups and chose Direction A (engineering-software look) for light, with the dark panels of Direction B. We keep the name bobBuilder for now.
+
+**Decision:** DESIGN.md is replaced by our own system: IBM Plex Sans and Plex Mono, square corners, hairline rules, a dark app bar and one blue accent. Status colours (ok, warn, danger) are separate from the accent. A dark theme follows the OS and can be toggled in the app bar; the choice is stored in `localStorage` under `bob.theme` and applied before first paint. Scanned sheets stay white paper in both themes, and marks drawn on them keep one blue. The D-007 spotlight stays, with the ring in the accent colour; in 3D the cited element turns blue instead of black. Only the latest answer is a card.
+
+**Consequences:** Components must use tokens only, so a theme change is a token change. The one exception is the 3D viewer: three.js materials can't read CSS variables, so `ModelViewer.tsx` repeats the `paper-mark` blue and keeps it in both themes. The clean redraw (#54) is the only view that inverts in dark mode. The highlight tool (#55) will revisit how cited regions are drawn.
+

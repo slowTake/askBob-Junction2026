@@ -11,14 +11,14 @@ export function EmptyState({ onFiles }: Props) {
   return (
     <section className="hero-band">
       <div className="hero-copy">
-        <h1 className="display-xxl">Ask your drawings anything.</h1>
+        <h1 className="display-lg">Ask your drawings anything.</h1>
         <p className="body-lg muted">
           Upload floor plans, PDFs or IFC models. Every answer points to the exact spot on the
           drawing it came from, so you can check it in seconds.
         </p>
       </div>
       <div
-        className={`request-card dropzone${dragging ? " is-dragging" : ""}`}
+        className={`dropzone${dragging ? " is-dragging" : ""}`}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -30,7 +30,7 @@ export function EmptyState({ onFiles }: Props) {
           onFiles(Array.from(e.dataTransfer.files));
         }}
       >
-        <p className="display-sm">Drop drawings here</p>
+        <p className="heading">Drop drawings here</p>
         <div className="chip-row">
           {["IFC", "PDF", "PNG", "JPEG", "TIFF"].map((f) => (
             <span key={f} className="chip">

@@ -8,6 +8,7 @@ import { EmptyState } from "./components/EmptyState";
 import { NavBar } from "./components/NavBar";
 import { useAsk } from "./hooks/useAsk";
 import { useDocuments } from "./hooks/useDocuments";
+import { useTheme } from "./hooks/useTheme";
 import { pageIndexFor, type PageRef } from "./lib/pages";
 
 // three.js is large: load the 3D viewer only when the 3D tab opens.
@@ -20,6 +21,7 @@ type View = "drawing" | "model";
 export function App() {
   const docs = useDocuments();
   const asker = useAsk();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<View>("drawing");
   const [page, setPage] = useState<PageRef | null>(null);
@@ -63,7 +65,7 @@ export function App() {
   if (docs.loaded && docs.documents.length === 0) {
     return (
       <>
-        <NavBar onFiles={upload} />
+        <NavBar onFiles={upload} context={null} theme={theme} onToggleTheme={toggleTheme} />
         {docs.error && <p className="toast">{docs.error}</p>}
         <EmptyState onFiles={upload} />
       </>
@@ -72,7 +74,12 @@ export function App() {
 
   return (
     <>
-      <NavBar onFiles={upload} />
+      <NavBar
+        onFiles={upload}
+        context={selected?.filename ?? null}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
       {docs.error && <p className="toast">{docs.error}</p>}
       <main className="workspace">
         <DocumentList
