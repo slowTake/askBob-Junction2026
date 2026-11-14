@@ -33,8 +33,10 @@ class TestImageScale:
         assert image_scale(3000, 2000, 1500) == 0.5  # 1500 / 3000
         assert image_scale(1000, 4000, 1000) == 0.25  # 1000 / 4000, the height is longest
 
-    def test_never_enlarges_a_small_page(self) -> None:
-        assert image_scale(800, 600, 1568) == 1.0
+    def test_enlarges_a_small_page_to_the_same_side(self) -> None:
+        # A 482 px scan sent as is gave the model too little to see (#82, colorful-34).
+        assert image_scale(800, 600, 1568) == 1.96  # 1568 / 800
+        assert image_scale(1568, 1000, 1568) == 1.0  # already the right size
 
     def test_an_empty_page_has_no_scale(self) -> None:
         with pytest.raises(ValueError):

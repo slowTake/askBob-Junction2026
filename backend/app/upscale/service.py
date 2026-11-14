@@ -1,4 +1,4 @@
-"""Upscale one page (#82): shrink its image, ask the model once, store what it adds.
+"""Upscale one page (#82): resize its image, ask the model once, store what it adds.
 
 The decisions (what counts, what is a duplicate, when a page is done) are the pure
 functions in `app/domain/upscale.py`; this file only moves data between the page
