@@ -63,7 +63,8 @@ def test_dxf(tmp_path: Path) -> None:
     (room,) = [e for e in built.elements if e.kind == "room"]
     assert room.text == "Zimmer" and room.properties["number"] == "2.01"
     assert room.properties["area_m2"] == 12.0  # 4 m x 3 m outline
-    assert built.mesh is not None  # walls and rooms have real geometry
+    assert len(room.properties["polygon_px"]) == 4  # exact outline for the interactive plan
+    assert built.mesh is None  # floor plans get no 3D view (D-016); the IFC still has geometry
 
 
 def test_pdf(tmp_path: Path) -> None:
@@ -144,3 +145,21 @@ def test_dxf_with_meaningless_layers_falls_back_to_vision(tmp_path: Path) -> Non
     (room,) = [e for e in built.elements if e.kind == "room"]
     # Traced inside a 4 m x 3 m outline drawn with 2 px lines: 12 m² minus the line width.
     assert room.text == "Kitchen" and 11.0 < room.properties["area_m2"] <= 12.0
+
+
+def test_ifc_upload_gets_a_plan_page_per_storey(tmp_path: Path) -> None:
+    room = [(0.0, 0.0), (4000.0, 0.0), (4000.0, 3000.0), (0.0, 3000.0)]
+    write_model(
+        [ExtractedElement("room", "ifc", label="B101", name="Kitchen", footprint_mm=room,
+                          properties={"area_m2": 12.0})],
+        tmp_path / "in.ifc", "p",
+    )  # fmt: skip
+    built = _build(tmp_path / "in.ifc", "ifc", tmp_path)
+    _same_shape(built)
+    assert built.mesh is not None  # IFC keeps its 3D view
+    assert [p.meta["storey"] for p in built.pages] == ["Floor 1"]
+    (kitchen,) = [e for e in built.elements if e.kind == "room"]
+    assert kitchen.page_index == 0 and kitchen.bbox is not None
+    x0, y0, x1, y1 = kitchen.bbox
+    # A 4 m x 3 m room keeps its 4:3 proportions on the page.
+    assert abs((x1 - x0) / (y1 - y0) - 4 / 3) < 0.02

@@ -15,6 +15,7 @@ from typing import Any
 
 from app.bim.ifc_index import index_ifc
 from app.bim.ifc_mesh import ifc_to_mesh
+from app.bim.ifc_plans import floor_plans
 from app.bim.ifc_writer import write_model
 from app.config import Settings
 from app.ingest.errors import ReaderError
@@ -67,16 +68,41 @@ def build(
     elements, model_meta = index_ifc(model_path)
     meta = {**meta, "model": model_meta}
 
-    progress("meshing", 0.85)
     mesh: dict[str, Any] | None = None
-    try:
-        mesh = ifc_to_mesh(model_path)
-        if not mesh["meshes"]:
-            mesh = None
-    except Exception:  # a model we can't triangulate still answers questions
-        log.exception("meshing failed for %s", path.name)
-        warnings.append("mesh_failed")
+    if kind == "ifc":  # 3D only for real models; a floor plan's 3D would be invented (D-016)
+        progress("meshing", 0.85)
+        try:
+            mesh = ifc_to_mesh(model_path)
+            if not mesh["meshes"]:
+                mesh = None
+        except Exception:  # a model we can't triangulate still answers questions
+            log.exception("meshing failed for %s", path.name)
+            warnings.append("mesh_failed")
+        if mesh is not None:
+            progress("drawing plans", 0.9)
+            pages = _plans(mesh, elements, model_meta.get("storeys", []), warnings)
     return BuiltDocument(pages, elements, model_path, mesh, meta, warnings)
+
+
+def _plans(
+    mesh: dict[str, Any], elements: list[ExtractedElement], storeys: list[Any], warnings: list[str]
+) -> list[ExtractedPage]:
+    """One floor plan page per storey; drawn elements get their page and box."""
+    try:
+        pages, placed = floor_plans(mesh, elements, storeys)
+    except Exception:  # plans are a view; the model stays usable without them
+        log.exception("drawing floor plans failed")
+        warnings.append("plans_failed")
+        return []
+    for el in elements:
+        spot = placed.get(el.ifc_guid or "")
+        if spot is not None:
+            el.page_index, el.bbox = spot.page_index, spot.bbox
+            if el.kind == "room":
+                el.properties["polygon_px"] = [
+                    [round(x, 1), round(y, 1)] for x, y in spot.polygon_px
+                ]
+    return pages
 
 
 def _on_page(el: ExtractedElement, index: int) -> ExtractedElement:
