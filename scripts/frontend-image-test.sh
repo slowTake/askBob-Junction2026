@@ -62,7 +62,7 @@ docker network create "$net" >/dev/null
 # 1. No backend at all: nginx starts and stays up, serves the UI, and /api is a 502.
 url="$(web)"
 check "starts without a backend" true "$(running "$id-web")"
-check "serves the UI page" 1 "$(body "$url/" | grep -c '<title>bobBuilder</title>')"
+check "serves the UI page" 1 "$(body "$url/" | grep -c '<title>askBob</title>')"
 check "/api without a backend is 502" 502 "$(code "$url/api/health")"
 
 # 2. BACKEND_URL names the backend: /api goes there, with the path unchanged.
