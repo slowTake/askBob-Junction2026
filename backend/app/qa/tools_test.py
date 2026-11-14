@@ -1,11 +1,8 @@
 """The agent's `find_elements` kind filter covers every kind the readers store (#12)."""
 
 from app.domain.ifc_mapping import IFC_KINDS
+from app.domain.kinds import DRAWING_KINDS
 from app.qa.tools import KINDS, TOOLS, FindIn
-
-# Kinds written by the drawing pipeline: app/domain/tokens.py `classify` plus the
-# wall candidates added in app/ingest/annotate.py.
-DRAWING_KINDS = {"room", "fixture", "door", "dimension", "scale", "area", "text", "wall"}
 
 
 def test_every_ifc_kind_can_be_filtered() -> None:

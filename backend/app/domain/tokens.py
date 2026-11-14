@@ -6,6 +6,7 @@ from typing import Any
 
 from app.domain.dimensions import parse_area_m2, parse_dimension_mm, parse_scale
 from app.domain.geometry import BBox, bbox_union
+from app.domain.kinds import DrawingKind
 from app.domain.vocab import door_width_mm, lookup_code
 
 
@@ -18,7 +19,7 @@ class Word:
 
 @dataclass
 class Classified:
-    kind: str  # room | fixture | door | dimension | scale | area | text
+    kind: DrawingKind
     label: str | None = None
     name: str | None = None
     value_mm: float | None = None

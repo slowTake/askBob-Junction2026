@@ -4,11 +4,13 @@ from typing import Any
 
 from app.domain.dimensions import mm_per_px
 from app.domain.geometry import bbox_center, bbox_to_plan_polygon, footprint_mm
+from app.domain.kinds import DrawingKind
 from app.domain.tokens import Word, classify, merge_split_numbers
 from app.ingest.rooms import Gray, ink_mask, room_region, wall_boxes
 from app.ingest.types import ExtractedElement
 
 WALL_CONFIDENCE = 0.3  # heuristic wall detection: the agent must verify visually
+WALL: DrawingKind = "wall"
 
 
 def annotate_page(
@@ -56,7 +58,7 @@ def annotate_page(
             el.footprint_mm = footprint_mm(polygon, scale_mm, height)
 
     for box in wall_boxes(ink):
-        wall = ExtractedElement(kind="wall", source="derived", bbox=box, confidence=WALL_CONFIDENCE)
+        wall = ExtractedElement(kind=WALL, source="derived", bbox=box, confidence=WALL_CONFIDENCE)
         if scale_mm:
             wall.footprint_mm = bbox_to_plan_polygon(box, scale_mm, height)
         elements.append(wall)
