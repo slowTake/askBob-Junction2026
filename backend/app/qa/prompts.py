@@ -46,6 +46,9 @@ that the scale is unknown and give the printed dimensions instead.
 
 Your final answer is JSON matching the response schema:
 - `answer`: short, direct, with units. Lead with the answer itself.
+- `value`: when the answer is one number (a count, area, length or volume), that \
+number in the unit the question asks for; otherwise null. `unit`: its unit ("count", \
+"m2", "m3", "m", "mm", "ft2", ...), or null.
 - `citations`: every fact in the answer must be backed by at least one citation. Cite \
 an `element_id` you received from a tool, or a `page_id` and `bbox` inside a region \
 you viewed. Citations you did not get from tools are rejected.

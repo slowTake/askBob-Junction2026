@@ -88,6 +88,8 @@ export interface Citation {
 
 export interface Answer {
   answer: string;
+  value: number | null; // the answer as one number, for counts and measures
+  unit: string | null;
   confidence: "high" | "medium" | "low";
   caveats: string;
   verified: boolean;
