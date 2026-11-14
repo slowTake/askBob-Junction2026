@@ -1,3 +1,2 @@
-{"question": "How many bedrooms does the apartment have?", "expected": "3", "document_ids": []}
-{"question": "How wide is the bathroom door?", "expected": "800", "document_ids": []}
-{"question": "What is the total floor area of the apartment?", "expected": "80", "document_ids": []}
+{"question": "How many windows are shown on this floor plan?", "expected": 13, "type": "count", "unit": "count", "source": "cubicasa5k", "path": "data/cubicasa5k/colorful-11397.png", "document_ids": ["<document id after upload>"]}
+{"question": "What is the net floor area of the room 'KORIDOR (119)' on '1.korrus', in m²?", "expected": 63.84, "type": "area", "unit": "m2", "source": "ifc_models", "path": "data/ifc_models/<model>.ifc", "document_ids": ["<document id after upload>"]}

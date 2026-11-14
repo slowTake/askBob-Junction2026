@@ -1,9 +1,10 @@
-"""Run a question set against a running API and report accuracy and verification rate.
+"""Run an eval set against a running API and report accuracy and verified rate (D-019).
 
-    uv run python -m eval.run_eval eval/questions.example.jsonl --api http://localhost:8000
+    uv run python -m eval.run_eval ../.local/eval.jsonl --api http://localhost:8000
 
-Each JSONL line: {"question": "...", "expected": "900", "document_ids": ["..."]}.
-Put Stoa's example questions in a JSONL file like this to track progress.
+Build the eval set from the dataset with `eval.build_eval_set`. Each JSONL line:
+{"question", "expected", "type", "unit", "source", "path", "document_ids"}. Counts must
+match exactly, areas, lengths and volumes within 2%; text answers are not scored.
 """
 
 import argparse
@@ -13,7 +14,16 @@ from typing import Any
 
 import httpx
 
-from eval.scoring import is_correct
+from eval.report import Result, summarize
+from eval.scoring import score
+
+MARKS = {True: "PASS", False: "FAIL", None: "----"}
+SHOW_CHARS = 120  # long text answers would flood the log
+
+
+def _short(value: Any) -> str:
+    text = repr(value)
+    return text if len(text) <= SHOW_CHARS else text[: SHOW_CHARS - 3] + "..."
 
 
 def ask(api: str, question: str, document_ids: list[str]) -> dict[str, Any]:
@@ -35,19 +45,18 @@ def main() -> None:
     args = parser.parse_args()
 
     rows = [json.loads(line) for line in args.questions.read_text().splitlines() if line.strip()]
-    correct = verified = 0
+    results: list[Result] = []
     for row in rows:
         result = ask(args.api, row["question"], row.get("document_ids", []))
-        answer = str(result.get("answer", ""))
-        ok = is_correct(str(row["expected"]), answer)
-        correct += ok
-        verified += bool(result.get("verified"))
-        mark = "PASS" if ok else "FAIL"
-        print(f"{mark}  {row['question']}\n      expected {row['expected']!r}, got {answer!r}")
-    total = max(len(rows), 1)
-    print(
-        f"\naccuracy {correct}/{len(rows)} = {correct / total:.0%}, verified {verified / total:.0%}"
-    )
+        value = result.get("value")
+        correct = score(row["type"], row["expected"], value)
+        results.append(Result(row["source"], row["type"], correct, bool(result.get("verified"))))
+        got = result.get("answer") or result.get("code") or result.get("error")
+        expected = _short(row["expected"])
+        print(f"{MARKS[correct]}  [{row['source']}/{row['type']}] {row['question']}")
+        print(f"      expected {expected}, value {value!r}: {_short(got)}")
+    print()
+    print("\n".join(summarize(results)))
 
 
 if __name__ == "__main__":
