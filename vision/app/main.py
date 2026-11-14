@@ -111,6 +111,11 @@ def _load_model() -> Analyser:
     log.warning("vision model runs on %s", device)
     rotations = int(os.environ.get("VISION_ROTATIONS", "1"))
     model = FloorplanModel(weights, rotations=rotations, device=device)
+    import floortrans.post_prosessing as post_processing
+
+    from app.fast_post import install
+
+    install(post_processing)  # same polygons, ~7x faster (app/fast_post.py)
     return lambda rgb: analyse(model, rgb)
 
 
