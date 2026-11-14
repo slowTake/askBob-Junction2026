@@ -2,7 +2,7 @@
 
 import type { BBox } from "../lib/viewport";
 
-export type DocumentKind = "ifc" | "pdf" | "image";
+export type DocumentKind = "ifc" | "dxf" | "pdf" | "image";
 export type DocumentStatus = "queued" | "processing" | "ready" | "failed";
 
 export interface ApiErrorBody {
