@@ -29,3 +29,14 @@ def to_original(
     """Scaled-crop pixels -> original-image pixels."""
     a = np.asarray(list(points), dtype=float).reshape(-1, 2) / scale + np.asarray(offset)
     return [[round(float(x), 1), round(float(y), 1)] for x, y in a]
+
+
+def keep_windows(starts: list[int], tile: int, length: int) -> list[tuple[int, int]]:
+    """For each tile, the part (in its own coordinates) it alone owns.
+
+    Neighbouring tiles split their overlap in the middle, so every pixel comes from
+    exactly one tile, and from that tile's inner part rather than its edge.
+    """
+    ends = [min(s + tile, length) for s in starts]
+    cuts = [0] + [(ends[i] + starts[i + 1]) // 2 for i in range(len(starts) - 1)] + [length]
+    return [(cuts[i] - s, cuts[i + 1] - s) for i, s in enumerate(starts)]

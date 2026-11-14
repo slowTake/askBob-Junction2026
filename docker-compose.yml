@@ -66,6 +66,9 @@ services:
     build: ./vision
     environment:
       - VISION_ROTATIONS
+    # Safety net (D-023): if a page ever needs more, only this container dies and
+    # ingest falls back to pixel heuristics; the host and the other services stay up.
+    mem_limit: 6g
     healthcheck:
       test:
         [

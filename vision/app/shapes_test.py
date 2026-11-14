@@ -57,3 +57,23 @@ def test_from_components_ignores_specks_and_background() -> None:
     icons[3, 3] = ICONS.index("Sink")  # one pixel: below min_area_px
     result = from_components(rooms, icons, scale=1.0, offset=(0, 0), min_area_px=4)
     assert result == {"rooms": [], "walls": [], "objects": []}
+
+
+def test_rooms_of_the_same_type_are_split_at_a_door_between_them() -> None:
+    bed, wall = ROOMS.index("Bed Room"), ROOMS.index("Wall")
+    rooms = np.full((30, 61), bed)
+    rooms[:, 30] = wall  # one wall column between two bedrooms...
+    rooms[10:20, 30] = bed  # ...with a doorway in it, where the model saw a door
+    icons = np.zeros((30, 61), int)
+    icons[10:20, 29:32] = ICONS.index("Door")
+    result = from_components(rooms, icons, scale=1.0, offset=(0, 0), min_area_px=4)
+    assert [r["class"] for r in result["rooms"]] == ["Bed Room", "Bed Room"]
+
+
+def test_walls_come_from_the_wall_class() -> None:
+    rooms = np.zeros((30, 30), int)
+    rooms[5:8, 2:28] = ROOMS.index("Wall")  # one 3 x 26 px wall
+    result = from_components(rooms, np.zeros((30, 30), int), 1.0, (0, 0), min_area_px=4)
+    assert len(result["walls"]) == 1
+    xs = [p[0] for p in result["walls"][0]]
+    assert (min(xs), max(xs)) == (2.0, 27.0)  # contour runs along pixel columns 2..27
