@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # The floor-plan model service (D-022); unset means ingest uses pixel heuristics.
     vision_url: str | None = None
-    vision_timeout_s: int = 600  # a large sheet takes minutes on CPU
+    vision_timeout_s: int = 90  # optional enrichment must not block the ingest queue for minutes
 
     render_dpi: int = 150
     ocr_langs: str = "fin+swe+eng"  # Tesseract only

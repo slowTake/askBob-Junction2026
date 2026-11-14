@@ -73,18 +73,18 @@ def _blank() -> np.ndarray:
     return np.full((300, 300), 255, np.uint8)
 
 
-def test_model_room_gives_a_printed_label_its_outline() -> None:
+def test_model_mask_does_not_claim_to_be_a_room_boundary() -> None:
     elements, _, _ = annotate_page(_blank(), [KITCHEN_LABEL], "ocr", None, vision=VISION)
     kitchen = next(e for e in elements if e.text == "Küche")
-    assert kitchen.properties["polygon_px"] == [[10, 10], [110, 10], [110, 110], [10, 110]]
-    assert "region" not in kitchen.properties
+    assert "polygon_px" not in kitchen.properties
+    assert kitchen.properties["region"] == "not_closed"
 
 
-def test_unlabelled_model_rooms_and_objects_become_elements() -> None:
+def test_model_objects_are_kept_without_adding_unlabelled_room_fragments() -> None:
     elements, _, _ = annotate_page(_blank(), [KITCHEN_LABEL], "ocr", None, vision=VISION)
     from_model = [(e.kind, e.properties.get("category") or e.properties.get("subtype"))
                   for e in elements if e.source == "vision"]  # fmt: skip
-    assert ("room", "bathroom") in from_model
+    assert not [e for e in elements if e.source == "vision" and e.kind == "room"]
     assert ("door", None) in from_model
     assert ("fixture", "wc") in from_model
     assert ("room", "kitchen") not in from_model  # the printed label already names it
@@ -152,11 +152,11 @@ def test_printed_rooms_take_outlines_traced_from_the_lines() -> None:
     assert meta["room_outlines"] == {"traced": 2}
 
 
-def test_without_closed_lines_the_model_room_is_the_fallback() -> None:
+def test_without_closed_lines_only_the_printed_room_label_is_available() -> None:
     elements, _, meta = annotate_page(_blank(), [KITCHEN_LABEL], "ocr", None, vision=VISION)
     kitchen = next(e for e in elements if e.text == "Küche")
-    assert kitchen.properties["outline_source"] == "model"
-    assert meta["room_outlines"] == {"model": 1}
+    assert "polygon_px" not in kitchen.properties
+    assert meta["room_outlines"] == {}
 
 
 def test_another_rooms_number_stops_a_merged_region_being_one_room() -> None:
@@ -169,4 +169,43 @@ def test_another_rooms_number_stops_a_merged_region_being_one_room() -> None:
     words = [Word((40.0, 90.0, 90.0, 105.0), "Küche"), Word((220.0, 90.0, 250.0, 105.0), "1.02")]
     elements, _, _ = annotate_page(page, words, "ocr", None)
     kitchen = next(e for e in elements if e.text == "Küche")
-    assert kitchen.properties.get("outline_source") != "traced"
+    assert "polygon_px" not in kitchen.properties
+    assert kitchen.properties["region"] == "not_closed"
+
+
+def test_merged_model_room_is_rejected_without_scale_or_printed_area() -> None:
+    vision = parse({"rooms": [{"class": "Bath", "polygon": _square(10, 10, 270)}]})
+    words = [KITCHEN_LABEL, Word((210.0, 45.0, 240.0, 55.0), "Bad")]
+    elements, _, _ = annotate_page(_blank(), words, "ocr", None, vision=vision)
+    rooms = [e for e in elements if e.kind == "room"]
+    assert len(rooms) == 2
+    assert all("polygon_px" not in e.properties for e in rooms)
+    assert all(e.properties["region"] == "not_closed" for e in rooms)
+
+
+def test_a_smaller_model_fragment_is_not_used_to_replace_a_missing_boundary() -> None:
+    vision = parse(
+        {
+            "rooms": [
+                {"class": "Undefined", "polygon": _square(10, 10, 270)},
+                {"class": "Kitchen", "polygon": _square(10, 10, 100)},
+            ]
+        }
+    )
+    words = [KITCHEN_LABEL, Word((210.0, 45.0, 240.0, 55.0), "Bad")]
+    elements, _, meta = annotate_page(_blank(), words, "ocr", None, vision=vision)
+    kitchen = next(e for e in elements if e.text == "Küche")
+    bath = next(e for e in elements if e.text == "Bad")
+    assert "polygon_px" not in kitchen.properties
+    assert "polygon_px" not in bath.properties
+    assert meta["room_outlines"] == {}
+
+
+def test_unlinked_room_number_also_rejects_a_merged_model_fallback() -> None:
+    vision = parse({"rooms": [{"class": "Bath", "polygon": _square(10, 10, 270)}]})
+    words = [KITCHEN_LABEL, Word((220.0, 90.0, 250.0, 105.0), "1.02")]
+    elements, _, _ = annotate_page(_blank(), words, "ocr", None, vision=vision)
+    kitchen = next(e for e in elements if e.text == "Küche")
+    assert "polygon_px" not in kitchen.properties
+    assert kitchen.properties["region"] == "not_closed"
+    assert not [e for e in elements if e.source == "vision" and e.kind == "room"]

@@ -23,3 +23,12 @@ def test_llm_model_follows_the_provider() -> None:
     )
     assert default.llm_model == "claude-opus-5-5"  # default provider is anthropic
     assert verda.llm_model == "kimi-k3-1-pro"
+
+
+def test_vision_wait_is_bounded_and_can_be_overridden() -> None:
+    settings = Settings(database_url="postgresql://u@h/db", valkey_url="redis://h")
+    assert settings.vision_timeout_s == 90
+    configured = Settings(
+        database_url="postgresql://u@h/db", valkey_url="redis://h", vision_timeout_s=20
+    )
+    assert configured.vision_timeout_s == 20

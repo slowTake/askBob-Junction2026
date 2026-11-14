@@ -29,7 +29,7 @@ def read_image(path: Path, settings: Settings, progress: Progress) -> ExtractedD
     with opened:
         dpi_info = opened.info.get("dpi")
         frames = [
-            f.convert("RGB")
+            _on_white(f)
             for _, f in zip(range(MAX_PAGES), ImageSequence.Iterator(opened), strict=False)
         ]
     if not frames:
@@ -38,14 +38,26 @@ def read_image(path: Path, settings: Settings, progress: Progress) -> ExtractedD
 
     pages = []
     for index, image in enumerate(frames):
-        pages.append(_page(index, image, file_dpi, settings))
-        progress("ocr", (index + 1) / len(frames))
+
+        def report(stage: str, fraction: float, page_index: int = index) -> None:
+            progress(stage, (page_index + fraction) / len(frames))
+
+        pages.append(_page(index, image, file_dpi, settings, report))
     return ExtractedDocument(
         pages=pages, meta={"page_count": len(pages), "dpi_from_file": file_dpi is not None}
     )
 
 
-def _page(index: int, image: Image.Image, dpi: float | None, settings: Settings) -> ExtractedPage:
+def _on_white(frame: Image.Image) -> Image.Image:
+    """Transparent drawing paper is white, including palette PNGs with transparency."""
+    rgba = frame.convert("RGBA")
+    paper = Image.new("RGBA", rgba.size, "white")
+    return Image.alpha_composite(paper, rgba).convert("RGB")
+
+
+def _page(
+    index: int, image: Image.Image, dpi: float | None, settings: Settings, progress: Progress
+) -> ExtractedPage:
     factor = min(1.0, MAX_SIDE_PX / max(image.size))
     if factor < 1.0:
         image = image.resize((round(image.width * factor), round(image.height * factor)))
@@ -54,9 +66,13 @@ def _page(index: int, image: Image.Image, dpi: float | None, settings: Settings)
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
     png = buffer.getvalue()
+    progress("ocr", 0.0)
     words = ocr_words(gray, settings.ocr_langs, settings.ocr_engine)
+    progress("vision", 0.3)
     vision, status = analyse_page(png, settings)
+    progress("annotating", 0.8)
     elements, scale_mm, meta = annotate_page(gray, words, "ocr", dpi, vision=vision)
+    progress("annotating", 1.0)
     meta["vision"] = status
     return ExtractedPage(
         index=index,
