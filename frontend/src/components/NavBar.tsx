@@ -28,7 +28,7 @@ export function NavBar(props: Props) {
       )}
       <div className="wordmark">
         <span className="wordmark-mark" aria-hidden />
-        bobBuilder
+        AskBob
       </div>
       <div className="nav-actions">
         <button
