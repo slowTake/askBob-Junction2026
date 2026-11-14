@@ -86,7 +86,13 @@ def test_tool_step_then_final_answer(fake: FakeClient) -> None:
             "type": "final",
             "answer": FinalAnswer.model_validate(ANSWER),
             # Two requests of 100 prompt + 10 completion tokens each.
-            "usage": {"input_tokens": 200, "output_tokens": 20},
+            "usage": {
+                "input_tokens": 200,
+                "output_tokens": 20,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "requests": 2,
+            },
         },
     ]
     second = fake.requests[1]["messages"]
@@ -153,6 +159,24 @@ def test_the_last_turn_must_be_the_final_answer(fake: FakeClient) -> None:
     assert last == {"role": "user", "content": LAST_STEP_NOTE}
     # Earlier turns end with the tool result, not with the note.
     assert fake.requests[1]["messages"][-1]["role"] == "tool"
+
+
+def test_cached_prompt_tokens_are_counted_apart(fake: FakeClient) -> None:
+    response = _response([_call("c1", "final_answer", json.dumps(ANSWER))])
+    response.usage.prompt_tokens_details = SimpleNamespace(cached_tokens=60)
+    fake.responses = [response]
+    usage = _events()[-1]["usage"]
+    # 100 prompt tokens, 60 of them read from Verda's cache: 40 at the full price.
+    assert (usage["input_tokens"], usage["cache_read_tokens"]) == (40, 60)
+
+
+def test_a_failed_run_still_reports_its_usage(fake: FakeClient) -> None:
+    fake.responses = [_response([_call(f"c{i}", "find_elements", "{}")]) for i in range(3)]
+    ctx = ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
+    with pytest.raises(AgentError):
+        list(run_verda_agent("How many bedrooms?", [], ctx, SETTINGS))
+    # Three requests of 100 prompt + 10 completion tokens each.
+    assert (ctx.usage.input_tokens, ctx.usage.output_tokens, ctx.usage.requests) == (300, 30, 3)
 
 
 def test_the_question_states_the_step_budget(fake: FakeClient) -> None:
