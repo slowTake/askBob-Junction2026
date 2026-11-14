@@ -1,0 +1,51 @@
+[project]
+name = "bobbuilder-vision"
+version = "0.1.0"
+description = "Floor-plan model (CubiCasa5k) as an internal HTTP service; see docs/decisions.md D-022"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.162,<1",
+  "uvicorn>=0.54",
+  "numpy>=2.5,<3",
+  "opencv-python-headless>=5.0,<6",
+  "pillow>=13,<14",
+  "shapely>=2.0,<3",
+  "scipy>=1.18,<2",
+  "scikit-image>=0.26,<1",
+  "torch>=2.13,<3",
+  # Imported by CubiCasa5k's loaders package, which holds the rotation helper we use.
+  "lmdb>=3,<4",
+  "svgpathtools>=1.8,<2",
+]
+
+[dependency-groups]
+dev = ["pytest>=9.2", "ruff>=0.17", "mypy>=2.4", "httpx>=0.28"]
+
+[tool.uv]
+package = false
+
+# CPU-only PyTorch wheels: about 200 MB instead of several GB with CUDA.
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+python_files = ["*_test.py"]
+testpaths = ["app"]

@@ -4,7 +4,13 @@ from typing import Any
 
 from app.domain.areas import outline_agrees
 from app.domain.dimensions import mm_per_px
-from app.domain.geometry import Point, bbox_center, bbox_to_plan_polygon, footprint_mm
+from app.domain.geometry import (
+    Point,
+    bbox_center,
+    bbox_to_plan_polygon,
+    footprint_mm,
+    polygon_area,
+)
 from app.domain.kinds import DrawingKind
 from app.domain.labels import (
     Label,
@@ -14,11 +20,22 @@ from app.domain.labels import (
 )
 from app.domain.polygons import polygon_bbox
 from app.domain.tokens import Word, classify, merge_split_numbers
+from app.domain.vision import (
+    Parsed,
+    object_findings,
+    outline_for,
+    unlabelled_rooms,
+    wall_findings,
+)
 from app.ingest.dimension_lines import fit_dimension_scale
 from app.ingest.rooms import Gray, ink_mask, room_region, wall_boxes
 from app.ingest.types import ExtractedElement
+from app.ingest.vision_elements import to_element
 
 WALL_CONFIDENCE = 0.3  # heuristic wall detection: the agent must verify visually
+# A model room without a printed name must cover this share of the page: smaller
+# ones are slivers between walls, not rooms.
+MIN_MODEL_ROOM_PX = 0.0005
 VECTOR_WALL_CONFIDENCE = 0.95  # hatched regions from the PDF's vector layer
 WALL: DrawingKind = "wall"
 
@@ -30,6 +47,8 @@ def annotate_page(
     dpi: float | None,
     vector_walls: list[list[Point]] | None = None,
     known_mm_per_px: float | None = None,
+    vision: Parsed | None = None,
+    vision_objects_only: bool = False,
 ) -> tuple[list[ExtractedElement], float | None, dict[str, Any]]:
     """Return the page's elements, its mm-per-pixel scale (if known) and page metadata.
 
@@ -37,6 +56,9 @@ def annotate_page(
     layer); when given, they replace the pixel-based wall heuristic.
     `known_mm_per_px` is an exact scale (e.g. a rendered CAD drawing), which wins
     over a printed scale note.
+    `vision` is the floor-plan model's reading of the page (D-022). It always adds
+    doors, windows and fixtures; unless `vision_objects_only`, its rooms outline the
+    printed room labels and its walls replace the pixel heuristic.
     """
     words = merge_split_numbers(words)
     elements: list[ExtractedElement] = []
@@ -89,12 +111,21 @@ def annotate_page(
             scale_meta = {"scale_method": "dimension_fit", "scale_support": support}
     # TODO(scale): scale bars (HABS, Finna) as a third method, "scale_bar".
 
+    model_rooms = vision is not None and not vision_objects_only
+    label_points: list[Point] = []
     for el in elements:
         if el.kind != "room" or el.bbox is None:
             continue
-        found = room_region(
-            ink, bbox_center(el.bbox), erase=text_boxes, close_px=3, max_area_frac=max_room_frac
-        )
+        centre = bbox_center(el.bbox)
+        label_points.append(centre)
+        found: tuple[list[Point], float] | None
+        if model_rooms and vision is not None:
+            outline = outline_for(centre, vision.rooms)
+            found = (outline, polygon_area(outline)) if outline else None
+        else:
+            found = room_region(
+                ink, centre, erase=text_boxes, close_px=3, max_area_frac=max_room_frac
+            )
         if found is None:
             el.properties["region"] = "not_closed"
             continue
@@ -120,6 +151,8 @@ def annotate_page(
             if scale_mm:
                 wall.footprint_mm = footprint_mm(outline, scale_mm, height)
             elements.append(wall)
+    elif model_rooms and vision is not None:
+        elements += [to_element(w, scale_mm, height) for w in wall_findings(vision)]
     else:
         for box in wall_boxes(ink):
             wall = ExtractedElement(
@@ -128,6 +161,13 @@ def annotate_page(
             if scale_mm:
                 wall.footprint_mm = bbox_to_plan_polygon(box, scale_mm, height)
             elements.append(wall)
+
+    if vision is not None:
+        if model_rooms:
+            min_area = MIN_MODEL_ROOM_PX * (gray.shape[0] * gray.shape[1])
+            new_rooms = unlabelled_rooms(vision.rooms, label_points, min_area)
+            elements += [to_element(r, scale_mm, height) for r in new_rooms]
+        elements += [to_element(o, scale_mm, height) for o in object_findings(vision)]
 
     meta = {
         "scale_denominators": scales,
