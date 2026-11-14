@@ -64,9 +64,10 @@ class Harness:
 
     def seed(self, status: str = "ready", image: bool = True) -> None:
         with self.sessions() as db:
-            doc = Document(id=self.doc_id, filename="plan.png", kind="image", status=status,
+            # A PDF: raster images get the sketch redraw instead (sketch_test.py).
+            doc = Document(id=self.doc_id, filename="plan.pdf", kind="pdf", status=status,
                            sha256="0" * 64, size_bytes=1, page_count=1, version=2,
-                           meta={"extension": ".png"})  # fmt: skip
+                           meta={"extension": ".pdf"})  # fmt: skip
             page = Page(document_id=self.doc_id, index=0, width_px=PAGE_W, height_px=PAGE_H,
                         dpi=150, mm_per_px=None, meta={"words": 3})  # fmt: skip
             db.add_all([doc, page])
@@ -129,7 +130,9 @@ def test_adds_what_the_model_found_in_page_pixels(harness: Harness) -> None:
 
     assert body["status"] == 200 and body["ok"] is True
     assert body["data"]["added"] == 2 and body["data"]["cached"] is False
-    assert body["data"]["page"]["upscale"] == {"added": 2, "model": "fake-vision"}
+    assert body["data"]["page"]["upscale"] == {
+        "added": 2, "model": "fake-vision", "mode": "fill", "rounds": None,
+    }  # fmt: skip
     [call] = harness.calls
     # 2000 x 1000 with the longest side limited to 1000: half size.
     assert call["size"] == (1000, 500) and call["sent"] == (1000, 500)
@@ -185,7 +188,7 @@ def test_answers_cached_before_the_upscale_are_not_served_after_it(harness: Harn
         doc = db.get_one(Document, harness.doc_id)
         page = db.scalars(select(Page)).one()
     assert doc.meta["upscales"] == 1  # part of the answer-cache key (qa/service.py)
-    assert doc.meta["extension"] == ".png" and doc.version == 2
+    assert doc.meta["extension"] == ".pdf" and doc.version == 2
     assert page.meta["words"] == 3  # the reader's page meta is kept
     assert page.meta["upscale"]["document_version"] == 2
 

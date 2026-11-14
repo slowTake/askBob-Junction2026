@@ -68,8 +68,21 @@ def test_page_says_whether_it_was_upscaled() -> None:
     page["meta"] = {"upscale": {"document_version": 2, "format": UPSCALE_FORMAT, "model": "m",
                                 "added": 4, "input_tokens": 3000,
                                 "output_tokens": 400}}  # fmt: skip
-    # Only what the UI shows; the token counts stay on the server.
-    assert PageOut.model_validate(page).model_dump()["upscale"] == {"added": 4, "model": "m"}
+    # Only what the UI shows; the token counts stay on the server. No mode: an entry
+    # written before the sketch redraw was a gap-filling pass.
+    assert PageOut.model_validate(page).model_dump()["upscale"] == {
+        "added": 4, "model": "m", "mode": "fill", "rounds": None,
+    }  # fmt: skip
+
+
+def test_a_sketch_redraw_says_so_and_how_many_rounds_it_took() -> None:
+    entry = {"document_version": 2, "format": UPSCALE_FORMAT, "mode": "sketch", "model": "m",
+             "added": 30, "rounds": 2, "matched": True}  # fmt: skip
+    page = {"id": uuid.uuid4(), "index": 0, "width_px": 10, "height_px": 10, "dpi": None,
+            "mm_per_px": None, "meta": {"upscale": entry}}  # fmt: skip
+    assert PageOut.model_validate(page).model_dump()["upscale"] == {
+        "added": 30, "model": "m", "mode": "sketch", "rounds": 2,
+    }  # fmt: skip
 
 
 def test_a_page_upscaled_in_an_older_format_offers_upscale_again() -> None:

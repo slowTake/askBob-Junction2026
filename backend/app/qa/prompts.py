@@ -27,6 +27,10 @@ model is usually right but not exact; look at the drawing before you rely on a c
 - Elements with source `upscale` were added on request by a vision model that compared \
 the page with the extracted elements: their boxes are approximate, so check them the \
 same way.
+- Elements with source `sketch` are a vision model's redraw of a hand-drawn sketch: its \
+walls, doors, windows, room names and written text. Their boxes are approximate too, so \
+check them the same way. A sketch has no scale: never give a length or area for it \
+unless one is written on the drawing.
 
 Drawing conventions you will meet (Nordic drawings):
 - Dimensions are millimetres; "10 800" means 10 800 mm.
