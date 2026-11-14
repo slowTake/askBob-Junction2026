@@ -2,7 +2,7 @@
 
 LOCAL_ENV = DATABASE_URL=postgresql://bob:bob@postgres:5432/bob VALKEY_URL=redis://valkey:6379/0
 
-.PHONY: help up up-local down logs check backend-check frontend-check size-check scripts-check fmt dev-api dev-worker dev-web
+.PHONY: help up up-aiven up-local down logs check backend-check frontend-check size-check scripts-check fmt dev-api dev-worker dev-web
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -10,6 +10,9 @@ help: ## Show this help
 up: ## Run everything against Aiven (run `source scripts/aiven-env.sh` first)
 	@test -n "$$DATABASE_URL" -a -n "$$VALKEY_URL" || { echo "Run: source scripts/aiven-env.sh"; exit 1; }
 	docker compose up --build
+
+up-aiven: ## Run everything against Aiven: URLs from avn, passwords from your keyring
+	bash -c 'source scripts/aiven-env.sh && exec docker compose up --build'
 
 up-local: ## Run everything offline with local Postgres + Valkey containers
 	$(LOCAL_ENV) docker compose --profile local up --build
@@ -33,6 +36,7 @@ size-check: ## No source file over 600 lines
 
 scripts-check: ## Tests for the helper scripts
 	scripts/bulk-issues-test.sh
+	scripts/aiven-env-test.sh
 
 fmt: ## Auto-format everything
 	cd backend && uv run ruff format . && uv run ruff check --fix .
