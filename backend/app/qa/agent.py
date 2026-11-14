@@ -85,7 +85,7 @@ def _client() -> anthropic.Anthropic:
 def run_agent(
     question: str, documents: list[dict[str, Any]], ctx: ToolContext, settings: Settings
 ) -> Iterator[dict[str, Any]]:
-    """Yield `{"type": "step", ...}` per tool call, then one `{"type": "final", ...}`."""
+    """Yield `step` per tool call, `view` per plan change, then one `final`."""
     client = _client()
     if not (client.api_key or client.auth_token or client.credentials):
         # Without this the SDK raises a bare TypeError on the first request.
@@ -127,6 +127,7 @@ def run_agent(
             results: list[dict[str, Any]] = []
             for block in tool_uses:
                 yield {"type": "step", "tool": block.name, "input": block.input}
+                shown = len(ctx.views)
                 try:
                     content = run_tool(block.name, block.input, ctx)
                     results.append(
@@ -137,6 +138,8 @@ def run_agent(
                         {"type": "tool_result", "tool_use_id": block.id,
                          "content": str(exc), "is_error": True}
                     )  # fmt: skip
+                for view in ctx.views[shown:]:  # plan tools: show it while the answer streams
+                    yield {"type": "view", "view": view}
             messages.append({"role": "user", "content": results})  # all results in one turn
             continue
 

@@ -58,6 +58,9 @@ def answer_stream(question: str, document_ids: list[str]) -> Iterator[str]:
                     if event["type"] == "step":
                         yield sse("step", {"tool": event["tool"], "input": event["input"]})
                         continue
+                    if event["type"] == "view":
+                        yield sse("view", event["view"])
+                        continue
                     payload = _payload(event["answer"], ctx)
                     record.update(answer=payload, verified=payload["verified"], **event["usage"])
                     cache_set(key, payload, settings.answer_cache_ttl_s)
@@ -106,6 +109,7 @@ def _payload(answer: FinalAnswer, ctx: ToolContext) -> dict[str, Any]:
         "caveats": answer.caveats,
         "verified": verified,
         "citations": [citation_payload(c) for c in checked],
+        "views": ctx.views,  # replayed from the cache like the rest of the answer
         "cached": False,
     }
 

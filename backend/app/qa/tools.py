@@ -7,19 +7,18 @@ the final answer may only cite that evidence (see app/domain/citations.py).
 import base64
 import io
 import json
-import uuid
-from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
 
 from app.domain.areas import RoomArea, net_area
 from app.domain.citations import EvidenceItem
 from app.domain.geometry import BBox, distance
 from app.models import Element, Page
+from app.qa.context import ToolContext, ToolInputError, parse_id
+from app.qa.plan_tools import PLAN_TOOL_NAMES, PLAN_TOOLS, run_plan_tool
 from app.storage import page_image_path
 
 KINDS = ["room", "room_number", "unit", "wall", "door", "window", "dimension", "scale", "area",
@@ -95,6 +94,7 @@ TOOLS: list[dict[str, Any]] = [
             "name": _nullable({"type": "string"}),
         },
     ),
+    *PLAN_TOOLS,
 ]
 
 
@@ -128,18 +128,6 @@ class RegionIn(_Strict):
     y1: float
 
 
-@dataclass
-class ToolContext:
-    db: Session
-    scope: list[uuid.UUID]
-    elements: dict[str, EvidenceItem] = field(default_factory=dict)
-    regions: list[EvidenceItem] = field(default_factory=list)
-
-
-class ToolInputError(Exception):
-    pass
-
-
 def run_tool(name: str, raw: Any, ctx: ToolContext) -> str | list[dict[str, Any]]:
     """Run one tool. Raises ToolInputError for bad input (sent back to Claude as is_error)."""
     try:
@@ -153,6 +141,8 @@ def run_tool(name: str, raw: Any, ctx: ToolContext) -> str | list[dict[str, Any]
             return _measure(RegionIn.model_validate(raw), ctx)
         if name == "sum_room_areas":
             return _areas(AreaIn.model_validate(raw), ctx)
+        if name in PLAN_TOOL_NAMES:
+            return run_plan_tool(name, raw, ctx)
     except ValidationError as exc:
         raise ToolInputError(f"invalid input: {exc.error_count()} problem(s)") from exc
     raise ToolInputError(f"unknown tool {name}")
@@ -291,8 +281,4 @@ def _clamp(box: BBox, page: Page) -> BBox:
     return (x0, y0, x1, y1)
 
 
-def _uuid(value: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(value)
-    except ValueError as exc:
-        raise ToolInputError("not a valid id") from exc
+_uuid = parse_id

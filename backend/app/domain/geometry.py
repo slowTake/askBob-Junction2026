@@ -3,6 +3,7 @@ Plan coordinates are millimetres, y pointing up (the way IFC expects them).
 """
 
 import math
+from dataclasses import dataclass
 
 BBox = tuple[float, float, float, float]  # x0, y0, x1, y1
 Point = tuple[float, float]
@@ -70,3 +71,24 @@ def bbox_to_plan_polygon(b: BBox, mm_per_px: float, page_height_px: float) -> li
     """Rectangle footprint (counter-clockwise in plan coordinates) of a page box."""
     x0, y0, x1, y1 = b
     return footprint_mm([(x0, y1), (x1, y1), (x1, y0), (x0, y0)], mm_per_px, page_height_px)
+
+
+@dataclass(frozen=True)
+class Measurement:
+    centre_mm: float  # centre to centre
+    gap_mm: float  # nearest edges; 0 when the boxes touch or overlap
+    start: Point  # the line to draw: centre of a ...
+    end: Point  # ... to centre of b (page pixels)
+
+
+def measure_boxes(a: BBox, b: BBox, mm_per_px: float) -> Measurement:
+    """Distances between two elements' page boxes, in real millimetres."""
+    ca, cb = bbox_center(a), bbox_center(b)
+    dx = max(0.0, max(a[0], b[0]) - min(a[2], b[2]))
+    dy = max(0.0, max(a[1], b[1]) - min(a[3], b[3]))
+    return Measurement(
+        centre_mm=round(distance(ca, cb) * mm_per_px),
+        gap_mm=round(math.hypot(dx, dy) * mm_per_px),
+        start=ca,
+        end=cb,
+    )

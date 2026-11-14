@@ -6,6 +6,7 @@ from app.domain.geometry import (
     bbox_union,
     distance,
     footprint_mm,
+    measure_boxes,
     polygon_area,
     px_to_plan_mm,
     unrotate_bbox_cw90,
@@ -57,3 +58,17 @@ def test_bbox_to_plan_polygon() -> None:
     poly = bbox_to_plan_polygon((0, 0, 10, 20), mm_per_px=2, page_height_px=20)
     assert poly == [(0, 0), (20, 0), (20, 40), (0, 40)]
     assert polygon_area(poly) == 800  # 20 mm x 40 mm
+
+
+def test_measure_boxes_side_by_side() -> None:
+    # Two 10x10 px boxes, 20 px apart edge to edge, centres 30 px apart; 5 mm per px.
+    m = measure_boxes((0, 0, 10, 10), (30, 0, 40, 10), mm_per_px=5)
+    assert m.centre_mm == 150  # 30 px x 5 mm
+    assert m.gap_mm == 100  # 20 px x 5 mm
+    assert (m.start, m.end) == ((5, 5), (35, 5))  # centre to centre
+
+
+def test_measure_boxes_diagonal_and_overlapping() -> None:
+    # Gap: 3 px across and 4 px down between the nearest corners -> 5 px (3-4-5).
+    assert measure_boxes((0, 0, 10, 10), (13, 14, 20, 20), mm_per_px=1).gap_mm == 5
+    assert measure_boxes((0, 0, 10, 10), (5, 5, 20, 20), mm_per_px=1).gap_mm == 0
