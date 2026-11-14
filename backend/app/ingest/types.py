@@ -22,6 +22,7 @@ class ExtractedElement:
     ifc_guid: str | None = None
     properties: dict[str, Any] = field(default_factory=dict)
     confidence: float = 1.0
+    page_index: int | None = None  # which page of the document; None for IFC objects
 
 
 @dataclass

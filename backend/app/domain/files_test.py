@@ -39,3 +39,26 @@ def test_dxf_by_header_or_extension() -> None:
     assert detect_kind("x.bin", b"0\r\nSECTION\r\n") == "dxf"
     assert detect_kind("plan.DXF", b"999\ncomment") == "dxf"
     assert extension_for("dxf", "plan.dxf") == ".dxf"
+
+
+def test_svg_by_content_even_after_an_xml_prolog() -> None:
+    head = b'<?xml version="1.0" encoding="UTF-8"?>\n<!-- exported -->\n<svg xmlns="http://www.w3.org/2000/svg">'
+    assert detect_kind("plan.bin", head) == "svg"
+    assert detect_kind("plan.svg", b"") == "svg"
+    assert extension_for("svg", "a.svg") == ".svg"
+
+
+def test_dwg_by_version_magic() -> None:
+    # DWG files start with "AC10" + two version digits (AC1032 = AutoCAD 2018 format).
+    assert detect_kind("x.bin", b"AC1032\x00\x00") == "dwg"
+    assert detect_kind("PLAN.DWG", b"????") == "dwg"
+
+
+def test_more_raster_formats() -> None:
+    assert detect_kind("x", b"RIFF\x24\x00\x00\x00WEBPVP8 ") == "image"  # RIFF....WEBP
+    assert detect_kind("x", b"GIF89a") == "image"
+    assert detect_kind("x.bmp", b"BM6\x00") == "image"
+
+
+def test_an_xml_file_that_is_not_svg_is_not_svg() -> None:
+    assert detect_kind("data.xml", b'<?xml version="1.0"?><root/>') is None
