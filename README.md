@@ -37,7 +37,7 @@ Why it's built this way: [docs/decisions.md](docs/decisions.md).
 **With Aiven** (shared setup; first follow [docs/aiven-setup.md](docs/aiven-setup.md)):
 
 ```bash
-export AIVEN_PG_SERVICE=<pg-service> AIVEN_VALKEY_SERVICE=<valkey-service>
+export AIVEN_PROJECT=<project> AIVEN_PG_SERVICE=<pg-service> AIVEN_VALKEY_SERVICE=<valkey-service>
 source scripts/aiven-env.sh        # exports DATABASE_URL / VALKEY_URL for this shell only
 export ANTHROPIC_API_KEY=...       # or keep it in the keyring; see aiven-setup.md
 make up                            # UI on http://localhost:8080, API on :8000
