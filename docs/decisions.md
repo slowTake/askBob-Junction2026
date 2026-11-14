@@ -28,6 +28,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
+| D-028 | 2026-11-14 | IFC base quantities are stored in SI units and totalled by the server | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -351,3 +352,21 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 **Decision:** A `count_elements` agent tool, like `sum_room_areas` for areas. The rules are a pure `count` (`app/domain/counting.py`): elements of one required kind, narrowed by fixture `subtype`, room `category`, printed room `name` (exact, ignoring case and runs of spaces, so "Küche" doesn't count "Wohnküche"), IFC `storey`, document and page. An element missing a property never matches a filter on it. The tool returns the exact total, counts per page and per storey, and lists the first 50 elements, which become citable evidence. The prompt sends every "how many" question to it. `ANSWER_FORMAT` goes to 4 so answers counted the old way aren't served from the cache.
 
 **Consequences:** Counts are as good as the elements ingest stores. On IFC models they should now be right; on drawings, doors, windows and fixtures exist only once a detector produces them (#38, #88). Rules like "a doorway without a leaf doesn't count" belong to that detector, not to the tool. The agent still decides which kind and filters a question means.
+
+## D-028: IFC base quantities are stored in SI units and totalled by the server
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-006, D-015
+
+**Context:** The dataset asks for totals over an IFC model: the net volume of all walls or slabs on a storey, the net side area and the length of all walls, the net floor area of all rooms (#96). The agent could only list elements (50 at most), open each one for its property sets and add the numbers itself, in the model's own units: the Molio model gives wall lengths in millimetres and volumes in m³.
+
+**Decision:**
+- **Ingest keeps each IFC element's base quantities in SI units** under `properties.quantities`: lengths in m, areas in m², volumes in m³, converted with the model's unit scales. They come only from the standard sets (`Qto_*` in IFC4, `BaseQuantities` in IFC2X3). Authoring tools' own sets, such as `ArchiCADQuantities`, are left out, because they reuse names like "Area" with other meanings. Weights and counts are left out too.
+- **A `sum_quantity` agent tool adds them up**: one quantity over the elements of one kind, optionally on one storey. It returns the total with its unit, how many elements were summed, how many of the selected elements lacked the quantity, totals per storey, and the elements summed (50 listed) to cite and highlight. The summing rule is a pure function (`app/domain/quantities.py`).
+- **A storey with no elements of that kind is an error that lists the storeys that have them**, so a misspelt storey is not read as a total of 0.
+- The prompt sends every such total to the tool, and asks for a caveat when elements lacked the quantity.
+
+**Consequences:**
+- Checked without the model against the dataset's answers: all 35 totals for the Molio model match within 2% (most to three decimals).
+- IFC models ingested before this change have no `quantities` until they are processed again.
+- The Esplanades model has no quantity sets on its rooms, so its four room-area totals report every room as lacking the quantity. Areas from geometry are #37.
+- An element nested inside another of the same kind is summed like any other. If a model gives quantities to both a parent and its parts, the total counts them twice; we have not seen such a model.
