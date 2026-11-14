@@ -67,7 +67,7 @@ backend/app/
   qa/          agent loop, tools, prompt, /api/ask service (cache + log)
   api/         HTTP routes: documents, events (SSE), ask, health
   envelope.py  the one response shape: {ok, data, error}
-backend/eval/  question set runner: accuracy and verified-rate against a running API
+backend/eval/  eval set from the dataset, and a runner: accuracy per source and type, verified rate
 frontend/src/
   api/         typed client, SSE parser, types mirroring backend/app/schemas.py
   components/  drawing viewer (spotlight overlay), 3D viewer, ask panel, document list
@@ -84,7 +84,7 @@ frontend/src/
 | Rooms whose door openings leak the flood fill | `backend/app/ingest/rooms.py` (TODO) |
 | A new file format (DXF, DWG via converter) | write a reader, register it in `backend/app/ingest/registry.py` |
 | A new agent capability | add a tool in `backend/app/qa/tools.py` and record its evidence |
-| Measuring accuracy | put Stoa's example questions in a JSONL file and run `uv run python -m eval.run_eval file.jsonl` |
+| Measuring accuracy | against `make up-local`, in `backend/`: `uv run python -m eval.build_eval_set <dataset-dir> --out ../.local/eval.jsonl`, then `uv run python -m eval.run_eval ../.local/eval.jsonl` (scoring rules: D-013) |
 
 **Current limits:** wall detection and room regions are heuristics with low confidence (the agent is told to check them visually). Raster pages without DPI metadata have no scale yet, so they get no 3D model. Schema changes rely on `create_all` (no migrations).
 
