@@ -19,6 +19,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-013 | 2026-11-14 | Fit a missing page scale from printed dimensions; two must agree | Accepted |
 | D-014 | 2026-11-14 | Exact CAD/vector geometry first; pixel heuristics last | Accepted |
 | D-015 | 2026-11-14 | Every format becomes IFC; one IFC indexer feeds the app | Accepted |
+| D-016 | 2026-11-14 | Floor plans are the interactive surface; 3D only for IFC | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -206,3 +207,22 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - **DWG** needs LibreDWG `dwg2dxf` or the ODA File Converter. Debian doesn't package LibreDWG, so the container has neither for now, and DWG uploads ask for a DXF export.
 
 **Consequences:** The pipeline is tested end to end per format (`ingest/pipeline_test.py`) and was run on a sample of every source in the dataset preview: 27 of 28 files processed; the DWG failed by design (no converter installed). The shape is documented in `docs/model.md`.
+
+## D-016: Floor plans are the interactive surface; 3D only for IFC
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-007, D-015
+
+**Context:** For a drawing, the 3D view was an extrusion with invented heights (walls 2.6 m, doors as floor markers). It added nothing a plan doesn't show, hid the useful information (room names, numbers, areas, dimensions) and was clumsy to use. Engineers read plans.
+
+**Decision:**
+- **Drawings** (DXF, DWG, PDF, SVG, images) get no 3D view and no mesh. Their IFC still carries extruded geometry, for BIM tools.
+- **IFC models** keep their 3D view. They also get **floor plans, one page per storey**, drawn from the model's own geometry (`bim/ifc_plans.py`), with room names, numbers and areas. The built-in ifcopenshell drawing module produced unusable output in 0.9, so we draw the plans ourselves.
+- Every drawn element knows its page and box, so **the plan is interactive for every format**:
+  - hover a room to see its name, number and area
+  - click any element for its details
+  - toggle layers (rooms, doors and windows, fixtures, walls, text)
+- **The agent drives the plan** with two tools, which stream `view` events to the UI while the answer arrives. The answer stores its views, so cached answers and "Show on plan" replay them.
+  - `highlight` lights up the elements an answer is about.
+  - `measure_between` draws a measured line between two elements, centre to centre, plus the nearest-edges distance.
+
+**Consequences:** Ingest is faster for drawings (no meshing). The 3D tab appears only when a document has a real model. The agent tools are covered by schema tests; the measurement geometry is a tested pure function.
