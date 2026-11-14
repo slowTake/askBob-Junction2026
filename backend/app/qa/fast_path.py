@@ -17,6 +17,7 @@ from app.domain.intents import (
     Intent,
     RoomRef,
     area_total_draft,
+    as_storey,
     count_draft,
     match_room,
     parse_intent,
@@ -52,10 +53,9 @@ def fast_events(
     intent = parse_intent(raw, KINDS, QUANTITIES) if raw else None
     if intent is None:
         return None
-    try:
-        found = _find(intent, ctx)
-    except ToolInputError:
-        return None
+    found = _try(intent, ctx)
+    if found is None and (retry := as_storey(intent)) is not None:
+        intent, found = retry, _try(retry, ctx)
     if found is None:
         return None
     draft, elements, step = found
@@ -76,6 +76,13 @@ def fast_events(
         caveats=caveat,
     )
     return [*events, {"type": "final", "answer": answer, "usage": ctx.usage.as_dict()}]
+
+
+def _try(intent: Intent, ctx: ToolContext) -> Found | None:
+    try:
+        return _find(intent, ctx)
+    except ToolInputError:
+        return None
 
 
 def _find(intent: Intent, ctx: ToolContext) -> Found | None:

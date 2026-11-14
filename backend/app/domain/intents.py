@@ -6,7 +6,7 @@ A question that does not fit is `None`: the agent answers it as before.
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from app.domain.quantities import unit_of
@@ -63,7 +63,7 @@ def parse_intent(
     slots: dict[str, str | None] = {}
     for slot in (*_TEXT_SLOTS, "kind", "quantity"):
         value = raw.get(slot)
-        slots[slot] = value.strip() or None if isinstance(value, str) else None
+        slots[slot] = _text(value)
     kind, quantity, subtype = slots["kind"], slots["quantity"], slots["subtype"]
     if kind is not None and kind not in kinds:
         return None
@@ -82,6 +82,25 @@ def parse_intent(
         "quantity_total": kind is not None and quantity is not None,
     }
     return Intent(str(intent), **slots) if needs[str(intent)] else None
+
+
+def _text(value: Any) -> str | None:
+    """A slot's text, or None when it is empty or only spells "nothing"."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return None if text.casefold() in ("", "null", "none", "n/a") else text
+
+
+def as_storey(intent: Intent) -> Intent | None:
+    """The same count or total with its name read as a storey, when that is possible.
+
+    "The floor plan of 'Grundplan'" names a storey, and the router sometimes files it
+    as a label. Tried only after the label matched nothing.
+    """
+    if intent.intent not in ("count", "quantity_total") or not intent.name or intent.storey:
+        return None
+    return replace(intent, name=None, storey=intent.name)
 
 
 def tool_request(intent: Intent) -> tuple[str, dict[str, Any]] | None:

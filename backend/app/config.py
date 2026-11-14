@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Recognised count and area questions are answered by the server, not the agent loop
     # (D-029). "exact": only from IFC, CAD and PDF-text elements; "all": also from
     # elements the floor-plan model or OCR found; "off": the agent answers everything.
-    fast_path: FastPath = "all"
+    fast_path: FastPath = "exact"
     router_model: str | None = None  # the model that sorts questions; unset: the agent's model
 
     # The floor-plan model service (D-022); unset means ingest uses pixel heuristics.

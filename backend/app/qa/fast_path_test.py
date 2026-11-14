@@ -181,3 +181,33 @@ def test_room_ref_collects_every_way_a_room_is_written() -> None:
     ref = room_ref(el)
     assert (ref.number, ref.unit, ref.area_m2) == ("1.13", "A", None)
     assert "Bad" in ref.names
+
+
+def test_a_storey_given_as_a_name_is_tried_as_a_storey(
+    fakes: Fakes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Seen live: "the floor plan of 'Grundplan'" came back with name="Grundplan".
+    fakes.intent = {**EMPTY, "intent": "count", "kind": "door", "name": "Grundplan"}
+
+    def run_tool(name: str, args: dict[str, Any], ctx: ToolContext) -> str:
+        fakes.calls.append((name, args))
+        found = args.get("storey") == "Grundplan"
+        doors = [_door(1, page=False), _door(2, page=False)] if found else []
+        return json.dumps({"total": len(doors), "elements": doors})
+
+    monkeypatch.setattr(fast_path, "run_tool", run_tool)
+    events = _run()
+    assert events is not None
+    assert events[-1]["answer"].answer == "2 doors on Grundplan."
+    assert [(c[1]["name"], c[1]["storey"]) for c in fakes.calls] == [
+        ("Grundplan", None),
+        (None, "Grundplan"),
+    ]
+    # The step shown is the call that found them.
+    assert events[0]["input"]["storey"] == "Grundplan"
+
+
+def test_the_default_answers_only_from_exact_elements(fakes: Fakes) -> None:
+    # Measured on the preview (D-029): detections were wrong on 6 of 6 raster counts.
+    settings = Settings(database_url="postgresql://unused", valkey_url="redis://unused")
+    assert settings.fast_path == "exact"

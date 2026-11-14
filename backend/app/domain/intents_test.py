@@ -7,6 +7,7 @@ from app.domain.intents import (
     Intent,
     RoomRef,
     area_total_draft,
+    as_storey,
     count_draft,
     intent_schema,
     match_room,
@@ -175,3 +176,18 @@ def test_exact_sources_are_high_confidence_and_detections_are_not() -> None:
     confidence, caveat = reliability([1.0, 0.7])  # one door found by the floor-plan model
     assert confidence == "medium" and "not checked" in caveat
     assert reliability([])[0] == "medium"
+
+
+def test_a_slot_spelt_null_is_empty() -> None:
+    # Seen live: the router wrote the string "null" for a number the question lacks.
+    intent = _parse(intent="room_area", name="Kontor (Rum nr. 313)", number="null", storey="None")
+    assert intent == Intent("room_area", name="Kontor (Rum nr. 313)")
+
+
+def test_a_name_can_be_read_as_a_storey() -> None:
+    intent = Intent("count", kind="door", name="Grundplan")
+    assert as_storey(intent) == Intent("count", kind="door", storey="Grundplan")
+    # Nothing to move when there is no name, or a storey is already given.
+    assert as_storey(Intent("count", kind="door")) is None
+    assert as_storey(Intent("count", kind="door", name="A", storey="3. Sal")) is None
+    assert as_storey(Intent("room_area", name="Bad")) is None  # a room's name is its name

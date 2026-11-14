@@ -53,7 +53,8 @@ lower case.
 quotation marks ('Küche', 'TUALETTRUUM (25-3)').
 - number: a room number as written ("1.13").
 - unit: the apartment's id ("A").
-- storey: the storey's name quoted in the question, copied exactly ('3. Sal').
+- storey: the storey's name quoted in the question, copied exactly ('3. Sal'). In "the \
+floor plan of 'Grundplan'" and "on '4.korrus'" the quoted word is a storey, not a name.
 - quantity: for quantity_total only.
 - refers_to_view: true when the question points at something instead of naming it \
 ("this room", "here", "the selected wall"). "This floor plan" and "this drawing" mean \
