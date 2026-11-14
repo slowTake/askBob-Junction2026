@@ -28,9 +28,12 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
 | D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
-
+| D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
-| D-027 | 2026-11-14 | Every question reports what it used; the eval turns that into cost | Accepted |
+| D-027 | 2026-11-14 | Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates | Accepted |
+| D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029 |
+| D-029 | 2026-11-14 | Sketch check rounds show the draft in red over the photo, and the model is told where the ink is | Accepted |
+| D-030 | 2026-11-14 | Every question reports what it used; the eval turns that into cost | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -363,6 +366,16 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 **Consequences:** Fit needs no backend change or re-ingest. A scan with a dark scanner border fits the whole sheet, as before. A reload loses the conversations. With no "New conversation" button there is no way to cancel a slow answer except a reload; a Stop button is the natural follow-up if that matters.
 
+## D-025: The server counts: `count_elements`, not the model adding up search results
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** Counts are 76% of the preview questions (6,076 of 7,990). The agent had no counting tool, so it listed elements with `find_elements` and counted the list. That tool returns at most 50 results, so every count over 50 was wrong (the Maleva IFC model has 846 walls), and smaller counts depended on the model counting a JSON list (#93). (D-022 and D-023 went to the vision service, D-024 to #92.)
+
+**Decision:** A `count_elements` agent tool, like `sum_room_areas` for areas. The rules are a pure `count` (`app/domain/counting.py`): elements of one required kind, narrowed by fixture `subtype`, room `category`, room `name` (exact, ignoring case and runs of spaces, so "Küche" doesn't count "Wohnküche"; it matches the printed label or the stored name, because an IFC space keeps its number in the label and its `LongName` in the name), IFC `storey`, document and page. An element missing a property never matches a filter on it. The tool returns the exact total, counts per page of each document and per storey, and lists the first 50 elements (by document, page and id, so the same question cites the same ones), which become citable evidence. The prompt sends every "how many" question to it. `ANSWER_FORMAT` goes to 5 (#92 took 4) so answers counted the old way aren't served from the cache.
+
+**Consequences:** Counts are as good as the elements ingest stores. On IFC models they should now be right; on drawings, doors, windows and fixtures exist only once a detector produces them (#38, #88). Rules like "a doorway without a leaf doesn't count" belong to that detector, not to the tool. The agent still decides which kind and filters a question means.
+
 ## D-026: The agent knows its step budget, and its last turn is the answer
 
 **Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-006, D-020
@@ -381,7 +394,53 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 **Consequences:** On the same five drawings, 8 of 8 non-raster questions now end with an answer (2 of 6 scored ones correct). A forced answer can be wrong; before, there was no answer. The three causes above are not fixed by this: they need model facts for IFC, a way to read schedule tables, and elements to count on raster plans (#93, D-022). The Claude path is covered by tests with a fake client only, since no one has an Anthropic key (D-020).
 
-## D-027: Every question reports what it used; the eval turns that into cost
+## D-027: Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** Scanned pages are hard to read, and ingest misses walls, doors, windows and room names, so the agent can't cite them either (#82). #54 built a client-side redraw from the extracted elements, but its PR merged into a dead branch, and main has since moved to the pan/zoom canvas (D-016, D-018). Every vision call costs money, so it must not run on every ingest.
+
+**Decision:** A **Redrawn** view next to **Original** in the plan toolbar. Before a page is upscaled it shows one centred **Upscale** button. `POST /api/documents/{id}/pages/{index}/upscale` sends the page image, resized so its longest side is `UPSCALE_MAX_SIDE` (1568 px), with the elements ingest found, to `UPSCALE_MODEL` (default `claude-haiku-5-5`) once. The pure rules in `app/domain/upscale.py` read its answer: only rooms, doors, windows and walls; confidence capped at 0.9 and dropped below 0.3; malformed or off-page entries skipped, never repaired; a candidate overlapping an element of the same group by half the smaller box is a duplicate and ingest wins (D-014). Added elements are stored with `source = "upscale"`; a room gets its box as an `approximate` outline and no area. The page row is locked during the call, and the result is cached in `page.meta.upscale` per document version and `UPSCALE_FORMAT`, so a second click is free. Each upscale bumps `document.meta.upscales`, which is part of the answer cache key, and the agent prompt says upscale boxes are approximate and must be checked like OCR.
+
+The redraw (`frontend/src/lib/redraw.ts`, ported from #54) is an SVG in the page image's own pixel coordinates, drawn over the image and under the one overlay, so citations, highlights and the plan layer land on the same spot in both views. It is uniform on every format: walls filled (their DXF outline when stored, else their box), doors and windows as outlined boxes, room names bold with the computed area underneath, every other label at one size per page (1/100 of the page width, room names 1.5×) whatever the OCR box height. Unclassified OCR text below 0.6 confidence or without a letter or digit is left out; classified kinds are kept. What the upscale pass added is dashed in its own colour. The redraw stays white paper in both themes, like the original (D-012).
+
+Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the native image gave Haiku too little to see and it returned nothing (1 412 tokens in), while the same page enlarged to 1491 × 1568 gave 22 candidates, 21 kept (4 103 in, 1 272 out).
+
+**Consequences:** The redraw is only as good as extraction plus one vision pass: a vision model's boxes are approximate and can still miss elements, and doors and windows are boxes, not swing symbols. Low-resolution scans give tiny text at fit zoom. A re-ingest replaces the pages, so a page has to be upscaled again. The 0.6 text cut-off and the 1/100 text size are first guesses from one cubicasa page.
+
+## D-028: On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured
+
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) · **Refines:** D-027 (for raster image pages only)
+
+**Context:** The demo shows a photo of a hand-drawn floor plan (a napkin sketch) turned into a clean plan with one button (#82). D-027's pass asks a small model once for what ingest *missed* and draws boxes. On a sketch, ingest's OCR and line detection are the unreliable part, so filling its gaps keeps its noise; boxes cannot show a door swing; and one unchecked answer has no way to notice its own mistakes. The owner's rules: one button; redraw, never invent (no measurement unless written on the sketch); a stronger, slower model is allowed for this path; output is the Redrawn view plus Download SVG and Print, no DXF.
+
+**Decision:**
+- **Which pages:** pages of raster image uploads (`Document.kind == "image"`). PDF, SVG, DXF, DWG and IFC keep D-027's gap-filling pass unchanged.
+- **The model authors the whole plan.** `SKETCH_MODEL` (default `claude-opus-5-5`, effort `SKETCH_EFFORT`, default `high`, adaptive thinking, structured output, server-side refusal fallback) gets the photo at up to `SKETCH_MAX_SIDE` (2576 px) and returns walls (centre-line segments, outer or inner), doors (the opening on its wall, the hinge end, a point on the side it opens to), windows (a segment on the wall), rooms (the name exactly as written, a label point, an optional outline) and other written text. Ingest's elements are neither sent nor drawn.
+- **Draw, compare, correct.** The pure rules (`app/domain/sketch*.py`) skip malformed, off-image and zero-length entries, then tidy the plan in page pixels: near-axis walls (within 8°) are made straight, wall lines and ends within 1 % of the page are joined, doors and windows are projected onto their wall. The tidied plan becomes shapes (walls cut at openings, an open door leaf with a quarter-circle swing, windows as a double line, labels at one size), rendered with Pillow at the size the model was sent. Rounds 2 to `SKETCH_MAX_ROUNDS` (default 3) send the photo, that render and the current plan; the model answers that they match or returns the whole corrected plan. The loop stops on a match, after the last round, or once `SKETCH_DEADLINE_S` has passed. A failed check round keeps the last good draft; a failed first round fails the request.
+- **Stored as elements** with `source = "sketch"`, confidence 0.8, and their drawing in `properties` (page pixels), so the frontend draws exactly the shapes the model checked. Rooms get no area and no `value_mm`. Re-running replaces earlier `sketch` rows and any `upscale` rows of the page. The page caches the run in `meta.upscale` with `mode: "sketch"` and the rounds; `UPSCALE_FORMAT` goes to 3, and `PageOut.upscale` says the mode. The agent's prompt treats `sketch` elements as approximate and says a sketch has no scale.
+- **No lock during the loop.** The endpoint claims the page under its row lock (a random token and the start time in `page.meta.sketch_run`), commits, runs the loop with no transaction open, then stores under the lock only if its claim stands and the document version is unchanged (else `redraw_superseded`). A second click meanwhile gets `redraw_running` at once instead of waiting minutes on a lock. Any failure drops the claim and stores nothing. A claim older than the deadline plus three call timeouts is stale, so a killed process can't block the page. The SDK may retry, since no lock is held.
+- **No invented measurements**, closed at each place one could appear: the prompt forbids them; a number the model writes (free text with a digit, or a measurement-like part of a room name such as "3x4m" or "12 m²") is kept only when ingest's OCR read the same digits within 5 % of the page, otherwise dropped; the sketch redraw draws no scale bar whatever `mm_per_px` ingest derived (from file DPI and a scale note, or from fitted dimensions), and no room areas.
+- **With `LLM_PROVIDER=verda`** the redraw fails with `sketch_needs_claude` instead of quietly using a weaker model.
+- **Output:** the Redrawn view; while it is on screen the toolbar offers **Download SVG** (the on-screen svg with fixed light styles inlined, so it opens outside the app) and **Print** (a print stylesheet that prints only that sheet, fitted to the paper).
+
+**Consequences:** A redraw takes minutes and costs a few strong-model calls (each round sends the photo, cached after the first, and a render). The plan is only as good as the model's reading: tidying straightens and joins but never adds a wall. OCR on handwriting is weak, so a dimension that really is written on a sketch can be dropped when OCR missed it; that loses information but never invents it. Line work in the redraw is relative to the page size, not to any real length. Not verified end to end against the real model when this was written (no API key was available).
+
+
+## D-029: Sketch check rounds show the draft in red over the photo, and the model is told where the ink is
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes:** the check-round render in D-028
+
+**Context:** In D-028 the model compared the photo with its draft as two separate pictures. Side by side, a draft that is a little smaller, larger or shifted against the drawing looks right, so a check round can accept a misplaced plan. The first runs against the real model (`claude-opus-5-5`, the napkin test image) were used to tune this.
+
+**Decision:**
+- In check rounds the draft is drawn in red over the photo, at the size the model was sent, instead of on white. The check prompt says red should cover each drawn line: a drawn line with no red on it, or red with no line under it, is an error. Position and size are checked before the parts. About one wall thickness of difference counts as in place, because hand-drawn lines wobble.
+- Every round also gets the box around the photo's dark pixels (`ink_box`), measured by the program and given as the drawing's likely outer edge. No box is sent when the photo has too little contrast, or when the dark pixels reach every edge (a shadow or a table).
+- The user still sees only the clean redraw. The overlay is only the model's input.
+
+**Consequences:** On the test image the walls now land within 3 px of the ink, in three rounds (about 33k tokens in and 8k out, about 76 s). A dark border or shadow inside the photo can widen the box; the prompt names those cases so the model can set the box aside.
+
+## D-030: Every question reports what it used; the eval turns that into cost
 
 **Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-019
 

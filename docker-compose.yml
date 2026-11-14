@@ -19,6 +19,12 @@ x-backend: &backend
     - LLM_PROVIDER
     - VERDA_API_KEY
     - VERDA_MODEL
+    - UPSCALE_MODEL
+    - SKETCH_MODEL
+    - SKETCH_EFFORT
+    - SKETCH_MAX_ROUNDS
+    - SKETCH_TIMEOUT_S
+    - SKETCH_DEADLINE_S
     - DATA_DIR=/data
   volumes:
     - data:/data

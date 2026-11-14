@@ -26,8 +26,9 @@ from app.valkey import cache_get, cache_set
 
 log = logging.getLogger(__name__)
 
-ANSWER_FORMAT = 4  # bump when the answer payload changes, so old cached answers are not served
+ANSWER_FORMAT = 5  # bump when the payload or how answers are found changes
 # 4: answers are a summary line plus "- " lists (prompts.py), laid out by the chat
+# 5: counts come from `count_elements`
 
 MESSAGES = {
     "no_documents": "Upload a drawing and wait until it has been processed.",
@@ -57,7 +58,8 @@ def answer_stream(
             if not docs:
                 raise AgentError("no_documents")
             viewing, selected = _context_notes(db, docs, context)
-            versions = [f"{d.id}@{d.version}" for d in docs]
+            # An Upscale adds elements without a re-ingest (D-027): it counts as a change.
+            versions = [f"{d.id}@{d.version}.{d.meta.get('upscales', 0)}" for d in docs]
             key = answer_cache_key(
                 question,
                 versions,
