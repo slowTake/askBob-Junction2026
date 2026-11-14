@@ -15,7 +15,8 @@ export function answerActions(
   );
   const seen = new Set<string>();
   const remainingViews = views.filter((view) => {
-    if (!view.line && view.element_ids.length && view.element_ids.every((id) => covered.has(id))) {
+    const draws = view.line || view.path || view.labels?.length;
+    if (!draws && view.element_ids.length && view.element_ids.every((id) => covered.has(id))) {
       return false;
     }
     // Captions can change between agent rounds; the actual drawing action is the identity.
@@ -25,6 +26,8 @@ export function answerActions(
       view.page_index,
       [...new Set(view.element_ids)].sort(),
       view.line,
+      view.path ?? null,
+      view.labels ?? [],
     ]);
     if (seen.has(key)) return false;
     seen.add(key);

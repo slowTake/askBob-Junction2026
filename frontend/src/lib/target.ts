@@ -1,6 +1,6 @@
 /** What the plan shows on request: an agent view, or one cited source. */
 
-import type { Citation, ElementInfo, PlanView } from "../api/types";
+import type { Citation, ElementInfo, PlanLabel, PlanPath, PlanView } from "../api/types";
 import type { BBox } from "./camera";
 import { unionBox } from "./planLayer";
 
@@ -13,6 +13,8 @@ export interface TargetOnPage {
   spotlightPolygon: number[][] | null; // the cited room's outline, cut out instead of the box
   frame: BBox | null; // what the camera moves to
   line: PlanView["line"];
+  path: PlanPath | null;
+  labels: PlanLabel[];
   caption: string;
   verified: boolean | null; // citations only
   labelOnly: boolean; // a room whose outline is unknown: only its printed name is marked
@@ -41,28 +43,36 @@ export function onPage(
       spotlightPolygon: c.polygon,
       frame: c.bbox,
       line: null,
+      path: null,
+      labels: [],
       caption: c.note || "Cited source",
       verified: c.verified,
       labelOnly: c.target === "label",
     };
   }
   const { element_ids: ids, line, caption } = target.view;
+  const path = target.view.path ?? null;
+  const labels = target.view.labels ?? [];
   const boxes = unionBox(elements, new Set(ids));
-  const ends: BBox | null = line
-    ? [
-        Math.min(line.from[0], line.to[0]),
-        Math.min(line.from[1], line.to[1]),
-        Math.max(line.from[0], line.to[0]),
-        Math.max(line.from[1], line.to[1]),
-      ]
-    : null;
+  const drawn = [
+    ...(line ? [line.from, line.to] : []),
+    ...(path?.points ?? []),
+    ...labels.map((l) => l.at),
+  ];
   return {
     highlightIds: ids,
     spotlight: null,
     spotlightPolygon: null,
-    frame: union(boxes, ends),
+    frame: union(boxes, pointsBox(drawn)),
     line,
-    caption: caption ?? line?.label ?? `${ids.length} element${ids.length === 1 ? "" : "s"}`,
+    path,
+    labels,
+    caption:
+      caption ??
+      line?.label ??
+      path?.label ??
+      labels[0]?.text ??
+      `${ids.length} element${ids.length === 1 ? "" : "s"}`,
     verified: null,
     labelOnly: false,
   };
@@ -81,4 +91,12 @@ export function readingOrder(elements: ElementInfo[], lit: Set<string>): Element
 function union(a: BBox | null, b: BBox | null): BBox | null {
   if (!a || !b) return a ?? b;
   return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
+}
+
+/** The box around some points, or null when there are none. */
+function pointsBox(points: [number, number][]): BBox | null {
+  if (!points.length) return null;
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }

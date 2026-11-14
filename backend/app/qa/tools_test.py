@@ -87,7 +87,7 @@ def test_plan_tools_are_offered_with_strict_inputs() -> None:
     assert {"highlight", "measure_between"} <= names
     highlight = next(t for t in TOOLS if t["name"] == "highlight")
     assert highlight["strict"] is True
-    assert set(highlight["input_schema"]["required"]) == {"element_ids", "caption"}
+    assert set(highlight["input_schema"]["required"]) == {"element_ids", "caption", "label"}
 
 
 def test_count_tool_needs_a_kind_and_takes_optional_filters() -> None:

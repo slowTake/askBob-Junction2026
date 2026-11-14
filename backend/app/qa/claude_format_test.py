@@ -21,12 +21,12 @@ def _unions(value: Any) -> int:
 def test_complete_request_stays_within_claude_limits_without_losing_tools() -> None:
     tools = claude_tools(TOOLS)
     assert [tool["name"] for tool in tools] == [tool["name"] for tool in TOOLS]
-    assert len(tools) == 9  # sum_quantity joined the eight tools (D-037)
+    assert len(tools) == 10  # sum_quantity (D-037), then route (#plan answers)
     assert _unions(tools) + _unions(ANSWER_SCHEMA) == 5
     optional = sum(
         len(t["input_schema"]["properties"]) - len(t["input_schema"]["required"]) for t in tools
     )
-    assert optional == 17 and optional <= 24  # sum_quantity adds optional storey and document_id
+    assert optional == 18 and optional <= 24  # sum_quantity: storey, document_id; highlight: label
     assert all(not t["input_schema"]["additionalProperties"] for t in tools)
     assert all(t["strict"] for t in tools if t["name"] not in PLAN_TOOL_NAMES)
 

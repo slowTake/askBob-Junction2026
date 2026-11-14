@@ -1,5 +1,5 @@
 import { useId, useMemo, type CSSProperties, type ReactNode } from "react";
-import type { ElementInfo, PlanView } from "../api/types";
+import type { ElementInfo, PlanLabel as PlanLabelData, PlanPath, PlanView } from "../api/types";
 import type { BBox, Camera } from "../lib/camera";
 import type { LayerKey } from "../lib/planLayer";
 import { readingOrder, type TargetOnPage } from "../lib/target";
@@ -85,7 +85,11 @@ export function PlanCanvas(props: Props) {
             height={height}
           />
         )}
+        {shown?.path && <RoutePath path={shown.path} u={u} />}
         {shown?.line && <MeasureLine line={shown.line} u={u} />}
+        {shown?.labels.map((label, i) => (
+          <PlanText key={i} label={label} u={u} />
+        ))}
         {numbered.map((el, i) => (
           <Badge key={el.id} box={el.bbox as BBox} n={i + 1} u={u} color={colors.get(el.id)} />
         ))}
@@ -141,6 +145,39 @@ function MeasureLine({ line, u }: { line: NonNullable<PlanView["line"]>; u: numb
         {line.label}
       </text>
     </g>
+  );
+}
+
+/** A walked route: the line, a dot where it starts, an arrowhead where it arrives. */
+function RoutePath({ path, u }: { path: PlanPath; u: number }) {
+  const pts = path.points;
+  if (pts.length < 2) return null;
+  const [ex, ey] = pts[pts.length - 1];
+  const [px, py] = pts[pts.length - 2];
+  const angle = (Math.atan2(ey - py, ex - px) * 180) / Math.PI;
+  const mid = pts[Math.floor((pts.length - 1) / 2)];
+  const next = pts[Math.floor((pts.length - 1) / 2) + 1];
+  return (
+    <g className="route">
+      <polyline points={pts.map((p) => p.join(",")).join(" ")} strokeLinejoin="round" />
+      <circle cx={pts[0][0]} cy={pts[0][1]} r={5 * u} />
+      <path
+        d={`M 0 0 L ${-14 * u} ${-7 * u} L ${-14 * u} ${7 * u} Z`}
+        transform={`translate(${ex} ${ey}) rotate(${angle})`}
+      />
+      <text x={(mid[0] + next[0]) / 2} y={(mid[1] + next[1]) / 2 - 10 * u} fontSize={14 * u}>
+        {path.label}
+      </text>
+    </g>
+  );
+}
+
+/** Text over the plan, e.g. an apartment's area at its centre. */
+function PlanText({ label, u }: { label: PlanLabelData; u: number }) {
+  return (
+    <text className="plan-text" x={label.at[0]} y={label.at[1]} fontSize={16 * u}>
+      {label.text}
+    </text>
   );
 }
 

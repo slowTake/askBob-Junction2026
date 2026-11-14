@@ -134,4 +134,33 @@ describe("readingOrder", () => {
       "left-bottom",
     ]);
   });
+
+  it("frames a walked route and keeps its points and label (plan answers)", () => {
+    const path = {
+      points: [
+        [100, 100],
+        [400, 120],
+        [420, 600],
+      ] as [number, number][],
+      label: "12.3 m",
+    };
+    const shown = onPage({ kind: "view", view: view({ element_ids: [], path }) }, 0, []);
+    expect(shown?.path).toEqual(path);
+    expect(shown?.frame).toEqual([100, 100, 420, 600]);
+    expect(shown?.caption).toBe("12.3 m");
+    expect(shown?.highlightIds).toEqual([]);
+  });
+
+  it("carries labels to write on the plan, and frames them", () => {
+    const labels = [{ at: [300, 200] as [number, number], text: "Apartment A · 78.4 m²" }];
+    const shown = onPage({ kind: "view", view: view({ element_ids: [], labels }) }, 0, []);
+    expect(shown?.labels).toEqual(labels);
+    expect(shown?.frame).toEqual([300, 200, 300, 200]);
+  });
+
+  it("reads views cached before routes and labels existed", () => {
+    const shown = onPage({ kind: "view", view: view() }, 0, [el("a", [0, 0, 10, 10])]);
+    expect(shown?.labels).toEqual([]);
+    expect(shown?.path).toBeNull();
+  });
 });

@@ -79,7 +79,7 @@ def test_a_count_is_answered_cited_and_shown(fakes: Fakes) -> None:
     assert [c.element_id for c in answer.citations] == ["e1", "e2", "e3"]
     assert (answer.confidence, answer.caveats) == ("high", "")
     assert fakes.calls[1] == ("highlight", {"element_ids": ["e1", "e2", "e3"],
-                                            "caption": "3 doors."})  # fmt: skip
+                                            "caption": "3 doors.", "label": None})  # fmt: skip
 
 
 def test_elements_without_a_plan_page_are_cited_but_not_highlighted(fakes: Fakes) -> None:
@@ -213,3 +213,13 @@ def test_the_default_answers_only_from_exact_elements(fakes: Fakes) -> None:
     # Measured on the preview (D-038): detections were wrong on 6 of 6 raster counts.
     settings = Settings(database_url="postgresql://unused", valkey_url="redis://unused")
     assert settings.fast_path == "exact"
+
+
+def test_an_area_answer_is_labelled_on_the_plan() -> None:
+    from app.domain.intents import Draft, Intent
+    from app.qa.fast_path import plan_label
+
+    apartment = Intent(intent="area_total", unit="A")
+    assert plan_label(Draft("…", 78.4, "m2"), apartment) == "Apartment A · 78.4 m²"
+    assert plan_label(Draft("…", 12.0, "m2"), Intent(intent="room_area")) == "12 m²"
+    assert plan_label(Draft("…", 7.0, "count"), apartment) is None  # counts get no label

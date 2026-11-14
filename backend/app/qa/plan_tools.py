@@ -1,4 +1,4 @@
-"""Tools that drive the plan in the browser: highlight elements, measure between two.
+"""Tools that drive the plan in the browser: highlight, measure between two, route.
 
 Each call appends a view to the context; the agent streams it to the UI as a
 `view` event, and the final answer carries all views so a cached answer replays them.
@@ -13,10 +13,13 @@ from sqlalchemy import select
 
 from app.domain.citations import element_evidence
 from app.domain.geometry import BBox, measure_boxes
+from app.domain.route import Obstacles, find_route, route_length_px, walkable
 from app.models import Element, Page
 from app.qa.context import ToolContext, ToolInputError, parse_id
 
 MAX_HIGHLIGHT = 300
+ROUTE_GRID_CELLS = 600  # the route grid's longer side, whatever the page size
+DOOR_PAD_PX = 3  # a door box can be a hair narrower than the wall it opens
 
 
 def _schema(properties: dict[str, Any]) -> dict[str, Any]:
@@ -36,14 +39,16 @@ PLAN_TOOLS: list[dict[str, Any]] = [
             {
                 "element_ids": {"type": "array", "items": {"type": "string"}},
                 "caption": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                "label": {"anyOf": [{"type": "string"}, {"type": "null"}]},
             }
         ),
     },
     {
         "name": "measure_between",
         "description": "Distance between two elements on the same page (rooms, doors, "
-        "fixtures...), centre to centre and between nearest edges, in mm. Draws the "
-        "measured line on the plan. Needs a page with a known scale.",
+        "fixtures...), centre to centre and between nearest edges, in mm. Draws only the "
+        "measured line with its length on the plan (the two elements are not lit up, so "
+        "don't also highlight them). Needs a page with a known scale.",
         "strict": True,
         "input_schema": _schema(
             {
@@ -53,6 +58,23 @@ PLAN_TOOLS: list[dict[str, Any]] = [
         ),
     },
 ]
+PLAN_TOOLS[0]["description"] += (
+    " With `label`, that text is written on the plan over the elements: use it for an "
+    "area or total about them, e.g. 'Apartment A · 78.4 m²'."
+)
+PLAN_TOOLS.append(
+    {
+        "name": "route",
+        "description": "Walking route between two elements on the same page, around walls "
+        "and through doors, e.g. from an apartment or room to the staircase, an exit door "
+        "or the building entrance (find those first with find_elements). Draws the route "
+        "with its length on the plan and returns the length in mm (none without a scale).",
+        "strict": True,
+        "input_schema": _schema(
+            {"from_element": {"type": "string"}, "to_element": {"type": "string"}}
+        ),
+    }
+)
 PLAN_TOOL_NAMES = {t["name"] for t in PLAN_TOOLS}
 
 
@@ -63,6 +85,7 @@ class _Strict(BaseModel):
 class HighlightIn(_Strict):
     element_ids: list[str]
     caption: str | None = None
+    label: str | None = None
 
 
 class MeasureIn(_Strict):
@@ -70,10 +93,26 @@ class MeasureIn(_Strict):
     element_b: str
 
 
+class RouteIn(_Strict):
+    from_element: str
+    to_element: str
+
+
 def run_plan_tool(name: str, raw: Any, ctx: ToolContext) -> str:
     if name == "highlight":
         return _highlight(HighlightIn.model_validate(raw), ctx)
+    if name == "route":
+        return _route(RouteIn.model_validate(raw), ctx)
     return _measure(MeasureIn.model_validate(raw), ctx)
+
+
+def _view(page: Page, element_ids: list[str], **extra: Any) -> dict[str, Any]:
+    """One plan view; every view has every key, so the UI and the cache see one shape."""
+    return {
+        "document_id": str(page.document_id), "page_id": str(page.id), "page_index": page.index,
+        "element_ids": element_ids, "line": None, "caption": None, "labels": [], "path": None,
+        **extra,
+    }  # fmt: skip
 
 
 def _highlight(args: HighlightIn, ctx: ToolContext) -> str:
@@ -91,10 +130,12 @@ def _highlight(args: HighlightIn, ctx: ToolContext) -> str:
     for el, p in shown:
         _evidence(el, p, ctx)
     p = shown[0][1]
-    ctx.views.append({
-        "document_id": str(p.document_id), "page_id": str(p.id), "page_index": p.index,
-        "element_ids": [str(el.id) for el, _ in shown], "line": None, "caption": args.caption,
-    })  # fmt: skip
+    labels = []
+    if args.label:
+        x0, y0, x1, y1 = _union([_extent(el) for el, _ in shown])
+        labels = [{"at": [(x0 + x1) / 2, (y0 + y1) / 2], "text": args.label}]
+    shown_ids = [str(el.id) for el, _ in shown]
+    ctx.views.append(_view(p, shown_ids, caption=args.caption, labels=labels))
     return json.dumps({"highlighted": len(shown), "page_index": p.index,
                        "not_shown": len(args.element_ids) - len(shown)})  # fmt: skip
 
@@ -110,13 +151,66 @@ def _measure(args: MeasureIn, ctx: ToolContext) -> str:
     for el in (a, b):
         _evidence(el, pa, ctx)
     label = f"{m.centre_mm / 1000:.2f} m"
-    ctx.views.append({
-        "document_id": str(pa.document_id), "page_id": str(pa.id), "page_index": pa.index,
-        "element_ids": [str(a.id), str(b.id)],
-        "line": {"from": list(m.start), "to": list(m.end), "label": label}, "caption": None,
-    })  # fmt: skip
+    line = {"from": list(m.start), "to": list(m.end), "label": label}
+    ctx.views.append(_view(pa, [], line=line))  # the line alone: no highlight over it
     return json.dumps({"centre_to_centre_mm": m.centre_mm, "nearest_edges_mm": m.gap_mm,
                        "page_index": pa.index})  # fmt: skip
+
+
+def _route(args: RouteIn, ctx: ToolContext) -> str:
+    a, page = _placed(args.from_element, ctx)
+    b, pb = _placed(args.to_element, ctx)
+    if page.id != pb.id:
+        raise ToolInputError("the two elements are on different pages")
+    walls, polygons, doors = [], [], []
+    for el in ctx.db.scalars(
+        select(Element).where(Element.page_id == page.id, Element.kind.in_(["wall", "door"]))
+    ):
+        if not el.bbox:
+            continue
+        if el.kind == "door":
+            x0, y0, x1, y1 = _box(el)
+            doors.append((x0 - DOOR_PAD_PX, y0 - DOOR_PAD_PX, x1 + DOOR_PAD_PX, y1 + DOOR_PAD_PX))
+        elif outline := _outline(el):
+            polygons.append([(float(x), float(y)) for x, y in outline])
+        else:
+            walls.append(_box(el))
+    cell = max(1, round(max(page.width_px, page.height_px) / ROUTE_GRID_CELLS))
+    free = walkable((page.width_px, page.height_px), Obstacles(walls, polygons, doors), cell)
+    points = find_route(free, _centre(_extent(a)), _centre(_extent(b)), cell)
+    if points is None:
+        raise ToolInputError("no way through: walls separate these two (no door found)")
+    for el in (a, b):
+        _evidence(el, page, ctx)
+    length_mm = route_length_px(points) * page.mm_per_px if page.mm_per_px else None
+    label = f"{length_mm / 1000:.1f} m" if length_mm is not None else "route"
+    path = {"points": [[round(x, 1), round(y, 1)] for x, y in points], "label": label}
+    ctx.views.append(_view(page, [], path=path))
+    return json.dumps({"length_mm": round(length_mm) if length_mm is not None else None,
+                       "turns": len(points) - 2, "page_index": page.index})  # fmt: skip
+
+
+def _outline(el: Element) -> list[list[float]] | None:
+    polygon = (el.properties or {}).get("polygon_px")
+    return polygon if isinstance(polygon, list) and len(polygon) >= 3 else None
+
+
+def _extent(el: Element) -> BBox:
+    """An element's outline bounds when it has one (rooms), else its box."""
+    polygon = _outline(el)
+    if polygon:
+        xs, ys = [float(p[0]) for p in polygon], [float(p[1]) for p in polygon]
+        return (min(xs), min(ys), max(xs), max(ys))
+    return _box(el)
+
+
+def _union(boxes: list[BBox]) -> BBox:
+    return (min(b[0] for b in boxes), min(b[1] for b in boxes),
+            max(b[2] for b in boxes), max(b[3] for b in boxes))  # fmt: skip
+
+
+def _centre(box: BBox) -> tuple[float, float]:
+    return ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
 
 
 def _placed(element_id: str, ctx: ToolContext) -> tuple[Element, Page]:
