@@ -1,15 +1,25 @@
+import { useRef } from "react";
+import { useDismiss } from "../hooks/useDismiss";
+
 interface Props {
   busy: boolean;
   error: string | null;
   sketch: boolean; // a raster image: the model redraws the whole page
   onUpscale: () => void;
+  onClose: () => void; // back to the original view
 }
 
-/** The Redrawn view of a page that has not been redrawn yet: one button, in the middle. */
-export function UpscalePrompt({ busy, error, sketch, onUpscale }: Props) {
+/** The Redrawn view of a page that has not been redrawn yet: one button, in the middle.
+ *
+ * A click anywhere outside the card, or Esc, closes it. A redraw already running goes on
+ * on the server: when it is done, Redrawn shows the plan. */
+export function UpscalePrompt({ busy, error, sketch, onUpscale, onClose }: Props) {
+  const card = useRef<HTMLDivElement>(null);
+  useDismiss(card, onClose);
+
   return (
     <div className="upscale-prompt" data-no-pan>
-      <div className="upscale-card">
+      <div className="upscale-card" ref={card} role="dialog" aria-label="Redraw this page">
         {sketch ? (
           <p className="body-sm">
             Redraw this sketch as a clean floor plan. A vision model draws the plan, checks its
@@ -26,9 +36,10 @@ export function UpscalePrompt({ busy, error, sketch, onUpscale }: Props) {
         <button type="button" className="btn btn-primary" disabled={busy} onClick={onUpscale}>
           {busy ? (sketch ? "Redrawing…" : "Upscaling…") : sketch ? "Redraw" : "Upscale"}
         </button>
-        {busy && sketch && (
+        {busy && (
           <p className="body-sm muted" role="status">
-            Drawing and checking the plan. This takes a few minutes.
+            {sketch ? "Drawing and checking the plan. This takes a few minutes. " : ""}
+            You can close this: it keeps running, and Redrawn shows the result when it is done.
           </p>
         )}
         {error && (

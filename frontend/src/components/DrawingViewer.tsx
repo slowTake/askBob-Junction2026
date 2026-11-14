@@ -48,6 +48,7 @@ export function DrawingViewer(props: Props) {
   const [imageAttempt, setImageAttempt] = useState(0);
   const [framed, setFramed] = useState<PlanTarget | null>(null);
   const [sheetMode, setSheetMode] = useState<SheetMode>("original");
+  const showOriginal = useCallback(() => setSheetMode("original"), []);
   const [elementsVersion, setElementsVersion] = useState(0); // bumped when upscale adds some
   const [printing, setPrinting] = useState<string | null>(null); // the sheet being printed
 
@@ -251,6 +252,7 @@ export function DrawingViewer(props: Props) {
             error={upscale.error}
             sketch={sketchDoc}
             onUpscale={upscale.run}
+            onClose={showOriginal}
           />
         )}
         {detail === "missing" ? (
