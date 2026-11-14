@@ -21,6 +21,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-015 | 2026-11-14 | Every format becomes IFC; one IFC indexer feeds the app | Accepted |
 | D-016 | 2026-11-14 | Floor plans are the interactive surface; 3D only for IFC | Accepted |
 | D-017 | 2026-11-14 | Ingest never leaves a document waiting for a job that is gone | Accepted |
+| D-018 | 2026-11-14 | The plan is a pan/zoom canvas; nothing that appears moves it | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -242,3 +243,19 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - `/api/health` reports `ingest_workers`, so the UI can say that no worker is running instead of a silent "Queued". `ok` still covers only Postgres and Valkey: without a worker the API works and uploads wait.
 
 **Consequences:** A document is never stuck: it finishes, fails with a reason the user can act on, or is picked up again when a worker starts. A document interrupted by a restart is marked failed rather than retried automatically, so a file that crashes the whole worker can't loop forever.
+
+## D-018: The plan is a pan/zoom canvas; nothing that appears moves it
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-016
+
+**Context:** The plan flickered: the hover card and banners were inserted above the drawing, so showing them pushed the plan down, the element slid out from under the cursor, and the card vanished again. Zoom stopped at "fit width", so a tall sheet never fit on screen. An agent highlight of one window only scrolled, so users had to zoom out to find it. Older answers were grey on grey, and the agent did not know what the user was looking at.
+
+**Decision:**
+- The page is moved by one CSS transform (a camera: scale and offset). Drag pans, the wheel zooms at the cursor, + − 0 keys and buttons zoom and fit. 100 % means the whole page fits; zoom goes from 25 % of that to 4 screen pixels per page pixel.
+- Nothing that appears moves the drawing: banners and zoom controls float over it, and element details live in a fixed-height bar under it that keeps the last element pointed at.
+- An agent view or a citation flies the camera to its elements once, framed with at least 20 % of the page around them; several highlighted elements get numbered badges in reading order, and every view the agent produced is a button on its answer.
+- Each question carries the page on screen and the element the user selected ("Ask about this"), so the agent can resolve "this room" (`AskContextIn`, cache key includes it).
+- The documents panel can be hidden; the choice is kept in `localStorage` (`bob.sidebar`). Every answer is full contrast; only steps and caveats are muted.
+- Document status says why a document waits (including "no ingest worker is running"), the list re-reads when the event stream reconnects and polls while anything is in flight, and failed documents offer "Process again".
+
+**Consequences:** Overlay sizes are multiplied by `--u` (one screen pixel in page pixels) so lines and labels look the same at every zoom in every browser. The element layer is memoised, so panning never redraws hundreds of shapes.
