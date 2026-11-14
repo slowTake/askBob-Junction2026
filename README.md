@@ -44,6 +44,21 @@ Every format goes through the same pipeline and ends up as an IFC model plus the
 | PDF, SVG | text, vector walls and printed labels; doors, windows and fixtures from the floor-plan model; OCR and the model for scanned pages | when the scale is printed |
 | PNG, JPEG, TIFF (multi-page), WebP, BMP, GIF | OCR + the floor-plan model (rooms, walls, doors, windows, fixtures), pixel heuristics when the model is off | when DPI and scale are known |
 
+### Aiven, Verda and the Claude API
+
+**Aiven** runs our data services ([D-005](docs/decisions.md), setup in [docs/aiven-setup.md](docs/aiven-setup.md)):
+- **Aiven for PostgreSQL** holds the building model (documents, pages, elements with provenance) and `qa_log`: every question and answer with whether it verified, the model, latency and tokens. `pg_trgm` powers fuzzy label search; `pgvector` is enabled for embeddings.
+- **Aiven for Valkey** is the ingest job queue (RQ), the pub/sub channel for live progress that the browser gets over SSE, and the answer cache, keyed by question and document version.
+- **Aiven Runtime** is where we are deploying the UI: the nginx image builds from `frontend/Dockerfile` and points at the API through `BACKEND_URL` ([D-033](docs/decisions.md)). Hosting the API, worker and vision service there is still open.
+- Connection details come from `avn` and your OS keyring at start-up (`make up-aiven`) and are never written to a file. `make up-local` runs the same app against local containers when offline.
+
+**The Claude API** does the reasoning:
+- **The Q&A agent** (`claude-opus-5-5`, effort `high`) answers only through read-only tools over the extracted elements, can look at regions of a drawing as images, and returns structured JSON with citations that the server checks before marking an answer verified ([D-006](docs/decisions.md), [D-031](docs/decisions.md)).
+- **Upscale** (`claude-haiku-5-5`) fills gaps in a page's elements in one vision pass ([D-027](docs/decisions.md)).
+- **Sketch redraw** (`claude-opus-5-5`) redraws photographed hand sketches as clean plans in a draw, compare, correct loop, with no invented measurements ([D-028](docs/decisions.md), [D-029](docs/decisions.md)).
+
+**Verda** is the second model provider. With `LLM_PROVIDER=verda`, the same agent runs on **Kimi K3.1 Pro** through Verda's OpenAI-compatible endpoint: same prompt, tools, citation check, cache and `qa_log`, so the two can be compared on the eval set ([D-009](docs/decisions.md), [D-020](docs/decisions.md), setup in [docs/verda-setup.md](docs/verda-setup.md)). Upscale uses it too; the sketch redraw needs Claude and says so.
+
 ## Run it
 
 **With Aiven** (shared setup; first follow [docs/aiven-setup.md](docs/aiven-setup.md)):
