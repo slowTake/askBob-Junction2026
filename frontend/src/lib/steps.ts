@@ -13,6 +13,16 @@ export function describeStep(tool: string, input: Record<string, unknown>): stri
       return "Looking at the drawing";
     case "measure_distance":
       return "Measuring on the drawing";
+    case "sum_room_areas":
+      return typeof input.unit === "string" && input.unit
+        ? `Adding up the room areas of apartment ${input.unit}`
+        : "Adding up the room areas";
+    case "highlight": {
+      const n = Array.isArray(input.element_ids) ? input.element_ids.length : 0;
+      return `Showing ${n} element${n === 1 ? "" : "s"} on the plan`;
+    }
+    case "measure_between":
+      return "Measuring between two elements";
     default:
       return tool;
   }
