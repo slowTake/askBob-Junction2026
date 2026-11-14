@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.domain.areas import RoomArea, net_area
 from app.domain.citations import EvidenceItem
 from app.domain.geometry import BBox, distance
 from app.models import Element, Page
@@ -81,6 +82,19 @@ TOOLS: list[dict[str, Any]] = [
         "Points are page pixel coordinates (x0, y0) and (x1, y1).",
         {"page_id": {"type": "string"}, **_REGION},
     ),
+    _tool(
+        "sum_room_areas",
+        "Net floor area in m², computed by the drawing's rules: numbered rooms, excluding "
+        "shafts and outdoor spaces (balconies, loggias, terraces). Filter by apartment "
+        "(unit, e.g. 'A') and/or by the printed room name (e.g. 'Pièce'; then every room "
+        "with that name counts, outdoor too). Call this for any area total instead of "
+        "adding areas yourself. Returns the total and each room counted, to cite.",
+        {
+            "document_id": _nullable({"type": "string"}),
+            "unit": _nullable({"type": "string"}),
+            "name": _nullable({"type": "string"}),
+        },
+    ),
 ]
 
 
@@ -98,6 +112,12 @@ class FindIn(_Strict):
 
 class GetIn(_Strict):
     element_id: str
+
+
+class AreaIn(_Strict):
+    document_id: str | None = None
+    unit: str | None = None
+    name: str | None = None
 
 
 class RegionIn(_Strict):
@@ -131,6 +151,8 @@ def run_tool(name: str, raw: Any, ctx: ToolContext) -> str | list[dict[str, Any]
             return _view(RegionIn.model_validate(raw), ctx)
         if name == "measure_distance":
             return _measure(RegionIn.model_validate(raw), ctx)
+        if name == "sum_room_areas":
+            return _areas(AreaIn.model_validate(raw), ctx)
     except ValidationError as exc:
         raise ToolInputError(f"invalid input: {exc.error_count()} problem(s)") from exc
     raise ToolInputError(f"unknown tool {name}")
@@ -213,6 +235,28 @@ def _measure(args: RegionIn, ctx: ToolContext) -> str:
     return json.dumps({"distance_mm": round(px * page.mm_per_px), "distance_px": round(px, 1)})
 
 
+def _areas(args: AreaIn, ctx: ToolContext) -> str:
+    query = (
+        select(Element, Page.index)
+        .outerjoin(Page, Element.page_id == Page.id)
+        .where(Element.document_id.in_(ctx.scope), Element.kind == "room")
+    )
+    if args.document_id:
+        query = query.where(Element.document_id == _uuid(args.document_id))
+    rows = ctx.db.execute(query).all()
+    by_id = {str(el.id): (el, page_index) for el, page_index in rows}
+    rooms = [
+        RoomArea(str(el.id), el.properties.get("number"), el.text, el.properties.get("unit"),
+                 float(el.properties["area_m2"]), bool(el.properties.get("outdoor")),
+                 bool(el.properties.get("shaft")))
+        for el, _ in rows
+        if el.properties.get("area_m2") is not None
+    ]  # fmt: skip
+    total, counted = net_area(rooms, unit=args.unit, name=args.name)
+    listed = [_describe(*by_id[r.element_id], ctx) for r in counted]
+    return json.dumps({"total_m2": total, "rooms_counted": len(counted), "rooms": listed})
+
+
 def _describe(el: Element, page_index: int | None, ctx: ToolContext) -> dict[str, Any]:
     bbox: BBox | None = tuple(el.bbox) if el.bbox else None  # type: ignore[assignment]
     ctx.elements[str(el.id)] = EvidenceItem(
@@ -226,8 +270,9 @@ def _describe(el: Element, page_index: int | None, ctx: ToolContext) -> dict[str
         "bbox": [round(v) for v in el.bbox] if el.bbox else None, "ifc_guid": el.ifc_guid,
         "source": el.source, "confidence": round(el.confidence, 2),
     }  # fmt: skip
-    if "area_m2" in el.properties:
-        out["area_m2"] = el.properties["area_m2"]
+    for key in ("area_m2", "number", "unit", "outdoor", "shaft"):
+        if key in el.properties:
+            out[key] = el.properties[key]
     return {k: v for k, v in out.items() if v is not None}
 
 

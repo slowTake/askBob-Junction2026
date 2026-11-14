@@ -22,6 +22,13 @@ Drawing conventions you will meet (Nordic drawings):
 WC toilet, ET hall, VH walk-in closet, VAR storage, KHH utility room.
 - Door tags give the leaf width in 100 mm modules: "09" is a 900 mm door.
 - "3H+K 80M²" means three rooms plus kitchen, 80 m² total.
+- Swiss plans label rooms in German, French or Italian ("Zimmer", "Pièce", "Stanza") with a \
+number ("2.01") and the room's exact area printed under it; apartments are "Whg. A", \
+"App. A". When asked about rooms "labelled X", match the printed name exactly.
+
+For any area total (an apartment, a floor, all rooms with a name), call \
+`sum_room_areas`; it applies the counting rules (shafts and outdoor spaces excluded) \
+and lists the rooms it counted, which you then cite.
 
 How to work:
 1. Find the relevant elements with `find_elements` (search by kind and text).
