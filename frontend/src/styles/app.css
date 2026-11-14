@@ -247,9 +247,11 @@ a {
   gap: var(--s-2);
   margin-left: auto; /* push the actions to the right of the wordmark */
 }
-/* Export menu in the app bar: IFC, the redrawn sheet as SVG, Print. */
+/* Export menu at the bottom of the documents panel: IFC, the redrawn sheet as SVG, Print.
+   It opens upward, as wide as its button. */
 .export-menu {
   position: relative;
+  display: grid;
 }
 .export-caret {
   width: 0.75em; /* sized to the label */
@@ -267,15 +269,7 @@ a {
     var(--shadow-pop),
     inset 0 0 0 1px var(--line);
 }
-.export-menu.is-bar .export-list {
-  top: calc(100% + var(--s-1));
-  right: 0;
-}
-/* At the bottom of the documents panel: open upward, as wide as the button. */
-.export-menu.is-panel {
-  display: grid;
-}
-.export-menu.is-panel .export-list {
+.export-list {
   bottom: calc(100% + var(--s-1));
   left: 0;
   right: 0;

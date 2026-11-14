@@ -63,7 +63,7 @@ export function DocumentList(props: Props) {
       </ul>
       {exports && (
         <div className="sidebar-footer">
-          <ExportMenu exports={exports} variant="panel" />
+          <ExportMenu exports={exports} />
         </div>
       )}
     </nav>

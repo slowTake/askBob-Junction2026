@@ -15,14 +15,13 @@ export interface Exports {
 
 interface Props {
   exports: Exports;
-  /** "bar": in the app bar, opens downward. "panel": the documents panel's footer, opens upward. */
-  variant: "bar" | "panel";
 }
 
 /** One menu for everything that leaves the app: the IFC model, the redrawn sheet as SVG,
  * and a print of it. SVG and Print stay greyed out until the redrawn sheet is on screen.
- * A click outside or Esc closes it. */
-export function ExportMenu({ exports, variant }: Props) {
+ * It sits at the bottom of the documents panel and opens upward. A click outside or Esc
+ * closes it. */
+export function ExportMenu({ exports }: Props) {
   const { ifcUrl, sheet } = exports;
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -35,10 +34,10 @@ export function ExportMenu({ exports, variant }: Props) {
   };
 
   return (
-    <div className={`export-menu is-${variant}`} ref={root}>
+    <div className="export-menu" ref={root}>
       <button
         type="button"
-        className={variant === "bar" ? "btn btn-bar" : "btn btn-secondary btn-sm"}
+        className="btn btn-secondary btn-sm"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(!open)}

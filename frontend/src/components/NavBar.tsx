@@ -1,5 +1,4 @@
 import type { Theme } from "../lib/theme";
-import { ExportMenu, type Exports } from "./ExportMenu";
 import { UploadButton } from "./UploadButton";
 
 interface Props {
@@ -8,12 +7,10 @@ interface Props {
   onToggleTheme: () => void;
   sidebarOpen?: boolean; // undefined: no sidebar to toggle (empty state)
   onToggleSidebar?: () => void;
-  /** The Export menu, while the documents panel (which has it too) is hidden. */
-  exports?: Exports;
 }
 
 export function NavBar(props: Props) {
-  const { onFiles, theme, onToggleTheme, sidebarOpen, onToggleSidebar, exports } = props;
+  const { onFiles, theme, onToggleTheme, sidebarOpen, onToggleSidebar } = props;
   const next = theme === "dark" ? "light" : "dark";
   return (
     <header className="nav-bar">
@@ -34,7 +31,6 @@ export function NavBar(props: Props) {
         bobBuilder
       </div>
       <div className="nav-actions">
-        {exports && <ExportMenu exports={exports} variant="bar" />}
         <button
           type="button"
           className="btn btn-bar icon-only"

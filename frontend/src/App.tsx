@@ -134,7 +134,7 @@ export function App() {
     setAbout([]);
   };
 
-  // One Export menu: in the documents panel's footer, or in the app bar while it's hidden.
+  // The Export menu at the bottom of the documents panel; hidden with the panel.
   const exports: Exports | null = selected
     ? { ifcUrl: selected.has_ifc ? api.modelIfcUrl(selected.id) : null, sheet: sheetExport }
     : null;
@@ -166,7 +166,6 @@ export function App() {
         onToggleTheme={toggleTheme}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        exports={sidebarOpen ? undefined : (exports ?? undefined)}
       />
       {toast}
       <main className={`workspace${sidebarOpen ? "" : " is-sidebar-closed"}`}>

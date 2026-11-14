@@ -142,7 +142,7 @@ export function DrawingViewer(props: Props) {
   }, [redrawn, sketch, ready, elements, w, h, mmPerPx]);
   const layerElements = useMemo(() => planElements(elements, sketch), [elements, sketch]);
 
-  // The Export menu (documents panel or app bar) downloads or prints the redrawn sheet
+  // The Export menu (documents panel) downloads or prints the redrawn sheet
   // while it's on screen; otherwise its SVG and Print are greyed out.
   const exportable = redraw !== null;
   const filename = doc?.filename ?? "drawing";
