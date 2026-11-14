@@ -27,18 +27,22 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-021 | 2026-11-14 | A citation's box is the element's extent; the printed name is the fallback | Accepted |
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
-| D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
+| D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Superseded in part by D-035 |
 | D-024 | 2026-11-14 | Raster rooms are traced from the drawing's lines; RapidOCR reads the text | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
 | D-027 | 2026-11-14 | Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates | Accepted |
-| D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029 |
+| D-028 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-029, D-035 |
 | D-029 | 2026-11-14 | Sketch check rounds show the draft in red over the photo, and the model is told where the ink is | Accepted |
 | D-025 | 2026-11-14 | Bound optional raster analysis and make Claude startup explicit (#106) | Accepted |
 | D-026 | 2026-11-14 | Room highlights require boundaries traced from the drawing (#103) | Accepted |
 | D-027 | 2026-11-14 | Match raster drawings to uploaded native DXF room boundaries (#108) | Accepted |
 | D-030 | 2026-11-14 | Matched CAD rooms survive the redraw integration (#108) | Accepted |
 | D-031 | 2026-11-14 | Claude omits unused tool filters to stay within strict-schema limits (#111) | Accepted |
+| D-032 | 2026-11-14 | `make up-*` start in the background and smoke-check the stack (#107) | Accepted |
+| D-033 | 2026-11-14 | The UI's nginx finds the backend per request, at an address from `BACKEND_URL` (#107, #64) | Accepted |
+| D-034 | 2026-11-14 | The demo runs on Aiven Runtime as one container: UI, API and worker (#116) | Accepted |
+| D-035 | 2026-11-14 | One Export menu holds Download IFC, Download SVG and Print (#109) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -355,7 +359,7 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 ## D-024: Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document
 
-**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes in part:** D-018
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-035 (where Download IFC shows) · **Supersedes in part:** D-018
 
 **Context:** Fit framed the whole sheet, so scans and PDF pages showed wide paper margins around a small drawing. Framing the detected elements instead failed on sparse scans (one OCR'd letter made Fit zoom onto it). Agent highlights zoomed the plan in after every answer, with a "Shown by the assistant" banner on top. The chat kept one conversation for all documents, so switching drawings mixed answers about different plans (#83).
 
@@ -474,7 +478,7 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 ## D-028: On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured
 
-**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) · **Refines:** D-027 (for raster image pages only)
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) and D-035 (where Download SVG and Print live) · **Refines:** D-027 (for raster image pages only)
 
 **Context:** The demo shows a photo of a hand-drawn floor plan (a napkin sketch) turned into a clean plan with one button (#82). D-027's pass asks a small model once for what ingest *missed* and draws boxes. On a sketch, ingest's OCR and line detection are the unreliable part, so filling its gaps keeps its noise; boxes cannot show a door swing; and one unchecked answer has no way to notice its own mistakes. The owner's rules: one button; redraw, never invent (no measurement unless written on the sketch); a stronger, slower model is allowed for this path; output is the Redrawn view plus Download SVG and Print, no DXF.
 
@@ -567,3 +571,17 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 - `scripts/runtime-image-test.sh` (CI containers job, `make runtime-image-check`) builds the image, runs it against throwaway Postgres and Valkey and checks `scripts/smoke.sh` through the single port, SSE, a non-root user, that a stop finishes within the grace period even with a stuck worker, and that the container stops when the worker dies.
 
 **Consequences:** One app to configure and one address. Files are on the container's own disk: a redeploy or restart loses them while their Postgres rows stay, so documents uploaded before a redeploy break and have to be uploaded again. No vision service runs (raster ingest uses pixel heuristics, D-023). Verified locally: a CubiCasa PNG ingested in about 21 s with 70 elements; idle memory is about 300 MB. Not yet verified on Runtime itself, including its request timeout for the minutes-long sketch redraw, its upload size limit, and whether it runs the container as the image's `app` user (UID 1000, which owns `/data`); a forced other UID could not write `/data`. The lasting setup (files in Postgres or an object store, separate API and vision apps) is a later issue. The `frontend/` image and `BACKEND_URL` (D-033) stay for Compose and for that later split.
+
+## D-035: One Export menu holds Download IFC, Download SVG and Print
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #109 · **Supersedes in part:** D-024 (Download IFC above the plan), D-028 (Download SVG and Print in the plan toolbar)
+
+**Context:** Files left the app from three places: Download IFC at the bottom of the documents panel, a second Download IFC above the plan while the panel was collapsed, and Download SVG and Print in the plan toolbar, laid out invisibly on the original view so the toolbar would not shift. The copy above the plan took a whole row for one button and was easy to miss. The Redraw card, once open, could only be left through the Original tab.
+
+**Decision:**
+- **One Export ▾ menu** with Download IFC, Download SVG and Print. It sits where Download IFC was, at the bottom of the documents panel, and opens upward. Hiding the panel hides it too: nothing moves to the app bar, which keeps only the panel toggle, the theme and Upload.
+- Download IFC is greyed out when the document has no IFC. Download SVG and Print are greyed out until the redrawn sheet is on screen; the plan viewer hands the menu those two actions while it is.
+- The plan toolbar keeps page navigation, Original / Redrawn and the layers; the row above the plan shows only when there are Plan / 3D model tabs.
+- The menu and the Redraw card close on a click anywhere outside them or on Esc (`useDismiss`). Closing the card during a redraw only hides it: the server finishes, and Redrawn shows the result.
+
+**Consequences:** Export has one place, and the plan toolbar no longer reserves space for hidden buttons. With the documents panel hidden there is no way to export until it is shown again. The 3D tab can still download the IFC from the menu; SVG and Print stay greyed out there.

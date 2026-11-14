@@ -20,6 +20,7 @@ import { selectElement } from "../lib/selection";
 import { onPage, type PlanTarget, type TargetOnPage } from "../lib/target";
 import { CleanSheet, SketchSheetSvg } from "./CleanSheet";
 import { ElementCard } from "./ElementCard";
+import type { SheetExport } from "./ExportMenu";
 import { PlanCanvas } from "./PlanCanvas";
 import { UpscalePrompt } from "./UpscalePrompt";
 import { ViewerToolbar } from "./ViewerToolbar";
@@ -33,11 +34,14 @@ interface Props {
   target: PlanTarget | null; // what the assistant or a citation asked to show
   onClearTarget: () => void;
   onAskAbout: (elements: ElementInfo[]) => void;
+  /** What the Export menu can do with this page: set while the redrawn sheet is on screen. */
+  onSheetExport: (sheet: SheetExport | null) => void;
 }
 
 /** One plan page: pan and zoom, an interactive element layer, and what the agent shows. */
 export function DrawingViewer(props: Props) {
-  const { documentId, pageIndex, onPageChange, target, onClearTarget, onAskAbout } = props;
+  const { documentId, pageIndex, onPageChange, target, onClearTarget, onAskAbout, onSheetExport } =
+    props;
   const [detail, setDetail] = useState<DocumentDetail | null | "missing">(null);
   const [loaded, setLoaded] = useState<{ page: number; elements: ElementInfo[] } | null>(null);
   const [layers, setLayers] = useState<Set<LayerKey>>(() => new Set());
@@ -48,6 +52,7 @@ export function DrawingViewer(props: Props) {
   const [imageAttempt, setImageAttempt] = useState(0);
   const [framed, setFramed] = useState<PlanTarget | null>(null);
   const [sheetMode, setSheetMode] = useState<SheetMode>("original");
+  const showOriginal = useCallback(() => setSheetMode("original"), []);
   const [elementsVersion, setElementsVersion] = useState(0); // bumped when upscale adds some
   const [printing, setPrinting] = useState<string | null>(null); // the sheet being printed
 
@@ -137,6 +142,22 @@ export function DrawingViewer(props: Props) {
   }, [redrawn, sketch, ready, elements, w, h, mmPerPx]);
   const layerElements = useMemo(() => planElements(elements, sketch), [elements, sketch]);
 
+  // The Export menu (documents panel) downloads or prints the redrawn sheet
+  // while it's on screen; otherwise its SVG and Print are greyed out.
+  const exportable = redraw !== null;
+  const filename = doc?.filename ?? "drawing";
+  useEffect(() => {
+    if (!exportable) {
+      onSheetExport(null);
+      return;
+    }
+    onSheetExport({
+      download: () => downloadSheet(viewportRef.current, w, h, filename, pageIndex),
+      print: () => setPrinting(sheetFile(viewportRef.current, w, h)),
+    });
+    return () => onSheetExport(null);
+  }, [exportable, w, h, filename, pageIndex, viewportRef, onSheetExport]);
+
   useEffect(() => {
     if (printing === null) return;
     const done = () => setPrinting(null);
@@ -209,10 +230,6 @@ export function DrawingViewer(props: Props) {
           onToggleLayer={toggleLayer}
           sheet={sheetMode}
           onSheet={setSheetMode}
-          onDownload={
-            redraw ? () => downloadSheet(viewportRef.current, w, h, doc.filename, pageIndex) : null
-          }
-          onPrint={redraw ? () => setPrinting(sheetFile(viewportRef.current, w, h)) : null}
         />
       )}
       <div
@@ -251,6 +268,7 @@ export function DrawingViewer(props: Props) {
             error={upscale.error}
             sketch={sketchDoc}
             onUpscale={upscale.run}
+            onClose={showOriginal}
           />
         )}
         {detail === "missing" ? (
@@ -353,7 +371,7 @@ function downloadSheet(
   link.href = url;
   link.download = exportFilename(filename, index);
   link.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000); // revoked at once, some browsers cancel it
 }
 
 /** For a source the user clicked: whether it's verified, and a way to clear it. */

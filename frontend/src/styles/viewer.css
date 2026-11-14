@@ -15,15 +15,13 @@
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--s-2);
+  /* Groups (pages, Original / Redrawn, Show + layers) stay further apart than the items
+     inside a group, however tightly they fit, so "Show" reads with its own chips. */
+  gap: var(--s-2) var(--s-5);
   min-height: 44px;
   padding: var(--s-1) var(--s-4);
   border-bottom: 1px solid var(--line);
   background: var(--surface);
-}
-/* Holds its place while unavailable, so the buttons beside it never move. */
-.viewer-toolbar .is-placeholder {
-  visibility: hidden;
 }
 .page-label {
   font-family: var(--font-mono);
