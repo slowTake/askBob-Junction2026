@@ -17,5 +17,5 @@ router = APIRouter(prefix="/api", tags=["ask"])
 def ask(body: AskIn) -> StreamingResponse:
     # A sync generator: Starlette runs it in a worker thread, so blocking DB and
     # Claude calls are fine here.
-    stream = answer_stream(body.question, [str(d) for d in body.document_ids])
+    stream = answer_stream(body.question, [str(d) for d in body.document_ids], body.context)
     return StreamingResponse(stream, media_type="text/event-stream", headers=SSE_HEADERS)

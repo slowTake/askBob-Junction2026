@@ -14,9 +14,11 @@ from app.config import get_settings
 from app.db import session_scope
 from app.domain.citations import Citation, check_citations, citation_payload
 from app.domain.streams import answer_cache_key, sse
-from app.models import Document, QaLog
+from app.models import Document, Element, Page, QaLog
 from app.qa.agent import AgentError, FinalAnswer, run_agent
+from app.qa.prompts import selected_note, viewing_note
 from app.qa.tools import ToolContext
+from app.schemas import AskContextIn
 from app.valkey import cache_get, cache_set
 
 log = logging.getLogger(__name__)
@@ -34,7 +36,9 @@ MESSAGES = {
 }
 
 
-def answer_stream(question: str, document_ids: list[str]) -> Iterator[str]:
+def answer_stream(
+    question: str, document_ids: list[str], context: AskContextIn | None = None
+) -> Iterator[str]:
     settings = get_settings()
     started = time.monotonic()
     record: dict[str, Any] = {"question": question, "document_ids": document_ids,
@@ -44,8 +48,11 @@ def answer_stream(question: str, document_ids: list[str]) -> Iterator[str]:
             docs = _scope(db, document_ids)
             if not docs:
                 raise AgentError("no_documents")
+            viewing, selected = _context_notes(db, docs, context)
             versions = [f"{d.id}@{d.version}" for d in docs]
-            key = answer_cache_key(question, versions, settings.claude_model)
+            key = answer_cache_key(
+                question, versions, settings.claude_model, f"{viewing or ''}|{selected or ''}"
+            )
             cached = cache_get(key)
             if cached is not None:
                 record.update(answer=cached, verified=cached.get("verified", False), cached=True)
@@ -54,7 +61,7 @@ def answer_stream(question: str, document_ids: list[str]) -> Iterator[str]:
                 ctx = ToolContext(db, [d.id for d in docs])
                 summaries = [{"id": str(d.id), "filename": d.filename, "kind": d.kind,
                               "page_count": d.page_count} for d in docs]  # fmt: skip
-                for event in run_agent(question, summaries, ctx, settings):
+                for event in run_agent(question, summaries, ctx, settings, viewing, selected):
                     if event["type"] == "step":
                         yield sse("step", {"tool": event["tool"], "input": event["input"]})
                         continue
@@ -94,6 +101,37 @@ def _scope(db: Any, document_ids: list[str]) -> list[Document]:
     if document_ids:
         query = query.where(Document.id.in_([uuid.UUID(d) for d in document_ids]))
     return list(db.scalars(query.order_by(Document.created_at)).all())
+
+
+def _context_notes(
+    db: Any, docs: list[Document], context: AskContextIn | None
+) -> tuple[str | None, str | None]:
+    """Describe the page on screen and the clicked element, if they are in scope."""
+    if context is None:
+        return None, None
+    in_scope = {d.id: d for d in docs}
+    viewing = None
+    doc = in_scope.get(context.document_id) if context.document_id else None
+    if doc is not None and context.page_index is not None:
+        page = db.scalar(
+            select(Page).where(Page.document_id == doc.id, Page.index == context.page_index)
+        )
+        if page is not None:
+            label = page.meta.get("storey")
+            viewing = viewing_note(
+                doc.filename, str(doc.id), page.index, doc.page_count, str(label) if label else None
+            )
+    selected = None
+    element = db.get(Element, context.element_id) if context.element_id else None
+    if element is not None and element.document_id in in_scope:
+        page_index = (
+            db.scalar(select(Page.index).where(Page.id == element.page_id))
+            if element.page_id
+            else None
+        )
+        title = element.text or element.name or element.label
+        selected = selected_note(element.kind, title, str(element.id), page_index)
+    return viewing, selected
 
 
 def _payload(answer: FinalAnswer, ctx: ToolContext) -> dict[str, Any]:

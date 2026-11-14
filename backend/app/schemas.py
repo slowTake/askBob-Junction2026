@@ -76,6 +76,15 @@ class ElementOut(BaseModel):
     confidence: float
 
 
+class AskContextIn(BaseModel):
+    """What the user looks at while asking, so "this room" and "here" mean something."""
+
+    document_id: uuid.UUID | None = None
+    page_index: int | None = Field(default=None, ge=0)
+    element_id: uuid.UUID | None = None  # clicked on the plan
+
+
 class AskIn(BaseModel):
     question: str = Field(min_length=2, max_length=2000)
     document_ids: list[uuid.UUID] = Field(default_factory=list)  # empty = all ready documents
+    context: AskContextIn | None = None
