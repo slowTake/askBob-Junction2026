@@ -36,7 +36,10 @@ def list_documents(db: DB) -> dict[str, Any]:
 @router.post("")
 def upload_document(file: UploadFile, db: DB) -> dict[str, Any]:
     filename = Path(file.filename or "upload").name
-    kind = detect_kind(filename, file.file.read(64))
+    head = file.file.read(64)
+    if not head:
+        raise AppError("empty_file", "The file is empty")
+    kind = detect_kind(filename, head)
     if kind is None:
         raise AppError("unsupported_file", "Upload an IFC, PDF, PNG, JPEG or TIFF file")
     file.file.seek(0)
