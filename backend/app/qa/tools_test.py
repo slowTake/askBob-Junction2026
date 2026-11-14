@@ -2,7 +2,7 @@
 
 from app.domain.ifc_mapping import IFC_KINDS
 from app.domain.kinds import DRAWING_KINDS
-from app.qa.tools import KINDS, TOOLS, AreaIn, FindIn
+from app.qa.tools import KINDS, TOOLS, AreaIn, FindIn, shown_properties
 
 
 def test_every_ifc_kind_can_be_filtered() -> None:
@@ -38,3 +38,10 @@ def test_plan_tools_are_offered_with_strict_inputs() -> None:
     highlight = next(t for t in TOOLS if t["name"] == "highlight")
     assert highlight["strict"] is True
     assert set(highlight["input_schema"]["required"]) == {"element_ids", "caption"}
+
+
+def test_search_results_show_fixture_subtype_and_room_category() -> None:
+    # D-022: "how many toilets" is answered from fixtures with subtype "wc"; model
+    # rooms carry a category. Layout details (polygon_px) stay out of search results.
+    properties = {"subtype": "wc", "category": "bathroom", "area_m2": 4.2, "polygon_px": [[0, 0]]}
+    assert shown_properties(properties) == {"subtype": "wc", "category": "bathroom", "area_m2": 4.2}
