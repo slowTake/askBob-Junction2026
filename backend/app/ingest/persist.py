@@ -1,23 +1,27 @@
-"""Save a reader's output: page images to storage, pages and elements to Postgres."""
+"""Save a built document: page images to storage, pages and elements to Postgres."""
+
+import uuid
 
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.domain.text import clip
-from app.ingest.types import ExtractedDocument, ExtractedElement
+from app.ingest.pipeline import BuiltDocument
+from app.ingest.types import ExtractedElement
 from app.models import LABEL_MAX, NAME_MAX, Document, Element, Page
 from app.storage import page_image_path, write_bytes
 
 
-def replace_contents(
-    db: Session, doc: Document, extracted: ExtractedDocument
-) -> list[tuple[ExtractedElement, Element, Page | None]]:
-    """Replace everything previously extracted for `doc` (re-ingest is idempotent)."""
+def replace_contents(db: Session, doc: Document, built: BuiltDocument) -> int:
+    """Replace everything previously stored for `doc` (re-ingest is idempotent).
+
+    Returns the number of elements stored.
+    """
     db.execute(delete(Element).where(Element.document_id == doc.id))
     db.execute(delete(Page).where(Page.document_id == doc.id))
-    rows: list[tuple[ExtractedElement, Element, Page | None]] = []
 
-    for page_data in extracted.pages:
+    page_ids: dict[int, uuid.UUID] = {}
+    for page_data in built.pages:
         write_bytes(page_image_path(doc.id, page_data.index), page_data.image_png)
         page = Page(
             document_id=doc.id,
@@ -30,29 +34,29 @@ def replace_contents(
         )
         db.add(page)
         db.flush()  # assigns page.id
-        rows.extend((ex, _row(doc, page, ex), page) for ex in page_data.elements)
+        page_ids[page_data.index] = page.id
 
-    rows.extend((ex, _row(doc, None, ex), None) for ex in extracted.elements)
-    db.add_all(row for _, row, _ in rows)
-    db.flush()  # assigns element ids
-    return rows
+    rows = [_row(doc, page_ids, el) for el in built.elements]
+    db.add_all(rows)
+    db.flush()
+    return len(rows)
 
 
-def _row(doc: Document, page: Page | None, ex: ExtractedElement) -> Element:
+def _row(doc: Document, page_ids: dict[int, uuid.UUID] | None, el: ExtractedElement) -> Element:
     return Element(
         document_id=doc.id,
-        page_id=page.id if page else None,
-        kind=ex.kind,
-        text=ex.text,
-        label=clip(ex.label, LABEL_MAX),  # one long token must not fail the whole document
-        name=clip(ex.name, NAME_MAX),
-        value_mm=ex.value_mm,
-        bbox=[round(v, 1) for v in ex.bbox] if ex.bbox else None,
-        footprint_mm=[[round(x, 1), round(y, 1)] for x, y in ex.footprint_mm]
-        if ex.footprint_mm
+        page_id=(page_ids or {}).get(el.page_index) if el.page_index is not None else None,
+        kind=el.kind,
+        text=el.text,
+        label=clip(el.label, LABEL_MAX),  # one long token must not fail the whole document
+        name=clip(el.name, NAME_MAX),
+        value_mm=el.value_mm,
+        bbox=[round(v, 1) for v in el.bbox] if el.bbox else None,
+        footprint_mm=[[round(x, 1), round(y, 1)] for x, y in el.footprint_mm]
+        if el.footprint_mm
         else None,
-        ifc_guid=ex.ifc_guid,
-        properties=ex.properties,
-        source=ex.source,
-        confidence=ex.confidence,
+        ifc_guid=el.ifc_guid,
+        properties=el.properties,
+        source=el.source,
+        confidence=el.confidence,
     )

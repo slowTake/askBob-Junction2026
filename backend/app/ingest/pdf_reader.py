@@ -10,21 +10,34 @@ from app.config import Settings
 from app.domain.geometry import scale_bbox
 from app.domain.tokens import Word
 from app.ingest.annotate import annotate_page
+from app.ingest.errors import ReaderError
 from app.ingest.ocr import ocr_words
 from app.ingest.pdf_vector import hatched_regions
 from app.ingest.types import ExtractedDocument, ExtractedPage, Progress
 
 POINTS_PER_INCH = 72.0
+MAX_SIDE_PX = 8000
+MAX_PAGES = 200
 
 
 def read_pdf(path: Path, settings: Settings, progress: Progress) -> ExtractedDocument:
-    doc = pymupdf.open(path)
+    """PDF and SVG (PyMuPDF opens both): one page image plus elements per page."""
+    try:
+        doc = pymupdf.open(path)
+    except Exception as exc:  # PyMuPDF raises several types for broken files
+        raise ReaderError("unreadable_file", "not a readable PDF/SVG") from exc
+    if doc.needs_pass:
+        raise ReaderError("encrypted_pdf")
+    if doc.page_count == 0:
+        raise ReaderError("empty_drawing")
     result = ExtractedDocument(meta={"page_count": doc.page_count, "metadata": doc.metadata or {}})
-    dpi = float(settings.render_dpi)
-    px_per_pt = dpi / POINTS_PER_INCH
-    for number in range(doc.page_count):
+    for number in range(min(doc.page_count, MAX_PAGES)):
         page = doc.load_page(number)
-        pix = page.get_pixmap(dpi=int(dpi))
+        # Big sheets (A0 at 150 dpi is 7000 px wide) are rendered at a lower dpi.
+        longest_pt = max(page.rect.width, page.rect.height, 1.0)
+        dpi = min(float(settings.render_dpi), MAX_SIDE_PX * POINTS_PER_INCH / longest_pt)
+        px_per_pt = dpi / POINTS_PER_INCH
+        pix = page.get_pixmap(dpi=max(int(dpi), 10))
         rgb = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
         gray = cv2.cvtColor(rgb[:, :, :3], cv2.COLOR_RGB2GRAY)
 
@@ -51,7 +64,7 @@ def read_pdf(path: Path, settings: Settings, progress: Progress) -> ExtractedDoc
                 meta=meta,
             )
         )
-        progress("reading", (len(result.pages)) / max(doc.page_count, 1))
+        progress("reading", len(result.pages) / min(doc.page_count, MAX_PAGES))
     return result
 
 

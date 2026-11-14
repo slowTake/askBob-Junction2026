@@ -36,12 +36,15 @@ def list_documents(db: DB) -> dict[str, Any]:
 @router.post("")
 def upload_document(file: UploadFile, db: DB) -> dict[str, Any]:
     filename = Path(file.filename or "upload").name
-    head = file.file.read(64)
+    head = file.file.read(1024)  # enough to see an SVG tag after an XML prolog
     if not head:
         raise AppError("empty_file", "The file is empty")
     kind = detect_kind(filename, head)
     if kind is None:
-        raise AppError("unsupported_file", "Upload an IFC, DXF, PDF, PNG, JPEG or TIFF file")
+        raise AppError(
+            "unsupported_file",
+            "Upload an IFC, DXF, DWG, PDF, SVG or image (PNG, JPEG, TIFF, WebP) file",
+        )
     file.file.seek(0)
 
     doc_id = uuid.uuid4()
