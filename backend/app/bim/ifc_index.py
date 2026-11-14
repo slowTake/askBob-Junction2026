@@ -17,7 +17,7 @@ import ifcopenshell.util.element as ifc_element
 import ifcopenshell.util.unit as ifc_unit
 
 from app.bim.ifc_writer import BOB_PSET, FOOTPRINT_KEY
-from app.domain.ifc_mapping import flatten_psets, ifc_kind
+from app.domain.ifc_mapping import flatten_psets, ifc_kind, quantity
 from app.domain.model_rules import marked_kind, sanitary_subtype
 from app.ingest.types import ExtractedElement
 
@@ -96,7 +96,7 @@ def _from_ifc(product: Any, psets: dict[str, Any], to_mm: float, to_m2: float) -
     if kind == "storey" and getattr(product, "Elevation", None) is not None:
         value_mm = round(float(product.Elevation) * to_mm, 1)
     if kind == "room":
-        area = _quantity(psets, AREA_KEYS)
+        area = quantity(psets, AREA_KEYS)
         if area is not None:
             properties["area_m2"] = round(area * to_m2, 2)
 
@@ -160,17 +160,6 @@ def _meta(model: Any, elements: list[ExtractedElement], to_mm: float) -> dict[st
         "counts": dict(Counter(e.kind for e in top)),
         "length_unit_mm": to_mm,
     }
-
-
-def _quantity(psets: dict[str, Any], keys: tuple[str, ...]) -> float | None:
-    for name, values in psets.items():
-        if not name.startswith("Qto_") and "Quantities" not in name:
-            continue
-        for key in keys:
-            value = values.get(key)
-            if isinstance(value, int | float) and value > 0:
-                return float(value)
-    return None
 
 
 def _unit_scale(model: Any, unit_type: str) -> float:

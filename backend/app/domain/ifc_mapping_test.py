@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.domain.ifc_mapping import flatten_psets, ifc_kind, zup_to_yup
+from app.domain.ifc_mapping import flatten_psets, ifc_kind, quantity, zup_to_yup
 
 
 def test_ifc_kind() -> None:
@@ -41,3 +41,15 @@ def test_flatten_survives_unnamed_property_sets() -> None:
     # data/ifc_bench/hitos_arc.ifc has property sets whose Name is null.
     psets: dict[str | None, dict[str, object]] = {None: {"Fire": "EI60"}, "Pset_A": {"x": 1}}
     assert flatten_psets(psets) == {"Pset_A.x": 1, "Unnamed.Fire": "EI60"}
+
+
+def test_quantity_lookup_skips_unnamed_and_non_quantity_sets() -> None:
+    # hitos_arc.ifc again: unnamed sets must not crash the quantity lookup either.
+    psets: dict[str | None, dict[str, object]] = {
+        None: {"NetFloorArea": 99.0},
+        "Pset_SpaceCommon": {"NetFloorArea": 98.0},  # not a quantity set
+        "Qto_SpaceBaseQuantities": {"GrossFloorArea": 12.5, "NetFloorArea": 0},
+    }
+    # NetFloorArea 0 is "not filled in", so GrossFloorArea is used.
+    assert quantity(psets, ("NetFloorArea", "GrossFloorArea")) == 12.5
+    assert quantity({}, ("NetFloorArea",)) is None

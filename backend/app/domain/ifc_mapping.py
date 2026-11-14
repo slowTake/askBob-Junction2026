@@ -64,3 +64,16 @@ def zup_to_yup(verts: list[float], decimals: int = 3) -> list[float]:
         x, y, z = verts[i], verts[i + 1], verts[i + 2]
         out.extend((round(x, decimals), round(z, decimals), round(-y, decimals) + 0.0))
     return out
+
+
+def quantity(psets: Mapping[Any, Mapping[Any, Any]], keys: tuple[str, ...]) -> float | None:
+    """First positive value of `keys` found in a quantity set (Qto_* or *Quantities*)."""
+    for name, values in psets.items():
+        label = str(name) if name is not None else ""
+        if not label.startswith("Qto_") and "Quantities" not in label:
+            continue
+        for key in keys:
+            value = values.get(key)
+            if isinstance(value, int | float) and value > 0:
+                return float(value)
+    return None
