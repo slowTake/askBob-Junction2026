@@ -53,23 +53,39 @@ def from_components(
     offset: tuple[float, float],
     min_area_px: int = 50,
 ) -> Result:
-    """Each connected region of one class becomes a room outline or an object box."""
+    """Each connected region of one class becomes a room outline, a wall or an object box.
+
+    Door and window pixels count as wall when tracing rooms, so two rooms of the same
+    type joined by a doorway stay two rooms.
+    """
     result: Result = {"rooms": [], "walls": [], "objects": []}
     for index, name in enumerate(ICONS[1:], start=1):
         for x, y, w, h in _regions(icons == index, min_area_px):
             box = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
             result["objects"].append({"class": name, "polygon": to_original(box, scale, offset)})
+    openings = np.isin(icons, [ICONS.index("Door"), ICONS.index("Window")])
     for index, name in enumerate(ROOMS):
-        if name in NOT_ROOMS:
+        if name in ("Background", "Railing"):
             continue
-        mask = (rooms == index).astype(np.uint8)
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            if cv2.contourArea(contour) < min_area_px:
-                continue
-            outline = cv2.approxPolyDP(contour, 2.0, True).reshape(-1, 2)
-            result["rooms"].append({"class": name, "polygon": to_original(outline, scale, offset)})
+        mask = (rooms == index) & ~openings if name != "Wall" else rooms == index
+        for outline in _outlines(mask, min_area_px):
+            points = to_original(outline, scale, offset)
+            if name == "Wall":
+                result["walls"].append(points)
+            else:
+                result["rooms"].append({"class": name, "polygon": points})
     return result
+
+
+def _outlines(mask: np.ndarray, min_area_px: int) -> list[np.ndarray]:
+    contours, _ = cv2.findContours(
+        mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    return [
+        cv2.approxPolyDP(c, 2.0, True).reshape(-1, 2)
+        for c in contours
+        if cv2.contourArea(c) >= min_area_px
+    ]
 
 
 def _regions(mask: np.ndarray, min_area_px: int) -> list[tuple[int, int, int, int]]:

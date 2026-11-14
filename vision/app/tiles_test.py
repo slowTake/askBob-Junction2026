@@ -1,6 +1,6 @@
 import numpy as np
 
-from app.tiles import edge_weights, tile_starts, to_original
+from app.tiles import edge_weights, keep_windows, tile_starts, to_original
 
 
 def test_one_tile_when_the_side_fits() -> None:
@@ -29,6 +29,27 @@ def test_edge_weights_fade_over_the_overlap() -> None:
 
 def test_edge_weights_never_reach_zero() -> None:
     assert edge_weights(1, overlap=128).min() > 0
+
+
+def test_keep_windows_cover_the_line_exactly_once() -> None:
+    # Each tile keeps its own part; together the parts cover 0..length with no overlap.
+    length, tile = 3333, 1024
+    starts = tile_starts(length, tile=tile, overlap=128)
+    owner = np.zeros(length, int)
+    for start, (a, b) in zip(starts, keep_windows(starts, tile, length), strict=True):
+        owner[start + a : start + b] += 1
+    assert (owner == 1).all()
+
+
+def test_keep_window_of_a_single_tile_is_all_of_it() -> None:
+    assert keep_windows([0], 1024, 1000) == [(0, 1000)]
+
+
+def test_boundaries_sit_midway_through_each_overlap() -> None:
+    # starts 0, 896, 976 of 2000 with 1024 tiles. Tile 0 ends at 1024, tile 1 starts at
+    # 896: boundary (1024 + 896) / 2 = 960. Tile 1 ends at 1920, tile 2 starts at 976:
+    # boundary (1920 + 976) / 2 = 1448. In each tile's own coordinates (by hand):
+    assert keep_windows([0, 896, 976], 1024, 2000) == [(0, 960), (64, 552), (472, 1024)]
 
 
 def test_to_original_undoes_scale_then_adds_crop_offset() -> None:

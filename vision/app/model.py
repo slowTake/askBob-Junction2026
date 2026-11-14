@@ -13,7 +13,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from app.tiles import edge_weights, tile_starts
+from app.tiles import edge_weights, keep_windows, tile_starts
 
 CUBICASA_DIR = Path(os.environ.get("CUBICASA_DIR", "/opt/cubicasa"))
 sys.path.insert(0, str(CUBICASA_DIR))
@@ -62,6 +62,27 @@ class FloorplanModel:
                 acc[:, y : y + th, x : x + tw] += self._tile(part) * wgt
                 weight[:, y : y + th, x : x + tw] += wgt
         return (acc / weight)[None]
+
+    @torch.no_grad()
+    def predict_labels(self, rgb: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """(room class, object class) per pixel, as uint8 maps.
+
+        Memory stays bounded by the tile size: each tile's 44 channels are reduced to
+        two labels at once, and each pixel comes from the one tile that owns it
+        (keep_windows), so no page-sized float map is ever built (D-023).
+        """
+        h, w = rgb.shape[:2]
+        rooms = np.zeros((h, w), np.uint8)
+        icons = np.zeros((h, w), np.uint8)
+        ys, xs = tile_starts(h, TILE, OVERLAP), tile_starts(w, TILE, OVERLAP)
+        for y, (ya, yb) in zip(ys, keep_windows(ys, TILE, h), strict=True):
+            for x, (xa, xb) in zip(xs, keep_windows(xs, TILE, w), strict=True):
+                out = self._tile(rgb[y : y + TILE, x : x + TILE])[:, ya:yb, xa:xb]
+                room_part = out[SPLIT[0] : SPLIT[0] + SPLIT[1]].argmax(0)
+                icon_part = out[SPLIT[0] + SPLIT[1] :].argmax(0)
+                rooms[y + ya : y + yb, x + xa : x + xb] = room_part.numpy().astype(np.uint8)
+                icons[y + ya : y + yb, x + xa : x + xb] = icon_part.numpy().astype(np.uint8)
+        return rooms, icons
 
     def _tile(self, rgb: np.ndarray) -> torch.Tensor:
         h, w = rgb.shape[:2]
