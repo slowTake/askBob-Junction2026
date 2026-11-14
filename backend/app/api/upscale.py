@@ -1,5 +1,11 @@
-"""Upscale a plan page on demand (#82): one vision pass that adds what ingest missed."""
+"""Upscale a plan page on demand (#82).
 
+Raster image pages get the sketch redraw: a strong model authors the whole plan and
+checks it in a draw, compare, correct loop (`app/upscale/sketch_service.py`). Every
+other format gets one vision pass that adds what ingest missed.
+"""
+
+import time
 import uuid
 from typing import Annotated, Any
 
@@ -9,10 +15,13 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
+from app.domain.sketch import is_sketch_page
 from app.envelope import AppError, ok
 from app.models import Document, Page
 from app.schemas import PageOut
 from app.upscale.service import upscale_page
+from app.upscale.sketch_model import ask_sketch
+from app.upscale.sketch_service import redraw_sketch
 from app.upscale.vision import VisionError, find_missing
 
 router = APIRouter(prefix="/api/documents", tags=["upscale"])
@@ -25,15 +34,23 @@ _ERRORS = {
     "llm_unavailable": ("The language model is unavailable right now.", 502),
     "refused": ("The model declined to read this page.", 502),
     "upscale_failed": ("The page could not be upscaled. Try again.", 502),
+    "sketch_needs_claude": (
+        "Redrawing a sketch needs the Claude model, and the server is set to another one.",
+        503,
+    ),
+    "sketch_unreadable": ("No floor plan could be read from this image.", 422),
+    "sketch_failed": ("The sketch could not be redrawn. Try again.", 502),
 }
+clock = time.time  # replaced in tests
 
 
 @router.post("/{document_id}/pages/{index}/upscale")
 def upscale(document_id: uuid.UUID, index: int, db: DB) -> dict[str, Any]:
-    """Synchronous and bounded: one model request with a timeout, then a small insert.
+    """Synchronous. The gap-filling pass is one bounded model request, and the page row
+    is locked for its duration, so a second click waits and gets the cached result.
 
-    The page row is locked for the duration, so two clicks never add the same
-    elements twice; the second one waits and gets the cached result.
+    The sketch redraw takes minutes: it claims the page under the lock and runs without
+    it; a second click meanwhile gets `redraw_running` at once (sketch_service.py).
     """
     doc = db.get(Document, document_id)
     if doc is None:
@@ -49,7 +66,10 @@ def upscale(document_id: uuid.UUID, index: int, db: DB) -> dict[str, Any]:
     if page is None:
         raise AppError("not_found", "Page not found", 404)
     try:
-        result = upscale_page(db, doc, page, get_settings(), find_missing)
+        if is_sketch_page(doc.kind):
+            result, page = redraw_sketch(db, doc, page, get_settings(), ask_sketch, clock)
+        else:
+            result = upscale_page(db, doc, page, get_settings(), find_missing)
     except VisionError as exc:
         message, status = _ERRORS.get(exc.code, _ERRORS["upscale_failed"])
         code = exc.code if exc.code in _ERRORS else "upscale_failed"
