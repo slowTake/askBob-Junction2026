@@ -14,13 +14,13 @@ fail() {
   exit 1
 }
 
-# fetch <url> <text>: retries until the response body contains <text>; prints the last body.
-# Returns 1 at the deadline. Only 2xx bodies count (curl -f).
+# fetch <url> <regex>: retries until the response body matches <regex> (bash =~); prints
+# the last body. Returns 1 at the deadline. Only 2xx bodies count (curl -f).
 fetch() {
   local body=""
   while :; do
     body="$(curl -sf --max-time 5 "$1" 2>/dev/null)" || body=""
-    if [[ "$body" == *"$2"* ]]; then
+    if [[ "$body" =~ $2 ]]; then
       echo "$body"
       return 0
     fi
@@ -38,14 +38,13 @@ health="$(fetch "$api/api/health" '"ok":true')" || {
 }
 echo "smoke: ok: API healthy at $api"
 
-health="$(fetch "$api/api/health" '"ingest_workers":')" || true
-if [[ "$health" =~ \"ingest_workers\":(0|null) ]]; then
+# The worker registers with the queue a moment after it starts, so wait for it too.
+fetch "$api/api/health" '"ingest_workers":[1-9]' >/dev/null ||
   fail "no ingest worker is listening, so uploads would wait forever. Check: docker compose logs worker"
-fi
 echo "smoke: ok: ingest worker listening"
 
 fetch "$web/api/health" '"ok":true' >/dev/null ||
-  fail "the API answers at $api but not through $web/api. The frontend container is down, or nginx kept a stale backend address (#64): docker compose restart frontend"
+  fail "the API answers at $api but not through nginx at $web/api. Is the frontend container up, and does BACKEND_URL point at the API? Check: docker compose logs frontend"
 echo "smoke: ok: nginx proxies /api"
 
 fetch "$web/" '<title>bobBuilder</title>' >/dev/null ||

@@ -11,5 +11,6 @@ ENV BACKEND_URL=http://backend:8000 \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
     NGINX_ENVSUBST_FILTER="^(BACKEND_URL|NGINX_LOCAL_RESOLVERS)$"
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY --chmod=755 docker-entrypoint.d/16-check-proxy.envsh /docker-entrypoint.d/
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

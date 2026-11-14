@@ -1,9 +1,11 @@
 # Run `make help` for the list. CI runs `make check`.
 
 LOCAL_ENV = DATABASE_URL=postgresql://bob:bob@postgres:5432/bob VALKEY_URL=redis://valkey:6379/0
-# Build, start in the background and wait for the healthchecks; `make smoke` then
-# checks the stack from the outside. Follow the logs with `make logs`.
-UP_FLAGS = --build --detach --wait --wait-timeout 300
+# Build and start in the background, then `make smoke` waits (up to SMOKE_TIMEOUT s) for
+# the API, a worker, the proxy and the UI. No `--wait`: that would also block on vision,
+# which the app works without. Follow the logs with `make logs`.
+UP_FLAGS = --build --detach
+SMOKE_TIMEOUT ?= 180
 
 .PHONY: help up up-aiven up-local up-claude smoke down logs check backend-check vision-check frontend-check size-check scripts-check frontend-image-check fmt dev-api dev-worker dev-web
 
@@ -27,7 +29,7 @@ up-claude: ## Run locally with Claude: key from environment, keyring, or a hidde
 	bash -c 'source scripts/claude-env.sh && $(MAKE) up-local'
 
 smoke: ## Check the running stack: API healthy, worker listening, nginx proxies /api, UI served
-	scripts/smoke.sh
+	SMOKE_TIMEOUT=$(SMOKE_TIMEOUT) scripts/smoke.sh
 
 down: ## Stop all containers
 	docker compose --profile local down
