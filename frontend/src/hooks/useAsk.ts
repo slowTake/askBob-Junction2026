@@ -1,6 +1,14 @@
 import { useCallback, useRef, useState } from "react";
 import { ApiError, api } from "../api/client";
 import type { Answer, ApiErrorBody, AskContext, AskStep, PlanView } from "../api/types";
+import {
+  addTurn,
+  dropConversation,
+  isBusy,
+  turnsOf,
+  updateTurn,
+  type Conversations,
+} from "../lib/conversations";
 
 export interface Turn {
   id: string;
@@ -20,21 +28,23 @@ export interface AskOptions {
 }
 
 /**
- * A conversation of independent questions; each streams steps, then a cited answer.
- * `onView` runs for every plan view the agent sends (live, or replayed from a cached answer).
+ * One conversation per document (see lib/conversations.ts); each question streams steps,
+ * then a cited answer, into the conversation it was asked in, even if the user opens
+ * another document meanwhile. `onView` runs for every plan view the agent sends (live, or
+ * replayed from a cached answer), with the key of the conversation it belongs to.
  */
-export function useAsk(onView: (view: PlanView) => void) {
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const abort = useRef<AbortController | null>(null);
+export function useAsk(onView: (view: PlanView, key: string) => void) {
+  const [all, setAll] = useState<Conversations<Turn>>({});
+  const aborts = useRef(new Map<string, AbortController>()); // per conversation
 
   const update = (id: string, change: (turn: Turn) => Turn) =>
-    setTurns((all) => all.map((t) => (t.id === id ? change(t) : t)));
+    setAll((current) => updateTurn(current, id, change));
 
   const ask = useCallback(
-    async (question: string, options: AskOptions) => {
-      abort.current?.abort();
+    async (key: string, question: string, options: AskOptions) => {
+      aborts.current.get(key)?.abort(); // a new question replaces this conversation's last one
       const controller = new AbortController();
-      abort.current = controller;
+      aborts.current.set(key, controller);
       const id = crypto.randomUUID();
       const turn: Turn = {
         id,
@@ -44,7 +54,7 @@ export function useAsk(onView: (view: PlanView) => void) {
         views: [],
         pending: true,
       };
-      setTurns((all) => [...all, turn]);
+      setAll((current) => addTurn(current, key, turn));
       try {
         await api.ask(
           question,
@@ -57,11 +67,11 @@ export function useAsk(onView: (view: PlanView) => void) {
                 answer,
                 views: t.views.length ? t.views : (answer.views ?? []),
               }));
-              if (answer.cached) answer.views?.forEach(onView);
+              if (answer.cached) answer.views?.forEach((v) => onView(v, key));
             },
             onView: (view) => {
               update(id, (t) => ({ ...t, views: [...t.views, view] }));
-              onView(view);
+              onView(view, key);
             },
             onError: (error) => update(id, (t) => ({ ...t, error })),
           },
@@ -78,15 +88,23 @@ export function useAsk(onView: (view: PlanView) => void) {
         }
       } finally {
         update(id, (t) => ({ ...t, pending: false }));
+        if (aborts.current.get(key) === controller) aborts.current.delete(key);
       }
     },
     [onView],
   );
 
-  const clear = useCallback(() => {
-    abort.current?.abort();
-    setTurns([]);
+  /** Empty one document's conversation (Clear), or forget it (the document was deleted). */
+  const clear = useCallback((key: string) => {
+    aborts.current.get(key)?.abort();
+    aborts.current.delete(key);
+    setAll((current) => dropConversation(current, key));
   }, []);
 
-  return { turns, ask, clear, busy: turns.some((t) => t.pending) };
+  return {
+    turnsFor: (key: string | null) => turnsOf(all, key),
+    busyFor: (key: string | null) => isBusy(all, key),
+    ask,
+    clear,
+  };
 }

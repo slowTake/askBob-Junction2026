@@ -1,6 +1,12 @@
 """The agent is told what the user is looking at and what they selected on the plan."""
 
-from app.qa.prompts import scope_message, selected_note, viewing_note
+from app.qa.prompts import (
+    SelectedElement,
+    scope_message,
+    selected_note,
+    selected_notes,
+    viewing_note,
+)
 
 DOCS: list[dict[str, object]] = [
     {"id": "d1", "filename": "plan.dxf", "kind": "dxf", "page_count": 1},
@@ -18,7 +24,7 @@ def test_the_viewed_page_and_selected_element_come_before_the_question() -> None
         "How big is this?",
         DOCS,
         viewing="page 1 of plan.dxf (document_id d1, page_index 0)",
-        selected='room "Kitchen" (element_id e1, page_index 0)',
+        selected=['room "Kitchen" (element_id e1, page_index 0)'],
     )
     assert message == (
         "Documents in scope:\n- d1: plan.dxf (dxf, 1 pages)\n\n"
@@ -44,3 +50,37 @@ def test_selected_note_names_the_element_and_where_it_is() -> None:
         'room "Kitchen" (element_id e1, page_index 0)'
     )
     assert selected_note("door", None, "e2", None) == "door (element_id e2)"
+
+
+def test_several_selected_elements_are_listed() -> None:
+    message = scope_message(
+        "Which is bigger?",
+        DOCS,
+        selected=[
+            'room "Kitchen" (element_id e1, page_index 0)',
+            'room "WC" (element_id e2, page_index 0)',
+        ],
+    )
+    assert message == (
+        "Documents in scope:\n- d1: plan.dxf (dxf, 1 pages)\n\n"
+        "The user selected these elements on the plan:\n"
+        '- room "Kitchen" (element_id e1, page_index 0)\n'
+        '- room "WC" (element_id e2, page_index 0)\n'
+        '"These", "them" and "the selected ones" refer to them: '
+        "call get_element for each one's details.\n\n"
+        "Question: Which is bigger?"
+    )
+
+
+def test_selected_notes_keep_click_order_and_skip_what_is_not_in_scope() -> None:
+    found = {
+        "e1": SelectedElement("e1", "d1", "room", "Kitchen", 0),
+        "e2": SelectedElement("e2", "d1", "door", None, None),
+        "e9": SelectedElement("e9", "d2", "room", "Sauna", 0),  # a document not in scope
+    }
+    # Clicked e2, then e1, then e9, then one that no longer exists.
+    assert selected_notes(["e2", "e1", "e9", "gone"], found, {"d1"}) == [
+        "door (element_id e2)",
+        'room "Kitchen" (element_id e1, page_index 0)',
+    ]
+    assert selected_notes([], found, {"d1"}) == []
