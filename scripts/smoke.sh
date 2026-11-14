@@ -47,6 +47,6 @@ fetch "$web/api/health" '"ok":true' >/dev/null ||
   fail "the API answers at $api but not through nginx at $web/api. Is the frontend container up, and does BACKEND_URL point at the API? Check: docker compose logs frontend"
 echo "smoke: ok: nginx proxies /api"
 
-fetch "$web/" '<title>bobBuilder</title>' >/dev/null ||
+fetch "$web/" '<title>AskBob</title>' >/dev/null ||
   fail "the UI page is not served at $web/. The frontend build may be broken: docker compose logs frontend"
 echo "smoke: ok: UI is up at $web"

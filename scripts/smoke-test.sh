@@ -30,7 +30,7 @@ serve() {
 site() {
   mkdir -p "$tmp/$1/api"
   printf '%s' "$2" >"$tmp/$1/api/health"
-  if [[ "${3:-}" == ui ]]; then printf '<!doctype html><title>bobBuilder</title>' >"$tmp/$1/index.html"; fi
+  if [[ "${3:-}" == ui ]]; then printf '<!doctype html><title>AskBob</title>' >"$tmp/$1/index.html"; fi
 }
 
 healthy='{"ok":true,"data":{"postgres":true,"valkey":true,"ingest_workers":1},"error":null}'
