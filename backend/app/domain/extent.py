@@ -6,6 +6,7 @@ outline in `properties["polygon_px"]`. A citation should show the room, so the
 outline wins; the name is the fallback when no outline was found.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -24,7 +25,7 @@ class Extent:
     target: Target
 
 
-def element_extent(kind: str, bbox: BBox | None, properties: dict[str, object]) -> Extent:
+def element_extent(kind: str, bbox: BBox | None, properties: Mapping[str, object]) -> Extent:
     polygon = _polygon(properties.get("polygon_px")) if kind in _LABELLED_AREAS else None
     if polygon is not None:
         xs = [p[0] for p in polygon]
