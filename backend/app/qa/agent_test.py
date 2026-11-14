@@ -103,9 +103,12 @@ def claude(monkeypatch: pytest.MonkeyPatch) -> FakeClaude:
     return client
 
 
-def _loop() -> list[dict[str, Any]]:
-    ctx = ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
-    return list(run_agent("How many bedrooms?", [], ctx, LOOP_SETTINGS))
+def _ctx() -> ToolContext:
+    return ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
+
+
+def _loop(ctx: ToolContext | None = None) -> list[dict[str, Any]]:
+    return list(run_agent("How many bedrooms?", [], ctx or _ctx(), LOOP_SETTINGS))
 
 
 def test_the_last_turn_takes_no_tool_calls_and_asks_for_the_answer(claude: FakeClaude) -> None:
@@ -140,8 +143,11 @@ def test_usage_counts_cache_reads_and_writes_apart(claude: FakeClaude) -> None:
     first.usage.cache_creation_input_tokens = 900
     second.usage.cache_read_input_tokens = 900
     claude.responses = [first, second]
+    ctx = _ctx()
+    events = _loop(ctx)
+    assert events[-1].keys() == {"type", "answer"}  # usage is read from the context
     # Each request: 100 uncached input + 10 output tokens.
-    assert _loop()[-1]["usage"] == {
+    assert ctx.usage.as_dict() == {
         "input_tokens": 200,
         "output_tokens": 20,
         "cache_read_tokens": 900,

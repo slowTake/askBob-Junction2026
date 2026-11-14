@@ -69,9 +69,14 @@ def fake(monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeClient]:
     yield client
 
 
-def _events(question: str = "How many bedrooms?") -> list[dict[str, Any]]:
-    ctx = ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
-    return list(run_verda_agent(question, [], ctx, SETTINGS))
+def _ctx() -> ToolContext:
+    return ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
+
+
+def _events(
+    question: str = "How many bedrooms?", ctx: ToolContext | None = None
+) -> list[dict[str, Any]]:
+    return list(run_verda_agent(question, [], ctx or _ctx(), SETTINGS))
 
 
 def test_tool_step_then_final_answer(fake: FakeClient) -> None:
@@ -82,18 +87,7 @@ def test_tool_step_then_final_answer(fake: FakeClient) -> None:
     events = _events()
     assert events == [
         {"type": "step", "tool": "find_elements", "input": {"kind": "room", "text": None}},
-        {
-            "type": "final",
-            "answer": FinalAnswer.model_validate(ANSWER),
-            # Two requests of 100 prompt + 10 completion tokens each.
-            "usage": {
-                "input_tokens": 200,
-                "output_tokens": 20,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "requests": 2,
-            },
-        },
+        {"type": "final", "answer": FinalAnswer.model_validate(ANSWER)},
     ]
     second = fake.requests[1]["messages"]
     assert [m["role"] for m in second] == ["system", "user", "assistant", "tool"]
@@ -165,16 +159,17 @@ def test_cached_prompt_tokens_are_counted_apart(fake: FakeClient) -> None:
     response = _response([_call("c1", "final_answer", json.dumps(ANSWER))])
     response.usage.prompt_tokens_details = SimpleNamespace(cached_tokens=60)
     fake.responses = [response]
-    usage = _events()[-1]["usage"]
+    ctx = _ctx()
+    _events(ctx=ctx)
     # 100 prompt tokens, 60 of them read from Verda's cache: 40 at the full price.
-    assert (usage["input_tokens"], usage["cache_read_tokens"]) == (40, 60)
+    assert (ctx.usage.input_tokens, ctx.usage.cache_read_tokens) == (40, 60)
 
 
 def test_a_failed_run_still_reports_its_usage(fake: FakeClient) -> None:
     fake.responses = [_response([_call(f"c{i}", "find_elements", "{}")]) for i in range(3)]
-    ctx = ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
+    ctx = _ctx()
     with pytest.raises(AgentError):
-        list(run_verda_agent("How many bedrooms?", [], ctx, SETTINGS))
+        _events(ctx=ctx)
     # Three requests of 100 prompt + 10 completion tokens each.
     assert (ctx.usage.input_tokens, ctx.usage.output_tokens, ctx.usage.requests) == (300, 30, 3)
 

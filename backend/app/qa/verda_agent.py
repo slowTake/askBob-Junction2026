@@ -107,7 +107,7 @@ def run_verda_agent(
                 answer = FinalAnswer.model_validate_json(final)
             except ValidationError as exc:
                 raise AgentError("bad_answer") from exc
-            yield {"type": "final", "answer": answer, "usage": ctx.usage.as_dict()}
+            yield {"type": "final", "answer": answer}
             return
         if not calls:
             raise AgentError("bad_answer")  # plain text despite tool_choice="required"

@@ -171,7 +171,7 @@ def run_agent(
             answer = FinalAnswer.model_validate_json(text)
         except ValidationError as exc:
             raise AgentError("bad_answer") from exc
-        yield {"type": "final", "answer": answer, "usage": ctx.usage.as_dict()}
+        yield {"type": "final", "answer": answer}
         return
 
     raise AgentError("too_many_steps")
