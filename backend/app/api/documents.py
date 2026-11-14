@@ -41,7 +41,7 @@ def upload_document(file: UploadFile, db: DB) -> dict[str, Any]:
         raise AppError("empty_file", "The file is empty")
     kind = detect_kind(filename, head)
     if kind is None:
-        raise AppError("unsupported_file", "Upload an IFC, PDF, PNG, JPEG or TIFF file")
+        raise AppError("unsupported_file", "Upload an IFC, DXF, PDF, PNG, JPEG or TIFF file")
     file.file.seek(0)
 
     doc_id = uuid.uuid4()
