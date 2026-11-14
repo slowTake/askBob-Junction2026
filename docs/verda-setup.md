@@ -1,16 +1,16 @@
 # Verda setup
 
-How to get access to Kimi K3.1 Pro on Verda and call it. The Q&A agent runs on Claude by default and on Kimi with `LLM_PROVIDER=verda` (see [D-006, D-009 and D-020](decisions.md)). Verda's inference API is OpenAI-compatible, so any OpenAI SDK works with a different base URL and key. It does not speak the Anthropic Messages API.
+How to get access to Kimi K3.1 Pro and DeepSeek on Verda and call them. The Q&A agent runs on Claude by default, on Kimi with `LLM_PROVIDER=verda`, and on DeepSeek with `VERDA_MODEL=deepseek-4-1-flash-1017` added (see [D-006, D-009, D-020 and D-021](decisions.md)). Verda's inference API is OpenAI-compatible, so any OpenAI SDK works with a different base URL and key. It does not speak the Anthropic Messages API.
 
 ## What we use
 
 | | |
 |---|---|
-| Model | Kimi K3.1 Pro, model ID `kimi-k3-1-pro` |
+| Models | Kimi K3.1 Pro, model ID `kimi-k3-1-pro` (default)<br>DeepSeek, model ID `deepseek-4-1-flash-1017` |
 | Base URL | `https://inference.verda.com/v1` |
 | Keyring service name | `verda` |
 
-Prices and rate limits per model are in the Console under **Inference → Models**. Inference pauses when the project balance runs low.
+Prices and rate limits per model are in the Console under **Inference → Models**. Inference pauses when the project balance runs low. `GET /v1/models` with your key lists the model IDs the project can use.
 
 ## 1. Join the project
 
@@ -19,7 +19,7 @@ Prices and rate limits per model are in the Console under **Inference → Models
 
 ## 2. Create your own API key
 
-Keys are **personal**: create your own instead of borrowing someone else's, so one can be revoked without breaking the others.
+Keys are **personal**: create your own instead of borrowing someone else's, so one can be revoked without breaking the others. One key works for every model in the project, Kimi and DeepSeek alike, so you only need one keyring entry.
 
 1. In the Console: **Inference → Models → Kimi K3.1 Pro → Create API key**, or the **Credentials** page.
 2. The key is shown **only once**. Store it straight in your OS keyring, not in a file or shell profile:
@@ -50,7 +50,15 @@ The app reads the key from `VERDA_API_KEY` and picks Kimi with `LLM_PROVIDER=ver
 LLM_PROVIDER=verda VERDA_API_KEY=$(secret-tool lookup service verda) make up-local
 ```
 
-Without a key the agent answers with "The language model is not configured on the server." `VERDA_MODEL` overrides the model ID.
+Without a key the agent answers with "The language model is not configured on the server."
+
+To run on DeepSeek instead of Kimi, also set `VERDA_MODEL`:
+
+```bash
+LLM_PROVIDER=verda VERDA_MODEL=deepseek-4-1-flash-1017 VERDA_API_KEY=$(secret-tool lookup service verda) make up-local
+```
+
+Answers are cached and logged per model, so switching models never serves the other model's cached answers.
 
 ## 5. Call it from other code
 
@@ -66,6 +74,7 @@ The deployed app gets the key from the host's secret settings (for example the *
 
 ## Things to know
 
+- **DeepSeek needs no special handling.** The #86 probe found it honours `tool_choice: "required"`, answers through the `final_answer` tool, reads images in a user message, and returns no `reasoning_content`. On a one-room test drawing it answered 3/3 correctly with verified citations in 7–8 s per question, against 20–58 s for Kimi. It sometimes fills `value`/`unit` on text questions (for example `1 count` for "which storeys").
 - **Kimi reasons before it answers.** The reasoning is returned separately (`reasoning_content`) and counts toward `max_tokens`. With a small `max_tokens`, `content` can come back empty, so set it to a few thousand.
 - **With tools, use a final-answer tool instead of `response_format`.** When a request has both tools and a JSON-schema `response_format`, Kimi skips the tools and answers right away, inventing citations. The agent therefore asks for its final answer as a `final_answer` tool call and sets `tool_choice: "required"` (#51).
 - **Images go in a user message.** Tool messages are text-only; Kimi reads an `image_url` data URL in a user message placed after the tool messages.

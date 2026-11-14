@@ -103,6 +103,18 @@ def test_every_request_requires_a_tool_call_and_offers_the_final_tool(fake: Fake
     assert request["tools"][-1]["function"]["name"] == "final_answer"
 
 
+def test_verda_model_env_picks_the_model_sent(
+    fake: FakeClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # DeepSeek runs on the same loop, chosen with VERDA_MODEL alone (#86).
+    monkeypatch.setenv("VERDA_MODEL", "deepseek-4-1-flash-1017")
+    settings = Settings(database_url="postgresql://unused", valkey_url="redis://unused")
+    fake.responses = [_response([_call("c1", "final_answer", json.dumps(ANSWER))])]
+    ctx = ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
+    list(run_verda_agent("How many bedrooms?", [], ctx, settings))
+    assert fake.requests[0]["model"] == "deepseek-4-1-flash-1017"
+
+
 def test_bad_tool_input_goes_back_as_an_error_and_the_loop_continues(fake: FakeClient) -> None:
     fake.responses = [
         _response([_call("c1", "get_element", '{"element_id": "missing"}')]),

@@ -1,4 +1,7 @@
-"""The question-answering agent on Kimi K3.1 Pro via Verda's OpenAI-compatible API (D-020).
+"""The question-answering agent on Verda's OpenAI-compatible API (D-020, D-021).
+
+Runs Kimi K3.1 Pro by default and DeepSeek with `VERDA_MODEL=deepseek-4-1-flash-1017`;
+the #86 probe found DeepSeek works with everything below unchanged.
 
 Same tools, prompt, events and answer as the Claude loop in `agent.py`. Differences,
 from the #51 capability probe:
@@ -68,7 +71,7 @@ def run_verda_agent(
     for _ in range(settings.max_agent_turns):
         response = client.chat.completions.create(  # type: ignore[call-overload]  # plain dicts vs SDK TypedDicts
             model=settings.verda_model,
-            max_tokens=MAX_TOKENS,  # Kimi's reasoning counts toward this
+            max_tokens=MAX_TOKENS,  # Kimi's reasoning counts toward this; DeepSeek returns none
             messages=messages,
             tools=tools,
             tool_choice="required",

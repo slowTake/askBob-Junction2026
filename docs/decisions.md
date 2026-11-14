@@ -24,6 +24,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-018 | 2026-11-14 | The plan is a pan/zoom canvas; nothing that appears moves it | Accepted |
 | D-019 | 2026-11-14 | Answers carry a numeric value; the eval scores it by question type | Accepted |
 | D-020 | 2026-11-14 | The Q&A agent can run on Kimi K3.1 Pro on Verda (`LLM_PROVIDER`) | Accepted |
+| D-021 | 2026-11-14 | DeepSeek on Verda runs on the same loop, picked with `VERDA_MODEL` | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -281,3 +282,13 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 **Decision:** `LLM_PROVIDER=anthropic|verda` (default `anthropic`) picks the model loop. The Verda loop (`app/qa/verda_agent.py`, OpenAI SDK) uses the same system prompt, tools, citation check, answer cache and `qa_log`, and emits the same `step`/`final` events and answer as the Claude loop of D-006. Its final answer is a `final_answer` tool call whose input is the answer schema, validated with the same `FinalAnswer` model, and every request sets `tool_choice: "required"`. `view_region` images go in a user message after the tool messages. The key comes from `VERDA_API_KEY`, passed from the keyring per D-009; a missing key gives `llm_not_configured`. Adaptive thinking, effort, refusal fallbacks and `cache_control` have no equivalent on this path. The answer-cache key and `qa_log.model` use the active model, so answers from the two providers never mix.
 
 **Consequences:** Claude stays the default and the agent we demo. Eval scores on Kimi measure Kimi, not Claude. Behaviour the probe didn't cover, such as long multi-step runs and large images, is unknown until the eval runs on real drawings. The conversion code (`app/qa/openai_format.py`) is tested without network; a change in the answer schema reaches both loops through `ANSWER_SCHEMA`.
+
+## D-021: DeepSeek on Verda runs on the same loop, picked with `VERDA_MODEL`
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** Our Verda project gained access to DeepSeek (`deepseek-4-1-flash-1017`). A capability probe (#86) found it honours `tool_choice: "required"`, answers through the `final_answer` tool, reads `image_url` data URLs in a user message and returns no `reasoning_content`. Read-only runs of the Verda loop on a one-room test drawing answered 3/3 correctly with verified citations, in 7–8 s per question against 20–58 s for Kimi.
+
+**Decision:** No second loop and no new provider value. `LLM_PROVIDER=verda` with `VERDA_MODEL=deepseek-4-1-flash-1017` runs the D-020 loop unchanged. The same personal Verda key works for both models, so the keyring entry stays `service verda`. Kimi stays the default `VERDA_MODEL`.
+
+**Consequences:** Answers are cached and logged per model, as in D-020. DeepSeek sometimes fills `value`/`unit` on text questions, which the eval does not score. Accuracy on real drawings is unknown until the eval set runs with each model.
