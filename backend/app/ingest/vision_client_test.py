@@ -75,3 +75,10 @@ def test_http_error_status_is_a_failure(monkeypatch: pytest.MonkeyPatch) -> None
     error = urllib.error.HTTPError("http://vision:8001/analyse", 500, "boom", {}, None)  # type: ignore[arg-type]
     _serve(monkeypatch, error)
     assert analyse_page(b"png", _settings()) == (None, "failed")
+
+
+def test_a_page_too_large_to_read_is_recorded_as_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    # D-023: the service answers ok but read nothing; ingest falls back to heuristics.
+    data = {"rooms": [], "walls": [], "objects": [], "method": "skipped_too_large"}
+    _serve(monkeypatch, {"ok": True, "data": data, "error": None})
+    assert analyse_page(b"png", _settings()) == (None, "skipped")
