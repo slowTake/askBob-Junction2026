@@ -170,6 +170,10 @@ a {
   background: var(--ok-soft);
   color: var(--ok-ink);
 }
+.badge-accent {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
 .badge-warn {
   background: var(--warn-soft);
   color: var(--warn-ink);
@@ -258,12 +262,17 @@ a {
   align-items: center;
   gap: var(--s-2);
 }
-.theme-toggle {
+.icon-only {
   width: 36px;
   padding: 0;
+  font-size: 16px;
 }
 
 .toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
   margin: var(--s-3) var(--s-4) 0;
   padding: var(--s-3) var(--s-4);
   background: var(--danger-soft);
@@ -308,9 +317,12 @@ a {
 /* ---------- workspace ---------- */
 .workspace {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 400px;
+  grid-template-columns: 260px minmax(0, 1fr) 420px;
   height: calc(100% - var(--bar-h));
   min-height: 0;
+}
+.workspace.is-sidebar-closed {
+  grid-template-columns: minmax(0, 1fr) 420px;
 }
 
 .sidebar {
@@ -372,14 +384,17 @@ a {
   color: var(--ink);
   font-size: 11px;
 }
-.status-ready {
+.status-ok {
   color: var(--ok);
 }
-.status-queued,
-.status-processing {
+.status-busy {
   color: var(--accent-ink);
 }
-.status-failed {
+.status-warn {
+  color: var(--warn-ink);
+  font-weight: 500;
+}
+.status-danger {
   color: var(--danger);
   font-weight: 500;
 }
@@ -393,6 +408,17 @@ a {
   height: 100%;
   background: var(--accent);
   transition: width 0.3s;
+}
+.progress.is-waiting span {
+  animation: waiting 1.6s ease-in-out infinite; /* no number to show yet: just alive */
+}
+@keyframes waiting {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
 }
 
 .stage {

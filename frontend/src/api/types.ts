@@ -1,9 +1,23 @@
 /** Mirrors backend/app/schemas.py and the SSE payloads in backend/app/qa/service.py. */
 
-import type { BBox } from "../lib/viewport";
+import type { BBox } from "../lib/camera";
 
 export type DocumentKind = "ifc" | "dxf" | "dwg" | "pdf" | "svg" | "image";
 export type DocumentStatus = "queued" | "processing" | "ready" | "failed";
+
+/** GET /api/health. `ingest_workers` is null when Valkey can't be reached. */
+export interface HealthInfo {
+  postgres: boolean;
+  valkey: boolean;
+  ingest_workers?: number | null; // missing on servers older than this field
+}
+
+/** What the user looks at while asking: the agent reads "this room" and "here" from it. */
+export interface AskContext {
+  document_id: string | null;
+  page_index: number | null;
+  element_id: string | null;
+}
 
 export interface ApiErrorBody {
   code: string;

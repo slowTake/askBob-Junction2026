@@ -1,7 +1,7 @@
 /** Pure helpers for the interactive plan layer: which elements show, their shape, their text. */
 
 import type { ElementInfo } from "../api/types";
-import type { BBox } from "./viewport";
+import type { BBox } from "./camera";
 
 export type LayerKey = "rooms" | "openings" | "fixtures" | "walls" | "labels";
 
