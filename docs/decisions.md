@@ -24,7 +24,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-018 | 2026-11-14 | The plan is a pan/zoom canvas; nothing that appears moves it | Accepted |
 | D-019 | 2026-11-14 | Answers carry a numeric value; the eval scores it by question type | Accepted |
 | D-020 | 2026-11-14 | The Q&A agent can run on Kimi K3.1 Pro on Verda (`LLM_PROVIDER`) | Accepted |
-| D-021 | 2026-11-14 | DeepSeek on Verda runs on the same loop, picked with `VERDA_MODEL` | Accepted |
+| D-021 | 2026-11-14 | DeepSeek on Verda can run on the same loop (`VERDA_MODEL`); Kimi stays the default | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -283,12 +283,12 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 **Consequences:** Claude stays the default and the agent we demo. Eval scores on Kimi measure Kimi, not Claude. Behaviour the probe didn't cover, such as long multi-step runs and large images, is unknown until the eval runs on real drawings. The conversion code (`app/qa/openai_format.py`) is tested without network; a change in the answer schema reaches both loops through `ANSWER_SCHEMA`.
 
-## D-021: DeepSeek on Verda runs on the same loop, picked with `VERDA_MODEL`
+## D-021: DeepSeek on Verda can run on the same loop (`VERDA_MODEL`); Kimi stays the default
 
 **Date:** 2026-11-14 · **Status:** Accepted
 
-**Context:** Our Verda project gained access to DeepSeek (`deepseek-4-1-flash-1017`). A capability probe (#86) found it honours `tool_choice: "required"`, answers through the `final_answer` tool, reads `image_url` data URLs in a user message and returns no `reasoning_content`. Read-only runs of the Verda loop on a one-room test drawing answered 3/3 correctly with verified citations, in 7–8 s per question against 20–58 s for Kimi.
+**Context:** Our Verda project gained access to DeepSeek (`deepseek-4-1-flash-1017`). A capability probe (#86) found it honours `tool_choice: "required"`, answers through the `final_answer` tool, reads `image_url` data URLs in a user message and returns no `reasoning_content`, and it answered a one-room test DXF correctly in 7–8 s per question. On the preview eval set it got 0 of 7 right: 5 questions hit the step limit without a final answer, and image-heavy questions were rate-limited by Verda (429 on about every second call, 7–9 minutes per question).
 
-**Decision:** No second loop and no new provider value. `LLM_PROVIDER=verda` with `VERDA_MODEL=deepseek-4-1-flash-1017` runs the D-020 loop unchanged. The same personal Verda key works for both models, so the keyring entry stays `service verda`. Kimi stays the default `VERDA_MODEL`.
+**Decision:** No second loop and no new provider value. `LLM_PROVIDER=verda` with `VERDA_MODEL=deepseek-4-1-flash-1017` runs the D-020 loop unchanged, for trying it out. Kimi stays the default `VERDA_MODEL` and the Verda model for demos and evals. The same personal Verda key works for both models, so the keyring entry stays `service verda`.
 
-**Consequences:** Answers are cached and logged per model, as in D-020. DeepSeek sometimes fills `value`/`unit` on text questions, which the eval does not score. Accuracy on real drawings is unknown until the eval set runs with each model.
+**Consequences:** Answers are cached and logged per model, as in D-020. Making DeepSeek useful needs work we have not done: finding out why it doesn't reach `final_answer` within the step limit, and handling Verda's rate limit on image-heavy runs. It also sometimes fills `value`/`unit` on text questions, which the eval does not score.

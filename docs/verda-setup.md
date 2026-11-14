@@ -52,7 +52,7 @@ LLM_PROVIDER=verda VERDA_API_KEY=$(secret-tool lookup service verda) make up-loc
 
 Without a key the agent answers with "The language model is not configured on the server."
 
-To run on DeepSeek instead of Kimi, also set `VERDA_MODEL`:
+To try DeepSeek instead of Kimi, also set `VERDA_MODEL`. It is not yet usable on real drawings (see below), so use Kimi for demos and evals:
 
 ```bash
 LLM_PROVIDER=verda VERDA_MODEL=deepseek-4-1-flash-1017 VERDA_API_KEY=$(secret-tool lookup service verda) make up-local
@@ -74,7 +74,7 @@ The deployed app gets the key from the host's secret settings (for example the *
 
 ## Things to know
 
-- **DeepSeek needs no special handling.** The #86 probe found it honours `tool_choice: "required"`, answers through the `final_answer` tool, reads images in a user message, and returns no `reasoning_content`. On a one-room test drawing it answered 3/3 correctly with verified citations in 7–8 s per question, against 20–58 s for Kimi. It sometimes fills `value`/`unit` on text questions (for example `1 count` for "which storeys").
+- **DeepSeek runs on the same loop but isn't usable on real drawings yet.** The #86 probe found it honours `tool_choice: "required"`, answers through the `final_answer` tool, reads images in a user message and returns no `reasoning_content`, and it answered a one-room test DXF correctly in 7–8 s per question. On the preview eval set it got 0 of 7 right: 5 questions hit the step limit without a final answer (two IFC questions within 11–20 s, so it seems to keep calling tools instead of answering), and on raster plans Verda rate-limited it (429 on about every second call), so a question took 7–9 minutes. It also sometimes fills `value`/`unit` on text questions.
 - **Kimi reasons before it answers.** The reasoning is returned separately (`reasoning_content`) and counts toward `max_tokens`. With a small `max_tokens`, `content` can come back empty, so set it to a few thousand.
 - **With tools, use a final-answer tool instead of `response_format`.** When a request has both tools and a JSON-schema `response_format`, Kimi skips the tools and answers right away, inventing citations. The agent therefore asks for its final answer as a `final_answer` tool call and sets `tool_choice: "required"` (#51).
 - **Images go in a user message.** Tool messages are text-only; Kimi reads an `image_url` data URL in a user message placed after the tool messages.

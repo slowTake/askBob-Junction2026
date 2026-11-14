@@ -63,7 +63,7 @@ make up                            # UI on http://localhost:8080, API on :8000
 LLM_PROVIDER=verda VERDA_API_KEY=$(secret-tool lookup service verda) make up-local
 ```
 
-Add `VERDA_MODEL=deepseek-4-1-flash-1017` to run on DeepSeek instead (D-021, same key).
+Add `VERDA_MODEL=deepseek-4-1-flash-1017` to try DeepSeek instead (D-021, same key; not yet usable on real drawings).
 
 **Without Docker** (fastest edit loop; needs `uv`, Node 22 and `tesseract` installed):
 
