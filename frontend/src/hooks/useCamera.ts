@@ -26,8 +26,8 @@ interface Drag {
 /**
  * Pan and zoom for one page: wheel zooms at the cursor, dragging pans, + - 0 keys.
  * `pageKey` identifies the page; a new page starts fitted to the viewport.
- * `content` is the part of the page the drawing covers (see contentBox); fitting frames
- * it, or the whole page while it is null. Keep its identity stable (useMemo).
+ * `content` is the part of the page the drawing covers (see useInkBox); fitting frames
+ * it, or the whole page while it is null. Its identity must only change with its value.
  */
 export function useCamera(page: Size | null, pageKey: string, content: BBox | null = null) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -52,7 +52,8 @@ export function useCamera(page: Size | null, pageKey: string, content: BBox | nu
     setAnimated(false);
     setCamera(fitContent(content, page, viewport));
   } else if (page && viewport && autoFit && (fitSize !== viewport || fitBox !== content)) {
-    // The panels resized, or the elements arrived after the page: still fitted, so refit.
+    // The panels resized, or the drawing's extent was found after the page showed:
+    // still fitted, so refit.
     // Glide when only the content changed, so the view doesn't jump.
     setAnimated(fitSize === viewport);
     setFitSize(viewport);
