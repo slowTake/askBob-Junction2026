@@ -142,6 +142,7 @@ export function App() {
                     key={selected.id}
                     documentId={selected.id}
                     highlightGuid={focus?.ifc_guid ?? null}
+                    omitted={Number(selected.meta.meshes_omitted ?? 0)}
                   />
                 </Suspense>
               )}
