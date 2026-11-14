@@ -127,3 +127,20 @@ def test_dwg_without_converter_says_so(tmp_path: Path) -> None:
     with pytest.raises(ReaderError) as error:
         _build(tmp_path / "plan.dwg", "dwg", tmp_path)
     assert error.value.code in ("dwg_converter_missing", "unreadable_file")
+
+
+def test_dxf_with_meaningless_layers_falls_back_to_vision(tmp_path: Path) -> None:
+    # Like opening_design's "Site plan.dxf": everything on one layer that says nothing.
+    doc = ezdxf.new(units=6)
+    msp = doc.modelspace()
+    msp.add_lwpolyline(
+        [(0, 0), (4, 0), (4, 3), (0, 3)], close=True, dxfattribs={"layer": "Site plan"}
+    )
+    msp.add_text("Kitchen", dxfattribs={"layer": "Site plan", "insert": (1.2, 1.4), "height": 0.25})
+    doc.saveas(tmp_path / "plan.dxf")
+    built = _build(tmp_path / "plan.dxf", "dxf", tmp_path)
+    _same_shape(built)
+    assert built.pages[0].meta["layers_meaningful"] is False
+    (room,) = [e for e in built.elements if e.kind == "room"]
+    # Traced inside a 4 m x 3 m outline drawn with 2 px lines: 12 m² minus the line width.
+    assert room.text == "Kitchen" and 11.0 < room.properties["area_m2"] <= 12.0

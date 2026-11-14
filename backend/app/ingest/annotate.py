@@ -24,11 +24,14 @@ def annotate_page(
     source: str,
     dpi: float | None,
     vector_walls: list[list[Point]] | None = None,
+    known_mm_per_px: float | None = None,
 ) -> tuple[list[ExtractedElement], float | None, dict[str, Any]]:
     """Return the page's elements, its mm-per-pixel scale (if known) and page metadata.
 
     `vector_walls` are exact wall outlines in page pixels (from a PDF's vector
     layer); when given, they replace the pixel-based wall heuristic.
+    `known_mm_per_px` is an exact scale (e.g. a rendered CAD drawing), which wins
+    over a printed scale note.
     """
     words = merge_split_numbers(words)
     elements: list[ExtractedElement] = []
@@ -53,13 +56,20 @@ def annotate_page(
 
     _link_printed_labels(elements)
 
+    # A rendered CAD page is cropped to the drawing, so one room may fill almost all
+    # of it; there only the page-edge check in room_region guards against leaks. On
+    # scans and sheets, a room over a quarter of the page means the fill leaked.
+    max_room_frac = 1.0 if known_mm_per_px else 0.25
     height = float(gray.shape[0])
     ink = ink_mask(gray)
     text_boxes = [w.bbox for w in words]
 
     scale_mm: float | None = None
     scale_meta: dict[str, Any] = {"scale_method": None}
-    if dpi and scales:
+    if known_mm_per_px:  # a CAD file's exact scale
+        scale_mm = known_mm_per_px
+        scale_meta["scale_method"] = "cad"
+    elif dpi and scales:
         scale_mm = mm_per_px(dpi, scales[0])
         scale_meta["scale_method"] = "dpi"
     else:  # no DPI or no scale note: fit the printed dimensions to their dimension lines
@@ -77,7 +87,9 @@ def annotate_page(
     for el in elements:
         if el.kind != "room" or el.bbox is None:
             continue
-        found = room_region(ink, bbox_center(el.bbox), erase=text_boxes, close_px=3)
+        found = room_region(
+            ink, bbox_center(el.bbox), erase=text_boxes, close_px=3, max_area_frac=max_room_frac
+        )
         if found is None:
             el.properties["region"] = "not_closed"
             continue

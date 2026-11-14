@@ -4,9 +4,12 @@ Everything here comes straight from the CAD file, so confidence is 1.0, apart
 from door/window counts, which depend on how their parts are clustered.
 """
 
+import io
 from pathlib import Path
 
 import ezdxf
+import numpy as np
+from PIL import Image
 
 from app.config import Settings
 from app.domain.areas import is_shaft, mean_width
@@ -18,18 +21,24 @@ from app.domain.polygons import (
     point_in_polygon,
     polygon_bbox,
 )
-from app.domain.tokens import classify
+from app.domain.tokens import Word, classify
+from app.ingest.annotate import annotate_page
 from app.ingest.dxf_shapes import Shape, shapes
+from app.ingest.errors import ReaderError
 from app.ingest.render import PageFrame, frame_for, render_png
 from app.ingest.types import ExtractedDocument, ExtractedElement, ExtractedPage, Progress
 
 MIN_ROOM_M2 = 0.5
+SEMANTIC_ROLES = {"wall", "room", "door", "window", "unit"}
 TOUCH_MM = 10.0  # double-door arcs meet at a point
 OVERLAP_MM = 1.0  # window/fixture parts overlap by more than this
 
 
 def read_dxf(path: Path, settings: Settings, progress: Progress) -> ExtractedDocument:
-    doc = ezdxf.readfile(str(path))
+    try:
+        doc = ezdxf.readfile(str(path))
+    except (OSError, ezdxf.DXFError) as exc:
+        raise ReaderError("unreadable_file", "not a readable DXF") from exc
     unit_code = int(doc.header.get("$INSUNITS", 0) or 0)
     to_mm = units_to_mm(unit_code) or 1.0  # unitless files: assume millimetres
     items = list(shapes(doc.modelspace(), to_mm))
@@ -37,24 +46,32 @@ def read_dxf(path: Path, settings: Settings, progress: Progress) -> ExtractedDoc
 
     geometry = [p for s in items if s.text is None for p in s.points]
     if not geometry:
-        raise ValueError("DXF has no drawable geometry")
+        raise ReaderError("empty_drawing", "DXF has no drawable geometry")
     frame = frame_for(geometry)
     texts = [s for s in items if s.text]
     used_texts: set[int] = set()
 
-    units = _areas(items, "unit", texts, used_texts, frame)
-    rooms = _areas(items, "room", texts, used_texts, frame)
-    for room in rooms:
-        _assign_unit(room, units)
-    elements = units + rooms + _walls(items, frame)
-    for role in ("door", "window", "fixture"):
-        elements += _clusters(items, role, frame)
-    elements += [_text_element(t, frame) for i, t in enumerate(texts) if i not in used_texts]
+    image_png = render_png(items, frame)
+    meaningful = any(s.role in SEMANTIC_ROLES for s in items)
+    if meaningful:
+        units = _areas(items, "unit", texts, used_texts, frame)
+        rooms = _areas(items, "room", texts, used_texts, frame)
+        for room in rooms:
+            _assign_unit(room, units)
+        elements = units + rooms + _walls(items, frame)
+        for role in ("door", "window", "fixture"):
+            elements += _clusters(items, role, frame)
+        elements += [_text_element(t, frame) for i, t in enumerate(texts) if i not in used_texts]
+    else:
+        # Analyse a rendering without text: glyph strokes would look like walls, and
+        # the DXF gives us the text exactly anyway.
+        geometry_png = render_png([s for s in items if not s.text], frame)
+        elements = _by_vision(geometry_png, texts, frame)
     progress("rendering", 0.8)
 
     page = ExtractedPage(
         index=0,
-        image_png=render_png(items, frame),
+        image_png=image_png,
         width_px=frame.width_px,
         height_px=frame.height_px,
         dpi=None,
@@ -64,6 +81,7 @@ def read_dxf(path: Path, settings: Settings, progress: Progress) -> ExtractedDoc
             "source": "dxf",
             "units_code": unit_code,
             "units_assumed": units_to_mm(unit_code) is None,
+            "layers_meaningful": meaningful,
         },
     )
     layers = sorted({s.layer for s in items})
@@ -180,13 +198,27 @@ def _clusters(items: list[Shape], role: str, frame: PageFrame) -> list[Extracted
     return out
 
 
-def _text_element(t: Shape, frame: PageFrame) -> ExtractedElement:
+def _by_vision(geometry_png: bytes, texts: list[Shape], frame: PageFrame) -> list[ExtractedElement]:
+    """Layers that say nothing ("0", "Site plan"): analyse the rendered page like a scan,
+    but with the DXF's exact text and exact scale."""
+    with Image.open(io.BytesIO(geometry_png)) as image:
+        gray = np.asarray(image.convert("L"), dtype=np.uint8)
+    words = [Word(_text_bbox(t, frame), t.text or "") for t in texts]
+    elements, _, _ = annotate_page(gray, words, "dxf", None, known_mm_per_px=1 / frame.px_per_mm)
+    return elements
+
+
+def _text_bbox(t: Shape, frame: PageFrame) -> tuple[float, float, float, float]:
     x, y = frame.to_px(t.points[0])
     size = max(t.text_height_mm * frame.px_per_mm, 8)
-    width = size * 0.6 * len(t.text or "")
+    return (x, y - size, x + size * 0.6 * len(t.text or ""), y)
+
+
+def _text_element(t: Shape, frame: PageFrame) -> ExtractedElement:
+    x0, y0, x1, y1 = _text_bbox(t, frame)
     c = classify(t.text or "")
     kind = c.kind if c.kind in ("scale", "dimension") else "text"
     return ExtractedElement(
         kind=kind, source="dxf", text=t.text, label=c.label, value_mm=c.value_mm,
-        bbox=(x, y - size, x + width, y), properties={"layer": t.layer},
+        bbox=(x0, y0, x1, y1), properties={"layer": t.layer},
     )  # fmt: skip
