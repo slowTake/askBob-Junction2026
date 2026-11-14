@@ -35,6 +35,12 @@ def test_claude_opus_price_is_listed() -> None:
     assert PRICES["claude-opus-5-5"] == Price(4.0, 20.0, cache_read=0.2, cache_write=5.0)
 
 
+def test_claude_haiku_price_has_cache_prices() -> None:
+    # Anthropic list price: $0.10 in, $0.50 out. Cache reads are 0.1x input ($0.01) and
+    # 5-minute cache writes 1.25x input ($0.125).
+    assert PRICES["claude-haiku-5-5"] == Price(0.1, 0.5, cache_read=0.01, cache_write=0.125)
+
+
 def test_parse_price_reads_model_and_prices() -> None:
     assert parse_price("kimi-k3-1-pro=2,10") == ("kimi-k3-1-pro", Price(2.0, 10.0))
     assert parse_price("m=2,10,0.2") == ("m", Price(2.0, 10.0, cache_read=0.2))
