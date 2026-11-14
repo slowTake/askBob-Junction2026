@@ -21,6 +21,10 @@
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
+/* Holds its place while unavailable, so the buttons beside it never move. */
+.viewer-toolbar .is-placeholder {
+  visibility: hidden;
+}
 .page-label {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

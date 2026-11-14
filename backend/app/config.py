@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
@@ -30,6 +30,19 @@ class Settings(BaseSettings):
     # The floor-plan model service (D-022); unset means ingest uses pixel heuristics.
     vision_url: str | None = None
     vision_timeout_s: int = 600  # a large sheet takes minutes on CPU
+
+    # Upscale (#82, D-027): one cheap vision call per page, on demand.
+    upscale_model: str = "claude-haiku-5-5"  # with LLM_PROVIDER=verda, `verda_model` is used
+    upscale_max_side: int = 1568  # longest side of the image sent, in pixels
+    upscale_timeout_s: float = 90.0
+    # Sketch redraw (#82): on raster image pages a stronger model authors the whole plan,
+    # then checks a render of its draft against the photo and corrects it.
+    sketch_model: str = "claude-opus-5-5"
+    sketch_effort: Effort = "high"  # technical drawings read better from high up
+    sketch_max_rounds: int = Field(default=3, ge=1, le=6)  # the first draft plus checks
+    sketch_max_side: int = 2576  # Opus 5.5 reads images up to 2576 px on the long edge
+    sketch_timeout_s: float = 300.0  # one model call
+    sketch_deadline_s: float = 600.0  # no new check round starts after this
 
     render_dpi: int = 150
     ocr_langs: str = "fin+swe+eng"
