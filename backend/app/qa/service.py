@@ -4,13 +4,14 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import anthropic
+import openai
 from sqlalchemy import select
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.db import session_scope
 from app.domain.citations import Citation, check_citations, citation_payload
 from app.domain.streams import answer_cache_key, sse
@@ -18,6 +19,7 @@ from app.models import Document, Element, Page, QaLog
 from app.qa.agent import AgentError, FinalAnswer, run_agent
 from app.qa.prompts import selected_note, viewing_note
 from app.qa.tools import ToolContext
+from app.qa.verda_agent import run_verda_agent
 from app.schemas import AskContextIn
 from app.valkey import cache_get, cache_set
 
@@ -44,7 +46,7 @@ def answer_stream(
     settings = get_settings()
     started = time.monotonic()
     record: dict[str, Any] = {"question": question, "document_ids": document_ids,
-                              "model": settings.claude_model}  # fmt: skip
+                              "model": settings.llm_model}  # fmt: skip
     try:
         with session_scope() as db:
             docs = _scope(db, document_ids)
@@ -55,7 +57,7 @@ def answer_stream(
             key = answer_cache_key(
                 question,
                 versions,
-                settings.claude_model,
+                settings.llm_model,
                 ANSWER_FORMAT,
                 f"{viewing or ''}|{selected or ''}",
             )
@@ -67,7 +69,8 @@ def answer_stream(
                 ctx = ToolContext(db, [d.id for d in docs])
                 summaries = [{"id": str(d.id), "filename": d.filename, "kind": d.kind,
                               "page_count": d.page_count} for d in docs]  # fmt: skip
-                for event in run_agent(question, summaries, ctx, settings, viewing, selected):
+                agent = _agent(settings)
+                for event in agent(question, summaries, ctx, settings, viewing, selected):
                     if event["type"] == "step":
                         yield sse("step", {"tool": event["tool"], "input": event["input"]})
                         continue
@@ -81,16 +84,17 @@ def answer_stream(
     except AgentError as exc:
         record["error_code"] = exc.code
         yield _error(exc.code)
-    except anthropic.AuthenticationError:
-        log.exception("anthropic credentials rejected")
+    except (anthropic.AuthenticationError, openai.AuthenticationError):
+        log.exception("llm credentials rejected")
         record["error_code"] = "llm_not_configured"
         yield _error("llm_not_configured")
-    except anthropic.RateLimitError:
-        log.warning("anthropic rate limited", exc_info=True)
+    except (anthropic.RateLimitError, openai.RateLimitError):
+        log.warning("llm rate limited", exc_info=True)
         record["error_code"] = "llm_busy"
         yield _error("llm_busy")
-    except (anthropic.APIStatusError, anthropic.APIConnectionError):
-        log.exception("anthropic request failed")
+    except (anthropic.APIStatusError, anthropic.APIConnectionError,
+            openai.APIStatusError, openai.APIConnectionError):  # fmt: skip
+        log.exception("llm request failed")
         record["error_code"] = "llm_unavailable"
         yield _error("llm_unavailable")
     except Exception:
@@ -100,6 +104,11 @@ def answer_stream(
     record["latency_ms"] = int((time.monotonic() - started) * 1000)
     _log(record)
     yield sse("done", {})
+
+
+def _agent(settings: Settings) -> Callable[..., Iterator[dict[str, Any]]]:
+    """The model loop for the configured provider; both emit the same events (D-020)."""
+    return run_verda_agent if settings.llm_provider == "verda" else run_agent
 
 
 def _scope(db: Any, document_ids: list[str]) -> list[Document]:

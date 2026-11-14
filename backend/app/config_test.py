@@ -1,4 +1,4 @@
-from app.config import normalize_database_url
+from app.config import Settings, normalize_database_url
 
 
 def test_aiven_uri_gets_psycopg_driver_and_keeps_sslmode() -> None:
@@ -14,3 +14,12 @@ def test_postgresql_scheme_is_normalized_too() -> None:
 
 def test_explicit_driver_is_left_alone() -> None:
     assert normalize_database_url("postgresql+psycopg://u@h/db") == "postgresql+psycopg://u@h/db"
+
+
+def test_llm_model_follows_the_provider() -> None:
+    default = Settings(database_url="postgresql://u@h/db", valkey_url="redis://h")
+    verda = Settings(
+        database_url="postgresql://u@h/db", valkey_url="redis://h", llm_provider="verda"
+    )
+    assert default.llm_model == "claude-opus-5-5"  # default provider is anthropic
+    assert verda.llm_model == "kimi-k3-1-pro"
