@@ -55,7 +55,7 @@ def answer_stream(
             if not docs:
                 raise AgentError("no_documents")
             viewing, selected = _context_notes(db, docs, context)
-            # An Upscale adds elements without a re-ingest (D-025): it counts as a change.
+            # An Upscale adds elements without a re-ingest (D-027): it counts as a change.
             versions = [f"{d.id}@{d.version}.{d.meta.get('upscales', 0)}" for d in docs]
             key = answer_cache_key(
                 question,

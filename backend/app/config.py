@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     vision_url: str | None = None
     vision_timeout_s: int = 600  # a large sheet takes minutes on CPU
 
-    # Upscale (#82, D-025): one cheap vision call per page, on demand.
+    # Upscale (#82, D-027): one cheap vision call per page, on demand.
     upscale_model: str = "claude-haiku-5-5"  # with LLM_PROVIDER=verda, `verda_model` is used
     upscale_max_side: int = 1568  # longest side of the image sent, in pixels
     upscale_timeout_s: float = 90.0
