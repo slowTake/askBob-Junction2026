@@ -10,6 +10,14 @@ class Result:
     type: str
     correct: bool | None  # None: not scored automatically (text, other)
     verified: bool
+    # What answering took (#98); summarised by eval/cost_report.py.
+    tokens_in: int = 0  # every input token, cached or not
+    tokens_out: int = 0
+    steps: int = 0  # tool calls
+    seconds: float = 0.0
+    cost_usd: float | None = None  # None: the model's price is unknown
+    cached: bool = False  # served from the answer cache: no model call
+    error: str | None = None  # the API's error code, when there was no answer
 
 
 def _pct(part: int, whole: int) -> str:
