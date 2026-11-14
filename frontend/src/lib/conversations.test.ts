@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { addTurn, dropConversation, isBusy, turnsOf, updateTurn } from "./conversations";
+import {
+  addTurn,
+  chatMilestone,
+  dropConversation,
+  isBusy,
+  turnsOf,
+  updateTurn,
+} from "./conversations";
 
 interface T {
   id: string;
@@ -62,5 +69,24 @@ describe("turnsOf and isBusy", () => {
     expect(isBusy(all, "docA")).toBe(true);
     expect(isBusy(all, "docB")).toBe(false);
     expect(isBusy(all, "docC")).toBe(false);
+  });
+});
+
+describe("chatMilestone", () => {
+  it("changes when a question is asked, when it is answered, and on another conversation", () => {
+    const asking = [t("1"), t("2", true)];
+    const answered = [t("1"), t("2")];
+    const other = [t("7")]; // another document's conversation, also finished
+    expect(chatMilestone([])).toBe("");
+    expect(chatMilestone(asking)).toBe("2:asking");
+    expect(chatMilestone(answered)).toBe("2:done");
+    expect(chatMilestone(other)).toBe("7:done");
+  });
+
+  it("stays the same while steps stream in", () => {
+    // Same last turn, still pending: no milestone, so a reader scrolled up stays put.
+    const before = [{ ...t("2", true), text: "Searching rooms" }];
+    const after = [{ ...t("2", true), text: "Looking at the drawing" }];
+    expect(chatMilestone(after)).toBe(chatMilestone(before));
   });
 });

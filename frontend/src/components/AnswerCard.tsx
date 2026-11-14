@@ -1,6 +1,6 @@
 import type { Citation, PlanView } from "../api/types";
 import type { Turn } from "../hooks/useAsk";
-import { describeStep } from "../lib/steps";
+import { currentStatus } from "../lib/steps";
 
 interface Props {
   turn: Turn;
@@ -21,11 +21,9 @@ export function AnswerCard({ turn, latest, onCitation, onShowView }: Props) {
 
       <div className="answer-card">
         {pending && !answer && !error && (
+          // One line: what the agent is doing right now, replaced by each new step.
           <ul className="steps" aria-live="polite">
-            {steps.length === 0 && <li>Thinking</li>}
-            {steps.map((s, i) => (
-              <li key={i}>{describeStep(s.tool, s.input)}</li>
-            ))}
+            <li>{currentStatus(steps)}</li>
           </ul>
         )}
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Citation, PlanView } from "../api/types";
 import type { Turn } from "../hooks/useAsk";
+import { chatMilestone } from "../lib/conversations";
 import { AnswerCard } from "./AnswerCard";
 
 // Questions that work on any plan and show what the assistant can do with it.
@@ -31,13 +32,23 @@ export function AskPanel(props: Props) {
   const list = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
 
+  // Was the reader at the end before the last update? Measured on scroll, not after the
+  // update: an answer can add more than a screen at once.
+  const atEnd = useRef(true);
+  const milestone = chatMilestone(turns);
+  const seen = useRef(milestone);
+
   useEffect(() => {
-    // Follow the conversation, but only if the reader is already at the bottom.
     const el = list.current;
-    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 160) {
-      el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    // Asked, answered, or another document's conversation: always show the end.
+    const jump = seen.current !== milestone;
+    seen.current = milestone;
+    if (jump || atEnd.current) {
+      el.scrollTo({ top: el.scrollHeight, behavior: jump ? "smooth" : "auto" });
+      atEnd.current = true;
     }
-  }, [turns]);
+  }, [turns, milestone]);
 
   useEffect(() => {
     if (focusSignal > 0) input.current?.focus();
@@ -55,7 +66,14 @@ export function AskPanel(props: Props) {
       <div className="ask-header">
         <h2 className="eyebrow">Ask the drawings</h2>
       </div>
-      <div className="turns" ref={list}>
+      <div
+        className="turns"
+        ref={list}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+        }}
+      >
         {turns.length === 0 && (
           <div className="ask-intro">
             <p className="body-sm muted">

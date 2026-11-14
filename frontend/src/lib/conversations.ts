@@ -42,3 +42,12 @@ export function isBusy<T extends { pending: boolean }>(
 ): boolean {
   return turnsOf(all, key).some((t) => t.pending);
 }
+
+/** Changes when a question is asked, when it is answered, and when another conversation
+ * is shown, but not while steps stream in. The chat scrolls to the end on each change. */
+export function chatMilestone<T extends { id: string; pending: boolean }>(
+  turns: readonly T[],
+): string {
+  const last = turns.at(-1);
+  return last ? `${last.id}:${last.pending ? "asking" : "done"}` : "";
+}
