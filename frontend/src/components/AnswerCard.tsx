@@ -1,5 +1,6 @@
 import type { Citation, PlanView } from "../api/types";
 import type { Turn } from "../hooks/useAsk";
+import { answerBlocks } from "../lib/answerText";
 import { currentStatus } from "../lib/steps";
 
 interface Props {
@@ -31,7 +32,21 @@ export function AnswerCard({ turn, latest, onCitation, onShowView }: Props) {
 
         {answer && (
           <>
-            <p className="answer-text">{answer.answer}</p>
+            <div className="answer-text">
+              {answerBlocks(answer.answer).map((block, i) =>
+                block.type === "list" ? (
+                  <ul key={i}>
+                    {block.items.map((item, j) => (
+                      <li key={j}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p key={i} className={block.type === "heading" ? "answer-heading" : undefined}>
+                    {block.text}
+                  </p>
+                ),
+              )}
+            </div>
             <div className="chip-row">
               <span className={`badge ${answer.verified ? "badge-ok" : "badge-warn"}`}>
                 {answer.verified ? "✓ Verified sources" : "! Not verified"}

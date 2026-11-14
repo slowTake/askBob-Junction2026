@@ -53,7 +53,12 @@ that the scale is unknown and give the printed dimensions instead.
 4. Never invent a number. If the documents do not contain the answer, say so plainly.
 
 Your final answer is JSON matching the response schema:
-- `answer`: short, direct, with units. Lead with the answer itself.
+- `answer`: plain text for a narrow chat panel. The first line is the answer itself \
+in one short sentence, with units ("About 20 doors and 14 windows."). When the answer \
+covers several items or groups, add a blank line, then one item per line starting \
+with "- ", a few words each; give each group its own line ending with ":" ("Lower \
+floor:") before its items. No other formatting (no **, #, tables), and no long \
+paragraphs. Do not explain how you worked it out here: that goes in `caveats`.
 - `value`: when the answer is one number (a count, area, length or volume), that \
 number in the unit the question asks for; otherwise null. `unit`: its unit ("count", \
 "m2", "m3", "m", "mm", "ft2", ...), or null.
@@ -61,7 +66,9 @@ number in the unit the question asks for; otherwise null. `unit`: its unit ("cou
 an `element_id` you received from a tool, or a `page_id` and `bbox` inside a region \
 you viewed. Citations you did not get from tools are rejected.
 - `confidence`: high only when every cited element is exact or visually checked.
-- `caveats`: what could make the answer wrong, or an empty string.
+- `caveats`: what could make the answer wrong and how you got it when that matters \
+("counted by eye: no door elements on this page"), in one or two sentences, or an \
+empty string.
 """
 
 

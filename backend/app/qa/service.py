@@ -25,7 +25,8 @@ from app.valkey import cache_get, cache_set
 
 log = logging.getLogger(__name__)
 
-ANSWER_FORMAT = 3  # bump when the answer payload changes, so old cached answers are not served
+ANSWER_FORMAT = 4  # bump when the answer payload changes, so old cached answers are not served
+# 4: answers are a summary line plus "- " lists (prompts.py), laid out by the chat
 
 MESSAGES = {
     "no_documents": "Upload a drawing and wait until it has been processed.",
