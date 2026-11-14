@@ -31,6 +31,37 @@ PAGE_W, PAGE_H = 2000, 1000
 NOW = 1_000_000.0  # the fake clock, in seconds
 
 
+def test_matched_cad_rooms_are_not_replaced_or_duplicated_by_a_sketch_redraw(
+    harness: "Harness",
+) -> None:
+    harness.seed()
+    harness.set_meta(companion_dxf={"rooms": 1})
+    with harness.sessions() as db:
+        page = db.scalars(select(Page)).one()
+        db.add(
+            Element(
+                document_id=harness.doc_id,
+                page_id=page.id,
+                kind="room",
+                source="dxf",
+                bbox=[100, 100, 500, 400],
+                properties={
+                    "number": "1.01",
+                    "area_m2": 12,
+                    "polygon_px": [[100, 100], [500, 100], [500, 400], [100, 400]],
+                },
+                confidence=1,
+            )
+        )
+        db.commit()
+    before = [(e.id, e.source, e.kind, e.properties) for e in harness.elements()]
+    result = harness.post()
+    assert result["status"] == 200
+    assert result["data"]["cached"] is True and result["data"]["added"] == 0
+    assert harness.asks == []
+    assert [(e.id, e.source, e.kind, e.properties) for e in harness.elements()] == before
+
+
 def _plan(matches: bool = False, **extra: Any) -> dict[str, Any]:
     return {
         "matches": matches,

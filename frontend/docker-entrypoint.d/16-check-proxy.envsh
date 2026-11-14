@@ -1,0 +1,27 @@
+#!/bin/sh
+# Sourced by the nginx image's entrypoint after 15-local-resolvers.envsh and before the
+# template is filled (D-033). An exit here stops the container with the reason in its log.
+
+# proxy_pass with a variable sends a URL's path in place of the request path, so allow
+# only scheme://host[:port]. A trailing slash is harmless once dropped.
+BACKEND_URL="${BACKEND_URL%/}"
+case "$BACKEND_URL" in
+  http://* | https://*) ;;
+  *)
+    echo "bobBuilder: BACKEND_URL must be http(s)://host[:port], got '$BACKEND_URL'" >&2
+    exit 1
+    ;;
+esac
+case "${BACKEND_URL#*://}" in
+  */*)
+    echo "bobBuilder: BACKEND_URL must be http(s)://host[:port] with no path, got '$BACKEND_URL'" >&2
+    exit 1
+    ;;
+esac
+export BACKEND_URL
+
+# nginx resolves BACKEND_URL per request through these servers; without one it cannot start.
+if [ -z "${NGINX_LOCAL_RESOLVERS:-}" ]; then
+  echo "bobBuilder: no nameserver in /etc/resolv.conf, so nginx could not resolve BACKEND_URL" >&2
+  exit 1
+fi

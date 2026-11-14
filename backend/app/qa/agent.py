@@ -13,6 +13,7 @@ import anthropic
 from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
+from app.qa.claude_format import claude_tools
 from app.qa.prompts import LAST_STEP_NOTE, SYSTEM_PROMPT, scope_message
 from app.qa.tools import TOOLS, ToolContext, ToolInputError, run_tool
 
@@ -105,7 +106,6 @@ def run_agent(
     turns = settings.max_agent_turns
     first = scope_message(question, documents, viewing, selected, tool_rounds=turns - 1)
     messages: list[Any] = [{"role": "user", "content": first}]
-    usage = {"input_tokens": 0, "output_tokens": 0}
 
     for turn in range(turns):
         # The last turn takes no tool calls, so a run ends with an answer instead of
@@ -119,7 +119,7 @@ def run_agent(
             system=[
                 {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}
             ],
-            tools=TOOLS,
+            tools=claude_tools(TOOLS),
             tool_choice={"type": "none" if last else "auto"},
             messages=messages,
             thinking={"type": "adaptive"},
@@ -131,8 +131,13 @@ def run_agent(
             betas=[FALLBACK_BETA],
             fallbacks="default",
         )
-        usage["input_tokens"] += response.usage.input_tokens
-        usage["output_tokens"] += response.usage.output_tokens
+        ctx.usage.add(
+            input_tokens=response.usage.input_tokens,  # excludes cached input
+            output_tokens=response.usage.output_tokens,
+            cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", None) or 0,
+            cache_write_tokens=getattr(response.usage, "cache_creation_input_tokens", None) or 0,
+            fallback=_fell_back(response.usage),
+        )
 
         if response.stop_reason == "refusal":
             raise AgentError("refused")
@@ -168,10 +173,21 @@ def run_agent(
             answer = FinalAnswer.model_validate_json(text)
         except ValidationError as exc:
             raise AgentError("bad_answer") from exc
-        yield {"type": "final", "answer": answer, "usage": usage}
+        yield {"type": "final", "answer": answer}
         return
 
     raise AgentError("too_many_steps")
+
+
+def _fell_back(usage: Any) -> bool:
+    """Whether a fallback model (`fallbacks="default"`) answered this request.
+
+    The API lists each attempt in `usage.iterations`; the one a fallback model served
+    is a `fallback_message`. Requests served directly by a fallback after an earlier
+    refusal in the conversation are listed the same way.
+    """
+    iterations = getattr(usage, "iterations", None) or []
+    return any(getattr(i, "type", None) == "fallback_message" for i in iterations)
 
 
 def _add_last_step_note(messages: list[Any]) -> None:

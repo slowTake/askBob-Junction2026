@@ -15,6 +15,7 @@ from app.config import Settings, get_settings
 from app.db import session_scope
 from app.domain.citations import Citation, check_citations, citation_payload
 from app.domain.streams import answer_cache_key, sse
+from app.domain.usage import Usage
 from app.models import Document, Element, Page, QaLog
 from app.qa.agent import AgentError, FinalAnswer, run_agent
 from app.qa.prompts import SelectedElement, selected_notes, viewing_note
@@ -49,6 +50,8 @@ def answer_stream(
     started = time.monotonic()
     record: dict[str, Any] = {"question": question, "document_ids": document_ids,
                               "model": settings.llm_model}  # fmt: skip
+    ctx: ToolContext | None = None
+    steps = 0
     try:
         with session_scope() as db:
             docs = _scope(db, document_ids)
@@ -75,13 +78,14 @@ def answer_stream(
                 agent = _agent(settings)
                 for event in agent(question, summaries, ctx, settings, viewing, selected):
                     if event["type"] == "step":
+                        steps += 1
                         yield sse("step", {"tool": event["tool"], "input": event["input"]})
                         continue
                     if event["type"] == "view":
                         yield sse("view", event["view"])
                         continue
                     payload = _payload(event["answer"], ctx)
-                    record.update(answer=payload, verified=payload["verified"], **event["usage"])
+                    record.update(answer=payload, verified=payload["verified"])
                     cache_set(key, payload, settings.answer_cache_ttl_s)
                     yield sse("answer", payload)
     except AgentError as exc:
@@ -104,9 +108,20 @@ def answer_stream(
         log.exception("ask failed")
         record["error_code"] = "internal_error"
         yield _error("internal_error")
+    # Usage is read after the run, so a failed question reports what it used too.
+    usage = ctx.usage if ctx is not None else Usage()
     record["latency_ms"] = int((time.monotonic() - started) * 1000)
+    record.update(input_tokens=usage.total_input_tokens, output_tokens=usage.output_tokens)
     _log(record)
-    yield sse("done", {})
+    served_from_cache = bool(record.get("cached"))
+    stats = _stats(settings.llm_model, usage, steps, record["latency_ms"], served_from_cache)
+    yield sse("done", stats)
+
+
+def _stats(model: str, usage: Usage, steps: int, latency_ms: int, cached: bool) -> dict[str, Any]:
+    """What answering took, for the eval and for anyone comparing models (#98)."""
+    return {"model": model, "cached": cached, "steps": steps, "latency_ms": latency_ms,
+            **usage.as_dict()}  # fmt: skip
 
 
 def _agent(settings: Settings) -> Callable[..., Iterator[dict[str, Any]]]:

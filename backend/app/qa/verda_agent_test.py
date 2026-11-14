@@ -69,9 +69,14 @@ def fake(monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeClient]:
     yield client
 
 
-def _events(question: str = "How many bedrooms?") -> list[dict[str, Any]]:
-    ctx = ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
-    return list(run_verda_agent(question, [], ctx, SETTINGS))
+def _ctx() -> ToolContext:
+    return ToolContext(db=None, scope=[])  # type: ignore[arg-type]  # run_tool is faked
+
+
+def _events(
+    question: str = "How many bedrooms?", ctx: ToolContext | None = None
+) -> list[dict[str, Any]]:
+    return list(run_verda_agent(question, [], ctx or _ctx(), SETTINGS))
 
 
 def test_tool_step_then_final_answer(fake: FakeClient) -> None:
@@ -82,12 +87,7 @@ def test_tool_step_then_final_answer(fake: FakeClient) -> None:
     events = _events()
     assert events == [
         {"type": "step", "tool": "find_elements", "input": {"kind": "room", "text": None}},
-        {
-            "type": "final",
-            "answer": FinalAnswer.model_validate(ANSWER),
-            # Two requests of 100 prompt + 10 completion tokens each.
-            "usage": {"input_tokens": 200, "output_tokens": 20},
-        },
+        {"type": "final", "answer": FinalAnswer.model_validate(ANSWER)},
     ]
     second = fake.requests[1]["messages"]
     assert [m["role"] for m in second] == ["system", "user", "assistant", "tool"]
@@ -153,6 +153,35 @@ def test_the_last_turn_must_be_the_final_answer(fake: FakeClient) -> None:
     assert last == {"role": "user", "content": LAST_STEP_NOTE}
     # Earlier turns end with the tool result, not with the note.
     assert fake.requests[1]["messages"][-1]["role"] == "tool"
+
+
+def test_cached_prompt_tokens_are_counted_apart(fake: FakeClient) -> None:
+    response = _response([_call("c1", "final_answer", json.dumps(ANSWER))])
+    response.usage.prompt_tokens_details = SimpleNamespace(cached_tokens=60)
+    fake.responses = [response]
+    ctx = _ctx()
+    _events(ctx=ctx)
+    # 100 prompt tokens, 60 of them read from Verda's cache: 40 at the full price.
+    assert (ctx.usage.input_tokens, ctx.usage.cache_read_tokens) == (40, 60)
+
+
+def test_a_response_without_usage_still_counts_as_a_request(fake: FakeClient) -> None:
+    silent = _response([_call("c1", "find_elements", "{}")])
+    silent.usage = None
+    fake.responses = [silent, _response([_call("c2", "final_answer", json.dumps(ANSWER))])]
+    ctx = _ctx()
+    _events(ctx=ctx)
+    # Two requests; only the second reported its 100 prompt + 10 completion tokens.
+    assert (ctx.usage.requests, ctx.usage.input_tokens, ctx.usage.output_tokens) == (2, 100, 10)
+
+
+def test_a_failed_run_still_reports_its_usage(fake: FakeClient) -> None:
+    fake.responses = [_response([_call(f"c{i}", "find_elements", "{}")]) for i in range(3)]
+    ctx = _ctx()
+    with pytest.raises(AgentError):
+        _events(ctx=ctx)
+    # Three requests of 100 prompt + 10 completion tokens each.
+    assert (ctx.usage.input_tokens, ctx.usage.output_tokens, ctx.usage.requests) == (300, 30, 3)
 
 
 def test_the_question_states_the_step_budget(fake: FakeClient) -> None:
