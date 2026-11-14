@@ -10,6 +10,7 @@ import type {
   ElementInfo,
   Envelope,
   MeshData,
+  PlanView,
 } from "./types";
 
 export class ApiError extends Error {
@@ -48,6 +49,7 @@ export interface AskHandlers {
   onStep: (step: AskStep) => void;
   onAnswer: (answer: Answer) => void;
   onError: (error: ApiErrorBody) => void;
+  onView: (view: PlanView) => void;
 }
 
 export const api = {
@@ -95,6 +97,7 @@ export const api = {
       if (event === "step") handlers.onStep(JSON.parse(data) as AskStep);
       else if (event === "answer") handlers.onAnswer(JSON.parse(data) as Answer);
       else if (event === "error") handlers.onError(JSON.parse(data) as ApiErrorBody);
+      else if (event === "view") handlers.onView(JSON.parse(data) as PlanView);
     });
   },
 };

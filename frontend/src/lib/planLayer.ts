@@ -1,6 +1,7 @@
 /** Pure helpers for the interactive plan layer: which elements show, their shape, their text. */
 
 import type { ElementInfo } from "../api/types";
+import type { BBox } from "./viewport";
 
 export type LayerKey = "rooms" | "openings" | "fixtures" | "walls" | "labels";
 
@@ -55,4 +56,16 @@ export function describe(el: ElementInfo): { title: string; details: string[] } 
     el.confidence < 1 ? `${el.source}, ${Math.round(el.confidence * 100)}% sure` : el.source,
   );
   return { title, details };
+}
+
+/** The box around the given elements (to scroll them into view), or null if none has a box. */
+export function unionBox(elements: ElementInfo[], ids: Set<string>): BBox | null {
+  const boxes = elements.filter((e) => ids.has(e.id) && e.bbox).map((e) => e.bbox as BBox);
+  if (boxes.length === 0) return null;
+  return [
+    Math.min(...boxes.map((b) => b[0])),
+    Math.min(...boxes.map((b) => b[1])),
+    Math.max(...boxes.map((b) => b[2])),
+    Math.max(...boxes.map((b) => b[3])),
+  ];
 }

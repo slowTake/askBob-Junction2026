@@ -98,6 +98,21 @@
   stroke-width: 3;
   stroke-dasharray: none;
 }
+.measure line {
+  stroke: var(--paper-mark);
+  stroke-width: 3;
+  stroke-dasharray: 8 4;
+}
+.measure text {
+  fill: var(--paper-mark);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 6px;
+}
 .element-card {
   display: flex;
   align-items: center;

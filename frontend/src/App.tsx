@@ -1,6 +1,6 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useCallback, useState } from "react";
 import { api } from "./api/client";
-import type { Citation } from "./api/types";
+import type { Citation, PlanView } from "./api/types";
 import { AskPanel } from "./components/AskPanel";
 import { DocumentList } from "./components/DocumentList";
 import { DrawingViewer } from "./components/DrawingViewer";
@@ -19,12 +19,22 @@ const ModelViewer = lazy(() =>
 
 export function App() {
   const docs = useDocuments();
-  const asker = useAsk();
   const { theme, toggle: toggleTheme } = useTheme();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<View>("drawing");
   const [page, setPage] = useState<PageRef | null>(null);
   const [focus, setFocus] = useState<Citation | null>(null);
+  const [planView, setPlanView] = useState<PlanView | null>(null);
+
+  // The agent drives the plan: open its document and page, then light up what it shows.
+  const showView = useCallback((v: PlanView) => {
+    setSelectedId(v.document_id);
+    setPage({ documentId: v.document_id, index: v.page_index });
+    setView("drawing");
+    setFocus(null);
+    setPlanView(v);
+  }, []);
+  const asker = useAsk(showView);
 
   const selected = docs.documents.find((d) => d.id === selectedId) ?? docs.documents[0] ?? null;
   const ready = docs.documents.filter((d) => d.status === "ready");
@@ -130,8 +140,12 @@ export function App() {
                   pageIndex={pageIndex}
                   onPageChange={(index) => setPage({ documentId: selected.id, index })}
                   focus={focus?.document_id === selected.id ? focus : null}
-                  onClearFocus={() => setFocus(null)}
+                  onClearFocus={() => {
+                    setFocus(null);
+                    setPlanView(null);
+                  }}
                   highlightIds={focus?.element_id ? [focus.element_id] : []}
+                  planView={planView?.document_id === selected.id ? planView : null}
                 />
               ) : (
                 <Suspense fallback={<div className="viewer-empty">Loading 3D viewer…</div>}>
@@ -153,6 +167,7 @@ export function App() {
           scopeLabel={selected?.status === "ready" ? selected.filename : null}
           onAsk={ask}
           onCitation={showCitation}
+          onShowView={showView}
         />
       </main>
     </>
