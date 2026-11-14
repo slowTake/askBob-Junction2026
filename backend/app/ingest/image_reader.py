@@ -14,6 +14,7 @@ from app.ingest.annotate import annotate_page
 from app.ingest.errors import ReaderError
 from app.ingest.ocr import ocr_words
 from app.ingest.types import ExtractedDocument, ExtractedPage, Progress
+from app.ingest.vision_client import analyse_page
 
 MAX_SIDE_PX = 8000  # bigger scans are downscaled; bboxes refer to the stored image
 MAX_PAGES = 50
@@ -50,13 +51,16 @@ def _page(index: int, image: Image.Image, dpi: float | None, settings: Settings)
         image = image.resize((round(image.width * factor), round(image.height * factor)))
         dpi = dpi * factor if dpi else None
     gray = np.asarray(image.convert("L"), dtype=np.uint8)
-    words = ocr_words(gray, settings.ocr_langs)
-    elements, scale_mm, meta = annotate_page(gray, words, "ocr", dpi)
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
+    png = buffer.getvalue()
+    words = ocr_words(gray, settings.ocr_langs)
+    vision, status = analyse_page(png, settings)
+    elements, scale_mm, meta = annotate_page(gray, words, "ocr", dpi, vision=vision)
+    meta["vision"] = status
     return ExtractedPage(
         index=index,
-        image_png=buffer.getvalue(),
+        image_png=png,
         width_px=image.width,
         height_px=image.height,
         dpi=dpi,

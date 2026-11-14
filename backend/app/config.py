@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     verda_base_url: str = "https://inference.verda.com/v1"
     max_agent_turns: int = 12
 
+    # The floor-plan model service (D-022); unset means ingest uses pixel heuristics.
+    vision_url: str | None = None
+    vision_timeout_s: int = 600  # a large sheet takes minutes on CPU
+
     render_dpi: int = 150
     ocr_langs: str = "fin+swe+eng"
     max_upload_mb: int = 200

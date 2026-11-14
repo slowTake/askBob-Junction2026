@@ -14,6 +14,7 @@ from app.ingest.errors import ReaderError
 from app.ingest.ocr import ocr_words
 from app.ingest.pdf_vector import hatched_regions
 from app.ingest.types import ExtractedDocument, ExtractedPage, Progress
+from app.ingest.vision_client import analyse_page
 
 POINTS_PER_INCH = 72.0
 MAX_SIDE_PX = 8000
@@ -48,14 +49,21 @@ def read_pdf(path: Path, settings: Settings, progress: Progress) -> ExtractedDoc
             source = "ocr"
 
         walls = [[(x * px_per_pt, y * px_per_pt) for x, y in w] for w in hatched_regions(page)]
-        elements, scale_mm, meta = annotate_page(gray, words, source, dpi, vector_walls=walls)
+        png = pix.tobytes("png")
+        # A vector page keeps its exact walls and text; the model only adds doors,
+        # windows and fixtures there (D-022). A scanned page is read like an image.
+        vision, status = analyse_page(png, settings)
+        elements, scale_mm, meta = annotate_page(
+            gray, words, source, dpi, vector_walls=walls,
+            vision=vision, vision_objects_only=source == "pdf_text" or bool(walls),
+        )  # fmt: skip
         meta["text_layer"] = source == "pdf_text"
         meta["vector_walls"] = len(walls)
-        # TODO(vector): doors (arcs) and windows from the vector layer too.
+        meta["vision"] = status
         result.pages.append(
             ExtractedPage(
                 index=number,
-                image_png=pix.tobytes("png"),
+                image_png=png,
                 width_px=pix.width,
                 height_px=pix.height,
                 dpi=dpi,
