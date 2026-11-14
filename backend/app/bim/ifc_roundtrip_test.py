@@ -5,6 +5,7 @@ from pathlib import Path
 import ifcopenshell
 import ifcopenshell.api.aggregate
 import ifcopenshell.api.project
+import ifcopenshell.api.pset
 import ifcopenshell.api.root
 import ifcopenshell.api.unit
 import ifcopenshell.guid
@@ -115,6 +116,34 @@ def test_nested_stairs_are_parts_not_stairs(tmp_path: Path) -> None:
     elements, meta = index_ifc(tmp_path / "s.ifc")
     assert sum(1 for e in elements if e.kind == "stair" and "part_of" not in e.properties) == 1
     assert meta["counts"] == {"stair": 1}
+
+
+def test_base_quantities_are_stored_in_si_units(tmp_path: Path) -> None:
+    # #96: a wall's base quantities, as in the Molio model (lengths in millimetres,
+    # areas in m², volumes in m³; `_bare` assigns exactly those units).
+    f = _bare("IFC4")
+    wall = ifcopenshell.api.root.create_entity(f, ifc_class="IfcWall", name="W1")
+    qto = ifcopenshell.api.pset.add_qto(f, product=wall, name="Qto_WallBaseQuantities")
+    ifcopenshell.api.pset.edit_qto(
+        f, qto=qto, properties={"Length": 5400.0, "NetSideArea": 14.58, "NetVolume": 2.916}
+    )
+    f.write(str(tmp_path / "q.ifc"))
+    elements, _ = index_ifc(tmp_path / "q.ifc")
+    (indexed,) = [e for e in elements if e.kind == "wall"]
+    # 5,400 mm is 5.4 m; the area and the volume are already SI.
+    assert indexed.properties["quantities"] == {
+        "Length": 5.4,
+        "NetSideArea": 14.58,
+        "NetVolume": 2.916,
+    }
+
+
+def test_elements_without_quantity_sets_have_no_quantities(tmp_path: Path) -> None:
+    f = _bare("IFC4")
+    ifcopenshell.api.root.create_entity(f, ifc_class="IfcWall", name="W1")
+    f.write(str(tmp_path / "n.ifc"))
+    elements, _ = index_ifc(tmp_path / "n.ifc")
+    assert "quantities" not in elements[0].properties
 
 
 def test_ifc2x3_toilet_is_a_fixture(tmp_path: Path) -> None:
