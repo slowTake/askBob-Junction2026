@@ -6,6 +6,13 @@ Codes not listed here fall back to the generic message.
 
 MESSAGES: dict[str, str] = {
     "ingest_failed": "Processing failed. Try uploading the file again.",
+    "ingest_interrupted": (
+        "Processing was interrupted, for example by a server restart. Process the file again."
+    ),
+    "ingest_killed": (
+        "Processing stopped because the server ran out of memory. Try a smaller file, "
+        "or process it again once the server is less busy."
+    ),
     "unreadable_file": (
         "The file could not be read. It may be damaged or in an unsupported variant."
     ),
