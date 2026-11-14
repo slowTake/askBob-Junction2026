@@ -107,11 +107,20 @@ numbers, your plan has no numbers.
 """
 
 CHECK_TEXT = """\
-Image 2 is your current draft, drawn by the program from the plan below. Compare it \
-with the sketch (image 1), part by part: every wall present and in its place, corners \
-closed where the sketch's corners are, every door and window on the right wall with the \
-right hinge and swing side, every room name right and in its room, and nothing that is \
-not on the sketch (in particular no text or number that is not written there).
+Image 2 is the sketch again with your current draft, drawn by the program from the plan \
+below, laid over it in red. Where the draft is right, red covers the drawn line. A drawn \
+line with no red on it, or red with no drawn line under it, is an error in the plan.
+
+Check position first: each red wall must lie on the line it stands for, along its whole \
+length, and the red outline must be as wide and as tall as the drawn one. If the red \
+plan is smaller, larger or shifted against the sketch, read off how far each wall is \
+from its line and move it there; do not accept a draft that only has the right layout. \
+A hand-drawn line wobbles: a red wall within about one wall thickness of its line is in \
+place.
+Then check the parts: corners closed where the sketch's corners are, every door and \
+window on the right wall at the right spot with the right hinge and swing side, every \
+room name right and in its room, and nothing that is not on the sketch (in particular \
+no text or number that is not written there).
 If the draft matches the sketch, answer with `matches` true and the plan below unchanged. \
 Otherwise answer with `matches` false and the whole corrected plan, not just the changes.
 
@@ -128,6 +137,7 @@ class SketchAsk:
     height: int
     draft_png: bytes | None = None
     draft: dict[str, Any] | None = None
+    ink: tuple[int, int, int, int] | None = None  # measured dark-pixel box of the photo
 
 
 def ask_sketch(ask: SketchAsk, settings: Settings) -> Look:
@@ -188,12 +198,23 @@ def content(ask: SketchAsk) -> list[dict[str, Any]]:
         {"type": "text", "text": f"Image 1, the sketch ({ask.width} x {ask.height} pixels):"},
         {**_image(ask.photo_png), "cache_control": {"type": "ephemeral"}},
     ]
+    if ask.ink is not None:
+        x0, y0, x1, y1 = ask.ink
+        blocks.append(
+            {
+                "type": "text",
+                "text": f"A program measured the dark pixels of image 1: they span x {x0} to "
+                f"{x1} and y {y0} to {y1}. That is the drawing's outer edge unless something "
+                "else dark is in the photo (a shadow, the paper's edge, writing beside the "
+                "plan). Use it to place and size the plan.",
+            }
+        )
     if ask.draft_png is None or ask.draft is None:
         blocks.append({"type": "text", "text": "Return the plan of this sketch."})
         return blocks
     plan = json.dumps(ask.draft, separators=(",", ":"))
     blocks += [
-        {"type": "text", "text": "Image 2, your current draft (same size):"},
+        {"type": "text", "text": "Image 2, your draft in red over the sketch (same size):"},
         _image(ask.draft_png),
         {"type": "text", "text": CHECK_TEXT + plan},
     ]

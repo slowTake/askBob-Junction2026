@@ -425,3 +425,16 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 **Consequences:** A redraw takes minutes and costs a few strong-model calls (each round sends the photo, cached after the first, and a render). The plan is only as good as the model's reading: tidying straightens and joins but never adds a wall. OCR on handwriting is weak, so a dimension that really is written on a sketch can be dropped when OCR missed it; that loses information but never invents it. Line work in the redraw is relative to the page size, not to any real length. Not verified end to end against the real model when this was written (no API key was available).
 
+
+## D-027: Sketch check rounds show the draft in red over the photo, and the model is told where the ink is
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes:** the check-round render in D-026
+
+**Context:** In D-026 the model compared the photo with its draft as two separate pictures. Side by side, a draft that is a little smaller, larger or shifted against the drawing looks right, so a check round can accept a misplaced plan. The first runs against the real model (`claude-opus-5-5`, the napkin test image) were used to tune this.
+
+**Decision:**
+- In check rounds the draft is drawn in red over the photo, at the size the model was sent, instead of on white. The check prompt says red should cover each drawn line: a drawn line with no red on it, or red with no line under it, is an error. Position and size are checked before the parts. About one wall thickness of difference counts as in place, because hand-drawn lines wobble.
+- Every round also gets the box around the photo's dark pixels (`ink_box`), measured by the program and given as the drawing's likely outer edge. No box is sent when the photo has too little contrast, or when the dark pixels reach every edge (a shadow or a table).
+- The user still sees only the clean redraw. The overlay is only the model's input.
+
+**Consequences:** On the test image the walls now land within 3 px of the ink, in three rounds (about 33k tokens in and 8k out, about 76 s). A dark border or shadow inside the photo can widen the box; the prompt names those cases so the model can set the box aside.

@@ -142,3 +142,13 @@ def test_the_result_is_drawn_in_page_pixels() -> None:
     [wall] = result.shapes
     assert wall.properties["segment_px"] == [[200, 200], [1800, 200]]
     assert isinstance(result.plan, Plan)
+
+
+def test_the_ink_box_goes_to_every_round() -> None:
+    script = Script(FIRST, {"matches": True})
+    run_loop(
+        PHOTO, 1000, 1000, 2000, 2000,
+        max_rounds=3, ask=script.ask, render=script.render, words=[],
+        time_left=lambda: True, ink=(100, 90, 910, 905),
+    )  # fmt: skip
+    assert [a.ink for a in script.asks] == [(100, 90, 910, 905), (100, 90, 910, 905)]
