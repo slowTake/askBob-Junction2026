@@ -29,6 +29,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
 | D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
 | D-024 | 2026-11-14 | Raster rooms are traced from the drawing's lines; RapidOCR reads the text | Accepted |
+| D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
@@ -391,6 +392,16 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 - OCR takes about 8–15 s per Swiss sheet on CPU.
 - RapidOCR's recogniser has no accented letters ("Pièce" reads as "Piece"), so room names are now matched without accents.
 - The app's own image reader, scored with `eval/swiss_rooms.py` on the same 8 floors: 70% of rooms named, 66% outlined, 36% with the area within 5% of the DXF.
+
+## D-025: The server counts: `count_elements`, not the model adding up search results
+
+**Date:** 2026-11-14 · **Status:** Accepted
+
+**Context:** Counts are 76% of the preview questions (6,076 of 7,990). The agent had no counting tool, so it listed elements with `find_elements` and counted the list. That tool returns at most 50 results, so every count over 50 was wrong (the Maleva IFC model has 846 walls), and smaller counts depended on the model counting a JSON list (#93). (D-022 and D-023 went to the vision service, D-024 to #92.)
+
+**Decision:** A `count_elements` agent tool, like `sum_room_areas` for areas. The rules are a pure `count` (`app/domain/counting.py`): elements of one required kind, narrowed by fixture `subtype`, room `category`, room `name` (exact, ignoring case and runs of spaces, so "Küche" doesn't count "Wohnküche"; it matches the printed label or the stored name, because an IFC space keeps its number in the label and its `LongName` in the name), IFC `storey`, document and page. An element missing a property never matches a filter on it. The tool returns the exact total, counts per page of each document and per storey, and lists the first 50 elements (by document, page and id, so the same question cites the same ones), which become citable evidence. The prompt sends every "how many" question to it. `ANSWER_FORMAT` goes to 5 (#92 took 4) so answers counted the old way aren't served from the cache.
+
+**Consequences:** Counts are as good as the elements ingest stores. On IFC models they should now be right; on drawings, doors, windows and fixtures exist only once a detector produces them (#38, #88). Rules like "a doorway without a leaf doesn't count" belong to that detector, not to the tool. The agent still decides which kind and filters a question means.
 
 ## D-026: The agent knows its step budget, and its last turn is the answer
 
