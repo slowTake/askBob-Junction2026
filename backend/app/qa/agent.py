@@ -10,9 +10,10 @@ from functools import lru_cache
 from typing import Any, Literal
 
 import anthropic
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.config import Settings
+from app.qa.answer_table import TABLE_SCHEMA, AnswerTable
 from app.qa.claude_format import claude_tools
 from app.qa.prompts import LAST_STEP_NOTE, SYSTEM_PROMPT, scope_message
 from app.qa.tools import TOOLS, ToolContext, ToolInputError, run_tool
@@ -46,8 +47,9 @@ ANSWER_SCHEMA = {
         "citations": {"type": "array", "items": _CITATION},
         "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
         "caveats": {"type": "string"},
+        "table": TABLE_SCHEMA,
     },
-    "required": ["answer", "value", "unit", "citations", "confidence", "caveats"],
+    "required": ["answer", "value", "unit", "citations", "confidence", "caveats", "table"],
     "additionalProperties": False,
 }
 
@@ -73,6 +75,7 @@ class FinalAnswer(BaseModel):
     citations: list[CitationIn]
     confidence: Literal["high", "medium", "low"]
     caveats: str
+    table: AnswerTable = Field(default_factory=AnswerTable)
 
 
 class AgentError(Exception):

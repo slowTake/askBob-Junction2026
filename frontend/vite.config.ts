@@ -11,5 +11,5 @@ export default defineConfig({
   },
   // The lazy 3D viewer chunk is mostly three.js (~560 kB); the main bundle stays small.
   build: { chunkSizeWarningLimit: 700 },
-  test: { environment: "node", include: ["src/**/*.test.ts"] },
+  test: { environment: "node", include: ["src/**/*.test.{ts,tsx}"] },
 });

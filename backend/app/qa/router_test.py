@@ -111,7 +111,7 @@ def test_claude_router_asks_for_the_schema_at_low_effort(claude: FakeClaude) -> 
     usage = Usage()
     assert route("How many doors on '3. Sal'?", _settings("anthropic"), usage) == INTENT
     request = claude.requests[0]
-    assert request["model"] == "claude-opus-5-5"
+    assert request["model"] == "claude-opus-5-5"  # CLAUDE_MODEL's default (D-044)
     assert request["output_config"]["effort"] == "low"
     assert request["output_config"]["format"]["type"] == "json_schema"
     assert "tools" not in request and "tool_choice" not in request

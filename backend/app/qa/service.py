@@ -27,10 +27,11 @@ from app.valkey import cache_get, cache_set
 
 log = logging.getLogger(__name__)
 
-ANSWER_FORMAT = 6  # bump when the payload or how answers are found changes
+ANSWER_FORMAT = 7  # bump when the payload or how answers are found changes
 # 4: answers are a summary line plus "- " lists (prompts.py), laid out by the chat
 # 5: counts come from `count_elements`
 # 6: the payload carries `method` (server or agent)
+# 7: concise summaries and structured tables
 
 MESSAGES = {
     "no_documents": "Upload a drawing and wait until it has been processed.",
@@ -196,6 +197,7 @@ def _payload(answer: FinalAnswer, ctx: ToolContext) -> dict[str, Any]:
         "unit": answer.unit,
         "confidence": answer.confidence,
         "caveats": answer.caveats,
+        "table": answer.table.model_dump(),
         "verified": verified,
         "citations": [citation_payload(c) for c in checked],
         "views": ctx.views,  # replayed from the cache like the rest of the answer

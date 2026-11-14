@@ -170,6 +170,21 @@ def test_usage_counts_requests_a_fallback_model_answered(claude: FakeClaude) -> 
     assert (ctx.usage.requests, ctx.usage.fallback_requests) == (2, 1)
 
 
+def test_opus_low_effort_request_returns_a_structured_inventory(claude: FakeClaude) -> None:
+    response = _answer_turn()
+    body = json.loads(ANSWER_JSON)
+    body["table"] = {
+        "columns": ["Room", "Area (m²)"],
+        "rows": [{"cells": ["MH1", "12"], "citation": 1}],
+    }
+    response.content[0].text = json.dumps(body)
+    claude.responses = [response]
+    events = _loop()
+    assert claude.requests[0]["model"] == "claude-opus-5-5"
+    assert claude.requests[0]["output_config"]["effort"] == "low"
+    assert events[-1]["answer"].table.rows[0].cells == ["MH1", "12"]
+
+
 def test_claude_request_omits_unused_filters_instead_of_compiling_nullable_unions(
     claude: FakeClaude,
 ) -> None:

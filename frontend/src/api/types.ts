@@ -124,9 +124,15 @@ export interface Answer {
   caveats: string;
   verified: boolean;
   citations: Citation[];
+  table?: AnswerTable; // absent in older answers
   views?: PlanView[]; // what the agent showed on the plan, in order
   cached: boolean;
   method?: "server" | "agent"; // "server": counted or added up without the agent loop
+}
+
+export interface AnswerTable {
+  columns: string[];
+  rows: { cells: string[]; citation: number }[]; // 1-based citation number; 0 for totals
 }
 
 /** An agent instruction for the plan: light up elements, maybe draw a measured line. */

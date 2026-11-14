@@ -22,6 +22,7 @@ def test_llm_model_follows_the_provider() -> None:
         database_url="postgresql://u@h/db", valkey_url="redis://h", llm_provider="verda"
     )
     assert default.llm_model == "claude-opus-5-5"  # default provider is anthropic
+    assert default.claude_effort == "low"
     assert verda.llm_model == "kimi-k3-1-pro"
 
 

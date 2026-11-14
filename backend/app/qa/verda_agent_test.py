@@ -104,6 +104,18 @@ def test_every_request_requires_a_tool_call_and_offers_the_final_tool(fake: Fake
     assert request["tools"][-1]["function"]["name"] == "final_answer"
 
 
+def test_structured_inventory_survives_the_verda_final_tool(fake: FakeClient) -> None:
+    body = {
+        **ANSWER,
+        "table": {
+            "columns": ["Room"],
+            "rows": [{"cells": ["MH1"], "citation": 1}],
+        },
+    }
+    fake.responses = [_response([_call("c1", "final_answer", json.dumps(body))])]
+    assert _events()[-1]["answer"].table.rows[0].cells == ["MH1"]
+
+
 def test_bad_tool_input_goes_back_as_an_error_and_the_loop_continues(fake: FakeClient) -> None:
     fake.responses = [
         _response([_call("c1", "get_element", '{"element_id": "missing"}')]),

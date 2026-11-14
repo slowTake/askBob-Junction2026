@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     llm_provider: Provider = "anthropic"
     claude_model: str = "claude-opus-5-5"
-    claude_effort: Effort = "high"
+    claude_effort: Effort = "low"
     verda_model: str = "kimi-k3-1-pro"
     verda_base_url: str = "https://inference.verda.com/v1"
     max_agent_turns: int = 12

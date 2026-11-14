@@ -50,6 +50,9 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-040 | 2026-11-14 | OCR can run as a service on the Verda GPU host (`OCR_URL`) (#119) | Accepted |
 | D-041 | 2026-11-14 | Deleting a document cancels its ingest job (#120) | Accepted |
 | D-042 | 2026-11-14 | Faster drop-in versions of three CubiCasa post-processing helpers, same output | Accepted |
+| D-043 | 2026-11-14 | Plan highlights distinguish object types and apartments (#115) | Accepted |
+| D-044 | 2026-11-14 | Compact answer inventories and Opus at low effort (#115) | Accepted |
+| D-045 | 2026-11-14 | Answer rows own their drawing interactions (#115) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -699,3 +702,26 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 **Consequences:** On that plan `get_polygons` went from 24.6 s to 3.5 s with identical output (256 walls, 11 rooms, every coordinate equal), checked by running both on the same network output on the V100. `get_polygons` modifies its input, so any comparison must give each run a fresh copy. A change to the pinned `CUBICASA_COMMIT` must recheck that the three helpers still behave as restated in the tests.
 
+## D-043: Plan highlights distinguish object types and apartments
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #115
+
+**Decision:** Assign highlight colors by element kind, room category, and individual apartment (unit property, printed label, or element ID). Allocate colors from sorted groups across the whole page so changing the agent's highlighted subset keeps the same colors. Use matching colors for numbered badges, opaque outlines and translucent fills so the drawing remains readable. Retain the existing numbering as an additional identifier.
+
+**Consequences:** Doors and windows have different colors, as do different room categories and apartments on a page. Colors are scoped to the page; a changed set of page elements can change the palette assignment.
+
+## D-044: Compact answer inventories and Opus at low effort
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #115 (scope extended by the user)
+
+**Decision:** Lead with a short result, return requested inventories and comparisons as structured tables (up to four columns and 50 rows), and avoid individual inventories for simple count questions. Render five rows initially with an expansion button; link each item's first cell to its cited drawing source. Collapse source chips behind a source count, keep uncertainty visible and omit the cache badge. Both provider loops share the table schema; older answers can omit it. Bump the answer cache format so old verbose responses are not reused. The Q&A defaults and example environment now use `claude-opus-5-5` with `low` effort, as requested (Opus rather than Sonnet, so the stronger model answers, just with less thinking). Sketch redraw retains its own model settings.
+
+**Consequences:** Long inventories take less space without losing access to their rows or sources. Table cells are plain text, with rectangular shape and size validated before delivery. The model and effort remain environment-overridable. Local checks use mocked provider responses; this change does not establish the low-effort model's accuracy or latency on real drawings.
+
+## D-045: Answer rows own their drawing interactions
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #115
+
+**Decision:** Clicking anywhere in a cited table row opens its source; the first cell also provides native keyboard activation. Omit source chips already represented by rows and plan highlight buttons whose elements are all covered by those rows. Deduplicate remaining plan actions by document, page, element IDs and measurement, independent of caption and ID ordering. Keep additional sources and measurement actions accessible. Remove the answer-level verification and confidence badges; citation validation stays in the backend, and concrete caveats stay visible.
+
+**Consequences:** A table of apartment areas appears once, without repeated plan buttons and source chips underneath. The interface no longer suggests that citation bookkeeping or a model's confidence label proves an answer correct.
