@@ -13,6 +13,7 @@ import type {
   HealthInfo,
   MeshData,
   PlanView,
+  UpscaleResult,
 } from "./types";
 
 export class ApiError extends Error {
@@ -70,6 +71,9 @@ export const api = {
     form.append("file", file);
     return request<DocumentInfo>("/api/documents", { method: "POST", body: form });
   },
+
+  upscale: (id: string, index: number) =>
+    request<UpscaleResult>(`/api/documents/${id}/pages/${index}/upscale`, { method: "POST" }),
 
   pageImageUrl: (id: string, index: number) => `/api/documents/${id}/pages/${index}/image`,
   modelIfcUrl: (id: string) => `/api/documents/${id}/model.ifc`,

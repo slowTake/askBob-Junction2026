@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.ingest_errors import error_message
+from app.domain.upscale import FILL_MODE, UPSCALE_FORMAT
 
 
 class PageOut(BaseModel):
@@ -26,6 +27,26 @@ class PageOut(BaseModel):
         """What the page shows, when known: the storey of an IFC floor plan."""
         storey = self.meta.get("storey")
         return str(storey) if storey else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def upscale(self) -> dict[str, Any] | None:
+        """Set once the page had its vision pass (#82): how many elements it added.
+
+        `mode` is "sketch" for the full redraw of a raster image page (with the number
+        of model rounds it took), "fill" for the gap-filling pass on other formats.
+        Re-ingest replaces the pages, so only the format can make an entry stale.
+        """
+        entry = self.meta.get("upscale")
+        if not isinstance(entry, dict) or entry.get("format") != UPSCALE_FORMAT:
+            return None  # never run, or run under older rules: the server runs it again
+        rounds = entry.get("rounds")
+        return {
+            "added": int(entry.get("added", 0)),
+            "model": str(entry.get("model", "")),
+            "mode": str(entry.get("mode", FILL_MODE)),
+            "rounds": int(rounds) if isinstance(rounds, int) else None,
+        }
 
 
 class DocumentOut(BaseModel):

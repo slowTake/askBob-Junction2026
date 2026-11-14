@@ -54,14 +54,15 @@ def answer_stream(
                               "model": settings.llm_model}  # fmt: skip
     ctx: ToolContext | None = None
     steps = 0
-    method = "agent"  # or "server": answered without the agent loop (D-029)
+    method = "agent"  # or "server": answered without the agent loop (D-032)
     try:
         with session_scope() as db:
             docs = _scope(db, document_ids)
             if not docs:
                 raise AgentError("no_documents")
             viewing, selected = _context_notes(db, docs, context)
-            versions = [f"{d.id}@{d.version}" for d in docs]
+            # An Upscale adds elements without a re-ingest (D-027): it counts as a change.
+            versions = [f"{d.id}@{d.version}.{d.meta.get('upscales', 0)}" for d in docs]
             key = answer_cache_key(
                 question,
                 versions,

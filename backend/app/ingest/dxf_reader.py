@@ -160,7 +160,10 @@ def _walls(items: list[Shape], frame: PageFrame) -> list[ExtractedElement]:
         walls = [s for s in walls if s.hatch]  # outlines usually duplicate the hatches
     return [
         ExtractedElement(kind="wall", source="dxf", bbox=frame.bbox_px(s.points),
-                         footprint_mm=s.points, properties={"layer": s.layer})
+                         footprint_mm=s.points,
+                         properties={"layer": s.layer, "polygon_px": [
+                             [round(x, 1), round(y, 1)] for x, y in map(frame.to_px, s.points)
+                         ]})
         for s in walls
         if polygon_area(s.points) > 1000  # > 10 cm²
     ]  # fmt: skip

@@ -209,6 +209,6 @@ def test_a_storey_given_as_a_name_is_tried_as_a_storey(
 
 
 def test_the_default_answers_only_from_exact_elements(fakes: Fakes) -> None:
-    # Measured on the preview (D-029): detections were wrong on 6 of 6 raster counts.
+    # Measured on the preview (D-032): detections were wrong on 6 of 6 raster counts.
     settings = Settings(database_url="postgresql://unused", valkey_url="redis://unused")
     assert settings.fast_path == "exact"
