@@ -104,9 +104,10 @@ TOOLS: list[dict[str, Any]] = [
         "Count elements of one kind; call this for every 'how many' question instead of "
         "counting find_elements results (those stop at 50). Narrow with subtype for "
         "fixtures ('wc', 'washbasin', 'sink', 'bathtub', 'shower'), category for rooms "
-        "('kitchen', 'sauna', 'balcony'), name for the printed room label (exact, e.g. "
-        "'Küche'), storey for IFC floors (e.g. '3. Sal'), document_id and page_index. "
-        "Returns the exact total, counts per page and storey, and the elements counted "
+        "('kitchen', 'sauna', 'balcony'), name for the printed room label or an IFC "
+        "space's name or number (exact, e.g. 'Küche'), storey for IFC floors (e.g. "
+        "'3. Sal'), document_id and page_index. Returns the exact total, counts per "
+        "page of each document and per storey, and the elements counted "
         "(at most 50 listed), to cite and highlight.",
         {
             "kind": {"type": "string", "enum": KINDS},
@@ -313,8 +314,17 @@ def countable(el: Element, page_index: int | None) -> Countable:
     props = el.properties or {}
     return Countable(
         str(el.id), el.kind, page_index, props.get("storey"), props.get("subtype"),
-        props.get("category"), props.get("local_name") or el.label,
+        props.get("category"), props.get("local_name") or el.label, el.name,
+        str(el.document_id),
     )  # fmt: skip
+
+
+def pages_counted(by_page: dict[tuple[str, int], int]) -> list[dict[str, Any]]:
+    """Counts per page, each with its document: page 0 of two documents is two pages."""
+    return [
+        {"document_id": document_id, "page_index": page_index, "count": n}
+        for (document_id, page_index), n in sorted(by_page.items())
+    ]
 
 
 def _count(args: CountIn, ctx: ToolContext) -> str:
@@ -335,7 +345,7 @@ def _count(args: CountIn, ctx: ToolContext) -> str:
     return json.dumps(
         {
             "total": result.total,
-            "by_page_index": {str(k): v for k, v in sorted(result.by_page.items())},
+            "by_page": pages_counted(result.by_page),
             "by_storey": result.by_storey,
             "listed": len(result.listed),
             "elements": [_describe(*by_id[c.element_id], ctx) for c in result.listed],

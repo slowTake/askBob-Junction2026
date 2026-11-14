@@ -27,9 +27,10 @@ from app.valkey import cache_get, cache_set
 
 log = logging.getLogger(__name__)
 
-ANSWER_FORMAT = 5  # bump when the payload or how answers are found changes
+ANSWER_FORMAT = 6  # bump when the payload or how answers are found changes
 # 4: answers are a summary line plus "- " lists (prompts.py), laid out by the chat
-# 5: answers say how they were found (`method`: the agent or the server's fast path)
+# 5: counts come from `count_elements`
+# 6: answers say how they were found (`method`: the agent or the server's fast path)
 
 MESSAGES = {
     "no_documents": "Upload a drawing and wait until it has been processed.",
