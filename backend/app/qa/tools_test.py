@@ -1,8 +1,15 @@
 """The agent's `find_elements` kind filter covers every kind the readers store (#12)."""
 
+import uuid
+
+import pytest
+from pydantic import ValidationError
+
+from app.domain.counting import Countable
 from app.domain.ifc_mapping import IFC_KINDS
 from app.domain.kinds import DRAWING_KINDS
-from app.qa.tools import KINDS, TOOLS, AreaIn, FindIn
+from app.models import Element
+from app.qa.tools import KINDS, TOOLS, AreaIn, CountIn, FindIn, countable
 
 
 def test_every_ifc_kind_can_be_filtered() -> None:
@@ -38,3 +45,38 @@ def test_plan_tools_are_offered_with_strict_inputs() -> None:
     highlight = next(t for t in TOOLS if t["name"] == "highlight")
     assert highlight["strict"] is True
     assert set(highlight["input_schema"]["required"]) == {"element_ids", "caption"}
+
+
+def test_count_tool_needs_a_kind_and_takes_optional_filters() -> None:
+    tool = next(t for t in TOOLS if t["name"] == "count_elements")
+    props = tool["input_schema"]["properties"]
+    assert set(tool["input_schema"]["required"]) == {
+        "kind", "subtype", "category", "name", "storey", "document_id", "page_index",
+    }  # fmt: skip
+    assert props["kind"]["enum"] == KINDS  # not nullable: a count is always of one kind
+    assert CountIn.model_validate(
+        {"kind": "door", "subtype": None, "category": None, "name": None,
+         "storey": "3. Sal", "document_id": None, "page_index": None}
+    ).storey == "3. Sal"  # fmt: skip
+
+
+def test_count_tool_rejects_a_missing_kind() -> None:
+    with pytest.raises(ValidationError):
+        CountIn.model_validate({"kind": None})
+
+
+def test_stored_element_becomes_countable() -> None:
+    fixture = Element(
+        id=uuid.UUID(int=1), kind="fixture", properties={"subtype": "wc", "storey": "1. Sal"}
+    )
+    room = Element(
+        id=uuid.UUID(int=2), kind="room", label="Küche", text="Küche 2.01",
+        properties={"local_name": "Küche", "category": "kitchen"},
+    )  # fmt: skip
+    assert countable(fixture, None) == Countable(
+        str(uuid.UUID(int=1)), "fixture", None, "1. Sal", "wc", None, None
+    )
+    # The printed label is the room's local name.
+    assert countable(room, 0) == Countable(
+        str(uuid.UUID(int=2)), "room", 0, None, None, "kitchen", "Küche"
+    )

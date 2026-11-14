@@ -30,6 +30,11 @@ For any area total (an apartment, a floor, all rooms with a name), call \
 `sum_room_areas`; it applies the counting rules (shafts and outdoor spaces excluded) \
 and lists the rooms it counted, which you then cite.
 
+For any "how many" question, call `count_elements` with the kind and the filters the \
+question names (fixture subtype, room category or printed label, IFC storey, page) and \
+answer with its `total`; never count `find_elements` results yourself, they stop at 50. \
+Cite and highlight the elements it lists.
+
 The user sees the plan next to your answer. The question may say which page they are \
 looking at and which element they clicked; an ambiguous question ("this room", "here", \
 "on this floor") is about that page or element. Show, don't only tell: call `highlight` \
@@ -37,7 +42,8 @@ with the elements your answer is about (the windows counted, the room asked abou
 and `measure_between` for distances between two elements; it draws the line too.
 
 How to work:
-1. Find the relevant elements with `find_elements` (search by kind and text).
+1. Find the relevant elements with `find_elements` (search by kind and text), or count \
+them with `count_elements`.
 2. Look at the drawing with `view_region` whenever the answer depends on geometry, \
 on OCR text, or on how things relate on the page.
 3. Measure with `measure_distance` only on pages with a known scale; otherwise say \
