@@ -12,10 +12,11 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-006 | 2026-11-14 | Q&A agent answers only from tools, with server-checked citations | Accepted |
 | D-007 | 2026-11-14 | UI follows DESIGN.md; highlights by dimming, not colour | Superseded in part by D-012 |
 | D-008 | 2026-11-14 | CI enforces RULES.md; local git hooks come later | Accepted |
-| D-009 | 2026-11-14 | Kimi K3.1 Pro on Verda as a secondary LLM; keys in keyrings | Accepted |
+| D-009 | 2026-11-14 | Kimi K3.1 Pro on Verda as a secondary LLM; keys in keyrings | Partly superseded by D-014 |
 | D-010 | 2026-11-14 | A document is never left queued without a job | Accepted |
 | D-011 | 2026-11-14 | Demo video pipeline in `demo-video/`, outside tests and CI | Accepted |
 | D-012 | 2026-11-14 | Drafting-table theme with a dark mode; drawings stay paper | Accepted |
+| D-014 | 2026-11-14 | The Q&A agent can run on Kimi K3.1 Pro on Verda (`LLM_PROVIDER`) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -103,7 +104,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 
 ## D-009: Kimi K3.1 Pro on Verda as a secondary LLM; keys in keyrings
 
-**Date:** 2026-11-14 · **Status:** Accepted
+**Date:** 2026-11-14 · **Status:** Partly superseded by D-014 ("Claude stays the Q&A agent")
 
 **Context:** The Q&A agent runs on Claude Opus 5.5 through the Anthropic SDK (D-006). Every team also gets Verda credits, and Verda's inference API serves Kimi K3.1 Pro. Verda speaks only the OpenAI Chat Completions and Responses APIs: `POST /v1/messages` returns 404, so the Anthropic client can't be pointed at it. A test call to Kimi K3.1 Pro worked (HTTP 200, about 1.2 s).
 
@@ -141,3 +142,12 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 
 **Consequences:** Components must use tokens only, so a theme change is a token change. The one exception is the 3D viewer: three.js materials can't read CSS variables, so `ModelViewer.tsx` repeats the `paper-mark` blue and keeps it in both themes. The clean redraw (#54) is the only view that inverts in dark mode. The highlight tool (#55) will revisit how cited regions are drawn.
 
+## D-014: The Q&A agent can run on Kimi K3.1 Pro on Verda (`LLM_PROVIDER`)
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes:** the "Claude stays the Q&A agent" part of D-009
+
+**Context:** Nobody on the team has a confirmed Anthropic key, so the agent and the eval can't run end to end. Everyone can create a Verda key (D-009). A capability probe of `kimi-k3-1-pro` on Verda (#51) found that it does strict function calling, JSON-schema `response_format` and image input (an `image_url` data URL, also in a user message after tool messages), and that it does not need its `reasoning_content` sent back. With tools **and** a `response_format` schema in the same request, it skipped the tools and answered at once with invented element ids.
+
+**Decision:** `LLM_PROVIDER=anthropic|verda` (default `anthropic`) picks the model loop. The Verda loop (`app/qa/verda_agent.py`, OpenAI SDK) uses the same system prompt, tools, citation check, answer cache and `qa_log`, and emits the same `step`/`final` events and answer as the Claude loop of D-006. Its final answer is a `final_answer` tool call whose input is the answer schema, validated with the same `FinalAnswer` model, and every request sets `tool_choice: "required"`. `view_region` images go in a user message after the tool messages. The key comes from `VERDA_API_KEY`, passed from the keyring per D-009; a missing key gives `llm_not_configured`. Adaptive thinking, effort, refusal fallbacks and `cache_control` have no equivalent on this path. The answer-cache key and `qa_log.model` use the active model, so answers from the two providers never mix.
+
+**Consequences:** Claude stays the default and the agent we demo. Eval scores on Kimi measure Kimi, not Claude. Behaviour the probe didn't cover, such as long multi-step runs and large images, is unknown until the eval runs on real drawings. The conversion code (`app/qa/openai_format.py`) is tested without network; a change in the answer schema reaches both loops through `ANSWER_SCHEMA`.
