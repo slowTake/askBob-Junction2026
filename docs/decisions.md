@@ -46,6 +46,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-036 | 2026-11-14 | Every question reports what it used; the eval turns that into cost | Accepted |
 | D-037 | 2026-11-14 | IFC base quantities are stored in SI units and totalled by the server | Accepted |
 | D-038 | 2026-11-14 | Recognised count and area questions are answered by the server, not the agent loop | Accepted |
+| D-039 | 2026-11-14 | The `vision` service can run on a Verda GPU; `make up-verda` points ingest at it (#118) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -646,3 +647,17 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 - With `all`, raster counts from floor-plan-model detections were wrong on 6 of 6 (windows 1 for 17, doors 10 for 4), hence `exact`.
 - The agent path got worse on door schedules in this run (5 of 6 right before, 2 of 6 after): with `count_elements` in the prompt (D-025) the agent counts drawn door tags instead of reading the schedule. That is a prompt fix for `count_elements`, not part of this decision. One run per setting, so single-question differences on the agent path are noise.
 - The fast path covers single-document questions only; counting across several drawings stays with the agent.
+
+## D-039: The `vision` service can run on a Verda GPU; `make up-verda` points ingest at it
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-022, D-023 · **Issue:** #118
+
+**Context:** CubiCasa5k runs on CPU (D-022), so a raster page takes long enough to hit the 90 s `VISION_TIMEOUT_S` and fall back to pixel heuristics. The team has Verda credits, and the GPU Verda offers us is a Tesla V100 (Volta, 16 GB). Recent PyTorch CUDA 12.8/12.9 builds no longer include Volta; CUDA 12.6 builds do, up to PyTorch 2.14. PyTorch 2.15, which our lock file pins, publishes no CUDA 12.6 wheels.
+
+**Decision:**
+- **One code path.** `VISION_DEVICE` (`auto` by default, `cpu`, `cuda`) picks where the network runs; `auto` takes the GPU when the container sees one. `cuda` without a visible GPU stops the service at startup instead of quietly running on the CPU. Tiles go to the device; argmax runs there, so only label maps return to the CPU. CubiCasa's post-processing stays on the CPU.
+- **One Dockerfile.** `--build-arg TORCH_CUDA=cu126` replaces the CPU-only PyTorch with 2.14.1+cu126 after `uv sync`. Without it the image is unchanged, so `make up-local` and CI build what they built before.
+- **Ingest points at it by URL.** `VISION_URL` in `docker-compose.yml` can be overridden; its default is still the local container. `make up-verda` requires `VISION_URL`, checks its `/health` answers, and starts the local stack without the `vision` container. Deploy steps are in `docs/verda-setup.md`.
+- **Traffic is plain HTTP on a public IP, without authentication,** for the hackathon demo only. The service stores nothing; uploaded page images do cross the internet to Verda.
+
+**Consequences:** Raster ingest speed depends on a rented machine someone has to start and delete. Anyone who finds the IP can send the service images to analyse. Before real use it needs a token and HTTPS. The V100 pin dies with PyTorch 2.15's CUDA 12.6 cut; a newer GPU can use a current CUDA build by changing `TORCH_CUDA` and `TORCH_CUDA_VERSION`. The D-023 pixel budget is unchanged; a GPU may afford a larger one, which would be its own decision.

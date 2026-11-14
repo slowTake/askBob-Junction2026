@@ -1,8 +1,8 @@
 FROM python:3.12-slim
 
 # The floor-plan model service (D-022). CPU-only PyTorch comes from the index in
-# pyproject.toml. CubiCasa5k's code and weights are CC BY-NC 4.0: fetched here at
-# build time, never committed, for non-commercial use only.
+# pyproject.toml unless TORCH_CUDA is set (below). CubiCasa5k's code and weights are
+# CC BY-NC 4.0: fetched here at build time, never committed, for non-commercial use only.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates \
  && rm -rf /var/lib/apt/lists/*
@@ -14,6 +14,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_COMPILE_BYTECODE=1 UV_LINK_M
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
+
+# GPU hosts (#118): `--build-arg TORCH_CUDA=cu126` swaps in a CUDA build of PyTorch.
+# cu126 at 2.14.1 because it is the last line that still runs on a Tesla V100 (Volta);
+# PyTorch 2.15 publishes no cu126 wheels. Only that index is used: with a PyPI fallback
+# uv would prefer PyPI's torch, a CUDA 13 build the V100's driver can't run.
+# Empty (the default) keeps the CPU-only build.
+ARG TORCH_CUDA=
+ARG TORCH_CUDA_VERSION=2.14.1
+RUN if [ -n "$TORCH_CUDA" ]; then \
+      uv pip install --python /app/.venv/bin/python --reinstall-package torch \
+        --index-url "https://download.pytorch.org/whl/$TORCH_CUDA" "torch==$TORCH_CUDA_VERSION" \
+      && rm -rf /root/.cache \
+      && python -c "import torch; assert torch.version.cuda, torch.__version__; print(torch.__version__)"; \
+    fi
 
 # Model code at a pinned commit. The sed fixes one call for current SciPy, where
 # stats.mode(...).mode is a scalar instead of an array.

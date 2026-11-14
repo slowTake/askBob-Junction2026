@@ -7,7 +7,7 @@ LOCAL_ENV = DATABASE_URL=postgresql://bob:bob@postgres:5432/bob VALKEY_URL=redis
 UP_FLAGS = --build --detach
 SMOKE_TIMEOUT ?= 180
 
-.PHONY: help up up-aiven up-local up-claude smoke down logs check backend-check vision-check frontend-check size-check scripts-check frontend-image-check runtime-image-check fmt dev-api dev-worker dev-web
+.PHONY: help up up-aiven up-local up-verda up-claude smoke down logs check backend-check vision-check frontend-check size-check scripts-check frontend-image-check runtime-image-check fmt dev-api dev-worker dev-web
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -23,6 +23,13 @@ up-aiven: ## Run everything against Aiven: URLs from avn, passwords from your ke
 
 up-local: ## Run everything offline with local Postgres + Valkey containers
 	$(LOCAL_ENV) docker compose --profile local up $(UP_FLAGS)
+	@$(MAKE) --no-print-directory smoke
+
+up-verda: ## Like up-local, but raster pages go to the vision service on a Verda GPU (VISION_URL)
+	@test -n "$$VISION_URL" || { echo "Run: VISION_URL=http://<verda-ip>:8001 make up-verda"; exit 1; }
+	@curl -sf --max-time 10 "$$VISION_URL/health" >/dev/null \
+		|| { echo "No vision service answers at $$VISION_URL/health (see docs/verda-setup.md)"; exit 1; }
+	$(LOCAL_ENV) docker compose --profile local up $(UP_FLAGS) --scale vision=0
 	@$(MAKE) --no-print-directory smoke
 
 up-claude: ## Run locally with Claude: key from environment, keyring, or a hidden prompt

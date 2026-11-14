@@ -27,7 +27,7 @@ ROTATIONS = [(0, 0), (1, -1), (2, 2), (-1, 1)]
 
 
 class FloorplanModel:
-    def __init__(self, weights: Path, rotations: int = 1) -> None:
+    def __init__(self, weights: Path, rotations: int = 1, device: str = "cpu") -> None:
         from floortrans.loaders.augmentations import RotateNTurns
         from floortrans.models.hg_furukawa_original import hg_furukawa_original
 
@@ -38,7 +38,8 @@ class FloorplanModel:
         net.upsample = torch.nn.ConvTranspose2d(CHANNELS, CHANNELS, kernel_size=4, stride=4)
         state = torch.load(weights, map_location="cpu", weights_only=False)
         net.load_state_dict(state.get("model_state", state))
-        self.net = net.eval()
+        self.device = torch.device(device)
+        self.net = net.to(self.device).eval()
         self.rotate = RotateNTurns()
         self.rotations = ROTATIONS[: max(1, min(rotations, len(ROTATIONS)))]
 
@@ -59,7 +60,7 @@ class FloorplanModel:
                 wy = torch.from_numpy(edge_weights(th, OVERLAP)).float()
                 wx = torch.from_numpy(edge_weights(tw, OVERLAP)).float()
                 wgt = (wy[:, None] * wx[None, :])[None]
-                acc[:, y : y + th, x : x + tw] += self._tile(part) * wgt
+                acc[:, y : y + th, x : x + tw] += self._tile(part).cpu() * wgt
                 weight[:, y : y + th, x : x + tw] += wgt
         return (acc / weight)[None]
 
@@ -78,17 +79,19 @@ class FloorplanModel:
         for y, (ya, yb) in zip(ys, keep_windows(ys, TILE, h), strict=True):
             for x, (xa, xb) in zip(xs, keep_windows(xs, TILE, w), strict=True):
                 out = self._tile(rgb[y : y + TILE, x : x + TILE])[:, ya:yb, xa:xb]
-                room_part = out[SPLIT[0] : SPLIT[0] + SPLIT[1]].argmax(0)
-                icon_part = out[SPLIT[0] + SPLIT[1] :].argmax(0)
+                # argmax on the device, so only two small label maps cross to the CPU.
+                room_part = out[SPLIT[0] : SPLIT[0] + SPLIT[1]].argmax(0).cpu()
+                icon_part = out[SPLIT[0] + SPLIT[1] :].argmax(0).cpu()
                 rooms[y + ya : y + yb, x + xa : x + xb] = room_part.numpy().astype(np.uint8)
                 icons[y + ya : y + yb, x + xa : x + xb] = icon_part.numpy().astype(np.uint8)
         return rooms, icons
 
     def _tile(self, rgb: np.ndarray) -> torch.Tensor:
+        """[44, h, w] for one tile, on the model's device."""
         h, w = rgb.shape[:2]
-        x = torch.from_numpy(np.moveaxis(rgb, -1, 0).copy()).float()[None]
+        x = torch.from_numpy(np.moveaxis(rgb, -1, 0).copy()).float()[None].to(self.device)
         x = 2 * (x / 255.0) - 1  # the normalisation CubiCasa trained with
-        total = torch.zeros(CHANNELS, h, w)
+        total = torch.zeros(CHANNELS, h, w, device=self.device)
         for turn, back in self.rotations:
             out: Any = self.net(self.rotate(x, "tensor", turn))
             out = self.rotate(self.rotate(out, "tensor", back), "points", back)
