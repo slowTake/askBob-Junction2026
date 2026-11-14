@@ -115,3 +115,45 @@ def test_door_width_in_mm_when_the_scale_is_known() -> None:
     assert scale == pytest.approx(8.46667, rel=1e-4)
     assert door.value_mm == pytest.approx(338.67, abs=0.01)
     assert door.footprint_mm is not None
+
+
+# --- rooms traced from the drawing's lines (D-024) ------------------------------
+
+
+def _two_rooms_with_a_door() -> np.ndarray:
+    """300 x 200 page: a 3 px wall rectangle (20..280 x 20..180) split at x=150 by a
+    wall with a doorway (y 80..120) that a door leaf and swing close."""
+    import cv2
+
+    page = np.full((200, 300), 255, np.uint8)
+    cv2.rectangle(page, (20, 20), (280, 180), 0, 3)
+    cv2.line(page, (150, 20), (150, 80), 0, 3)
+    cv2.line(page, (150, 120), (150, 180), 0, 3)
+    cv2.line(page, (150, 80), (190, 80), 0, 1)  # leaf
+    cv2.ellipse(page, (150, 80), (40, 40), 0, 0, 90, 0, 1)  # swing to the far jamb
+    return page
+
+
+ROOM_WORDS = [Word((60.0, 95.0, 110.0, 110.0), "Küche"), Word((200.0, 140.0, 240.0, 155.0), "Bad")]
+
+
+def test_printed_rooms_take_outlines_traced_from_the_lines() -> None:
+    elements, _, meta = annotate_page(_two_rooms_with_a_door(), ROOM_WORDS, "ocr", None)
+    kitchen = next(e for e in elements if e.text == "Küche")
+    bath = next(e for e in elements if e.text == "Bad")
+    assert kitchen.properties["outline_source"] == "traced"
+    assert bath.properties["outline_source"] == "traced"
+    xs = [p[0] for p in kitchen.properties["polygon_px"]]
+    # Kitchen: from the outer wall (x ~20) to at least the middle wall (x ~150).
+    # Known limit (D-024): the doorway itself isn't drawn, so the door's swing area
+    # (x 150..190) opens onto the kitchen and is counted in it until doorways are closed.
+    assert min(xs) < 30 and 140 < max(xs) < 195
+    assert kitchen.properties["polygon_px"] != bath.properties["polygon_px"]
+    assert meta["room_outlines"] == {"traced": 2}
+
+
+def test_without_closed_lines_the_model_room_is_the_fallback() -> None:
+    elements, _, meta = annotate_page(_blank(), [KITCHEN_LABEL], "ocr", None, vision=VISION)
+    kitchen = next(e for e in elements if e.text == "Küche")
+    assert kitchen.properties["outline_source"] == "model"
+    assert meta["room_outlines"] == {"model": 1}

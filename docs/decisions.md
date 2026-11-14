@@ -365,6 +365,8 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 **Consequences:**
 - Labelled rooms on raster plans follow their walls.
-- About a third of rooms still leak through doorways drawn without a door swing, or lose part of their area to fixtures the rules don't absorb. Doorway closing is the next step.
+- About a third of rooms still leak through doorways drawn without a door swing, or lose part of their area to fixtures the rules don't absorb.
+- Because the doorway line itself isn't drawn, a door's swing area counts toward the room on the other side of the door.
+- Closing doorways fixes both and is the next step.
 - OCR takes about 8–13 s per Swiss sheet on CPU.
 - `eval/swiss_rooms.py` re-measures all of this on the dataset.

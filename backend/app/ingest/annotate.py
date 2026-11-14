@@ -1,5 +1,6 @@
 """Shared page pipeline for PDFs and images: words -> classified elements -> geometry."""
 
+from collections import Counter
 from typing import Any
 
 from app.domain.areas import outline_agrees
@@ -29,6 +30,7 @@ from app.domain.vision import (
 )
 from app.ingest.dimension_lines import fit_dimension_scale
 from app.ingest.rooms import Gray, ink_mask, room_region, wall_boxes
+from app.ingest.traced_rooms import traced_outlines
 from app.ingest.types import ExtractedElement
 from app.ingest.vision_elements import to_element
 
@@ -112,31 +114,32 @@ def annotate_page(
     # TODO(scale): scale bars (HABS, Finna) as a third method, "scale_bar".
 
     model_rooms = vision is not None and not vision_objects_only
-    label_points: list[Point] = []
-    for el in elements:
-        if el.kind != "room" or el.bbox is None:
-            continue
-        centre = bbox_center(el.bbox)
-        label_points.append(centre)
-        found: tuple[list[Point], float] | None
+    rooms = [el for el in elements if el.kind == "room" and el.bbox is not None]
+    label_points = [bbox_center(el.bbox) for el in rooms if el.bbox is not None]
+    traced = traced_outlines(gray, words, label_points, dpi)
+    sources: Counter[str] = Counter()
+    for el, centre, from_lines in zip(rooms, label_points, traced, strict=True):
+        # Outline sources in order (D-024): the drawing's own lines, the floor-plan
+        # model's room, a flood fill. The first that agrees with a printed area wins.
+        candidates: list[tuple[str, list[Point] | None]] = [("traced", from_lines)]
         if model_rooms and vision is not None:
-            outline = outline_for(centre, vision.rooms)
-            found = (outline, polygon_area(outline)) if outline else None
+            candidates.append(("model", outline_for(centre, vision.rooms)))
         else:
-            found = room_region(
+            filled = room_region(
                 ink, centre, erase=text_boxes, close_px=3, max_area_frac=max_room_frac
             )
-        if found is None:
-            el.properties["region"] = "not_closed"
+            candidates.append(("flood_fill", filled[0] if filled else None))
+        chosen = _first_agreeing(candidates, el.properties.get("printed_area_m2"), scale_mm)
+        if chosen is None:
+            closed = any(polygon for _, polygon in candidates)
+            el.properties["region"] = "disagrees_with_printed_area" if closed else "not_closed"
             continue
-        polygon, area_px = found
+        source, polygon = chosen
+        sources[source] += 1
         el.properties["polygon_px"] = [list(p) for p in polygon]
+        el.properties["outline_source"] = source
         if scale_mm:
-            measured = round(area_px * scale_mm * scale_mm / 1e6, 2)
-            if not outline_agrees(measured, el.properties.get("printed_area_m2")):
-                el.properties["region"] = "disagrees_with_printed_area"
-                del el.properties["polygon_px"]
-                continue
+            measured = round(polygon_area(polygon) * scale_mm * scale_mm / 1e6, 2)
             el.properties["measured_area_m2"] = measured
             el.properties.setdefault("area_m2", measured)
             el.footprint_mm = footprint_mm(polygon, scale_mm, height)
@@ -174,8 +177,27 @@ def annotate_page(
         "scale_known": scale_mm is not None,
         **scale_meta,
         "words": len(words),
+        "room_outlines": dict(sources),
     }
     return elements, scale_mm, meta
+
+
+def _first_agreeing(
+    candidates: list[tuple[str, list[Point] | None]],
+    printed_m2: float | None,
+    scale_mm: float | None,
+) -> tuple[str, list[Point]] | None:
+    """The first outline whose area matches the printed one (any, if none is printed
+    or the scale is unknown)."""
+    for source, polygon in candidates:
+        if not polygon:
+            continue
+        if scale_mm is None:
+            return source, polygon
+        measured = polygon_area(polygon) * scale_mm * scale_mm / 1e6
+        if outline_agrees(measured, printed_m2):
+            return source, polygon
+    return None
 
 
 def _link_printed_labels(elements: list[ExtractedElement]) -> None:
