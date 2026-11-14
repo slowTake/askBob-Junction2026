@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { Citation, DocumentDetail, ElementInfo } from "../api/types";
 import { focusBox, focusIsHere } from "../lib/focus";
+import { buildCleanSheet, hasEnoughForClean, MIN_WALLS, scaleBar } from "../lib/redraw";
 import { scrollToCenter } from "../lib/viewport";
 import { focusZoom, stepZoom } from "../lib/zoom";
+import { CleanSheet } from "./CleanSheet";
 
 interface Props {
   documentId: string;
@@ -15,14 +17,18 @@ interface Props {
 
 const FOCUS_PAD_PX = 12;
 
-/** Page image with an SVG overlay in page-pixel coordinates: bboxes need no conversion. */
+/**
+ * A page as its image (Original) or as a redraw of its extracted elements (Clean), with
+ * one SVG overlay in page-pixel coordinates over either: bboxes need no conversion.
+ */
 export function DrawingViewer(props: Props) {
   const { documentId, pageIndex, onPageChange, focus, onClearFocus } = props;
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [zoom, setZoom] = useState(1);
   const [zoomedFor, setZoomedFor] = useState<Citation | null>(null);
   const [showElements, setShowElements] = useState(false);
-  const [elements, setElements] = useState<ElementInfo[]>([]);
+  const [loaded, setLoaded] = useState<{ page: number; elements: ElementInfo[] } | null>(null);
+  const [cleanPages, setCleanPages] = useState<ReadonlySet<number>>(new Set());
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,17 +42,36 @@ export function DrawingViewer(props: Props) {
     };
   }, [documentId]);
 
+  const clean = cleanPages.has(pageIndex);
+  const needElements = showElements || clean;
   useEffect(() => {
-    if (!showElements) return;
+    if (!needElements) return;
     let live = true;
     api.elements(documentId, pageIndex).then(
-      (els) => live && setElements(els),
-      () => live && setElements([]),
+      (els) => live && setLoaded({ page: pageIndex, elements: els }),
+      () => live && setLoaded({ page: pageIndex, elements: [] }),
     );
     return () => {
       live = false;
     };
-  }, [documentId, pageIndex, showElements]);
+  }, [documentId, pageIndex, needElements]);
+  // Elements of another page are never drawn while this page's are on their way.
+  const elements = loaded?.page === pageIndex ? loaded.elements : null;
+  const sheet = useMemo(
+    () => (clean && elements ? buildCleanSheet(elements) : null),
+    [clean, elements],
+  );
+  const tooFew = sheet !== null && !hasEnoughForClean(sheet);
+  // The scroller is replaced by a note while the redraw loads or has too little to show.
+  const sheetShown = !clean || (sheet !== null && !tooFew);
+
+  const setClean = (on: boolean) =>
+    setCleanPages((pages) => {
+      const next = new Set(pages);
+      if (on) next.add(pageIndex);
+      else next.delete(pageIndex);
+      return next;
+    });
 
   const page = detail?.pages.find((p) => p.index === pageIndex) ?? null;
   // A newly focused citation zooms in once; after that − and + move freely.
@@ -67,7 +92,7 @@ export function DrawingViewer(props: Props) {
       { width: el.clientWidth, height: el.clientHeight },
     );
     el.scrollTo({ ...target, behavior: "smooth" });
-  }, [focus, page, pageIndex, effectiveZoom]);
+  }, [focus, page, pageIndex, effectiveZoom, sheetShown]);
 
   if (!detail) return <div className="viewer-empty">Loading drawing…</div>;
   if (!page) return <div className="viewer-empty">This document has no drawing pages.</div>;
@@ -101,9 +126,28 @@ export function DrawingViewer(props: Props) {
           </button>
         </div>
         <div className="chip-row">
+          <div className="segmented" role="group" aria-label="Page view">
+            <button
+              type="button"
+              className={`chip chip-toggle${clean ? "" : " is-on"}`}
+              aria-pressed={!clean}
+              onClick={() => setClean(false)}
+            >
+              Original
+            </button>
+            <button
+              type="button"
+              className={`chip chip-toggle${clean ? " is-on" : ""}`}
+              aria-pressed={clean}
+              onClick={() => setClean(true)}
+            >
+              Clean
+            </button>
+          </div>
           <button
             type="button"
             className={`chip chip-toggle${showElements ? " is-on" : ""}`}
+            aria-pressed={showElements}
             onClick={() => setShowElements((s) => !s)}
           >
             Extracted elements
@@ -136,56 +180,96 @@ export function DrawingViewer(props: Props) {
           </button>
         </div>
       )}
-      <div className="sheet-scroller" ref={scroller}>
-        <div className="sheet" style={{ width: `${effectiveZoom * 100}%` }}>
-          <img src={api.pageImageUrl(documentId, pageIndex)} alt={`Page ${pageIndex + 1}`} />
-          <svg viewBox={`0 0 ${w} ${h}`} className="sheet-overlay" aria-hidden>
-            {showElements &&
-              elements.map((el) =>
-                el.bbox ? (
-                  <rect
-                    key={el.id}
-                    className={`el el-${el.kind}`}
-                    x={el.bbox[0]}
-                    y={el.bbox[1]}
-                    width={el.bbox[2] - el.bbox[0]}
-                    height={el.bbox[3] - el.bbox[1]}
-                    vectorEffect="non-scaling-stroke"
-                  >
-                    <title>{`${el.kind}: ${el.name ?? el.label ?? ""} (${el.source})`}</title>
-                  </rect>
-                ) : null,
-              )}
-            {box && (
-              <>
-                <defs>
-                  <mask id="spotlight">
-                    <rect width={w} height={h} fill="white" />
-                    <rect
-                      x={box[0] - FOCUS_PAD_PX}
-                      y={box[1] - FOCUS_PAD_PX}
-                      width={box[2] - box[0] + 2 * FOCUS_PAD_PX}
-                      height={box[3] - box[1] + 2 * FOCUS_PAD_PX}
-                      rx={8}
-                      fill="black"
-                    />
-                  </mask>
-                </defs>
-                <rect width={w} height={h} className="spotlight-dim" mask="url(#spotlight)" />
-                <rect
-                  className="spotlight-ring"
-                  x={box[0] - FOCUS_PAD_PX}
-                  y={box[1] - FOCUS_PAD_PX}
-                  width={box[2] - box[0] + 2 * FOCUS_PAD_PX}
-                  height={box[3] - box[1] + 2 * FOCUS_PAD_PX}
-                  rx={8}
-                  vectorEffect="non-scaling-stroke"
-                />
-              </>
-            )}
-          </svg>
+      {!sheetShown ? (
+        <div className="viewer-empty">
+          {elements === null ? (
+            "Redrawing the page…"
+          ) : (
+            <div className="clean-note">
+              <p>
+                Too little was extracted from this page for a clean redraw (walls found:{" "}
+                {sheet?.walls.length}, needed: {MIN_WALLS}).
+              </p>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setClean(false)}
+              >
+                Show the original
+              </button>
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="sheet-scroller" ref={scroller}>
+          <div
+            className={`sheet${sheet ? " is-clean" : ""}`}
+            style={{ width: `${effectiveZoom * 100}%` }}
+          >
+            {sheet ? (
+              <CleanSheet
+                sheet={sheet}
+                width={w}
+                height={h}
+                bar={scaleBar({ width: w, height: h }, page.mm_per_px)}
+                pageNumber={pageIndex + 1}
+              />
+            ) : (
+              <img
+                src={api.pageImageUrl(documentId, pageIndex)}
+                alt={`Page ${pageIndex + 1}`}
+                // Reserve the page's height before the image loads, so switching views keeps the scroll.
+                style={{ aspectRatio: `${w} / ${h}` }}
+              />
+            )}
+            <svg viewBox={`0 0 ${w} ${h}`} className="sheet-overlay" aria-hidden>
+              {showElements &&
+                elements?.map((el) =>
+                  el.bbox ? (
+                    <rect
+                      key={el.id}
+                      className={`el el-${el.kind}`}
+                      x={el.bbox[0]}
+                      y={el.bbox[1]}
+                      width={el.bbox[2] - el.bbox[0]}
+                      height={el.bbox[3] - el.bbox[1]}
+                      vectorEffect="non-scaling-stroke"
+                    >
+                      <title>{`${el.kind}: ${el.name ?? el.label ?? ""} (${el.source})`}</title>
+                    </rect>
+                  ) : null,
+                )}
+              {box && (
+                <>
+                  <defs>
+                    <mask id="spotlight">
+                      <rect width={w} height={h} fill="white" />
+                      <rect
+                        x={box[0] - FOCUS_PAD_PX}
+                        y={box[1] - FOCUS_PAD_PX}
+                        width={box[2] - box[0] + 2 * FOCUS_PAD_PX}
+                        height={box[3] - box[1] + 2 * FOCUS_PAD_PX}
+                        rx={8}
+                        fill="black"
+                      />
+                    </mask>
+                  </defs>
+                  <rect width={w} height={h} className="spotlight-dim" mask="url(#spotlight)" />
+                  <rect
+                    className="spotlight-ring"
+                    x={box[0] - FOCUS_PAD_PX}
+                    y={box[1] - FOCUS_PAD_PX}
+                    width={box[2] - box[0] + 2 * FOCUS_PAD_PX}
+                    height={box[3] - box[1] + 2 * FOCUS_PAD_PX}
+                    rx={8}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </>
+              )}
+            </svg>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

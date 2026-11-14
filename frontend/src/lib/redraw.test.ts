@@ -185,10 +185,11 @@ describe("scaleBar", () => {
     expect(bar?.length).toBeCloseTo(314.96, 2);
   });
 
-  it("sits in the bottom-left corner, sized from the page width", () => {
+  it("sits in the top-left margin, sized from the page width", () => {
     const bar = scaleBar(page, 6.35);
-    // size = 1600 / 100 = 16 px; margin = 2 × 16 = 32 px from the left and bottom edges.
-    expect(bar).toMatchObject({ x: 32, y: 1120 - 32, size: 16 });
+    // size = 1600 / 100 = 16 px; margin = 2 × 16 = 32 px from the left and top edges.
+    // Top, not bottom: title blocks and plan titles usually sit along the bottom.
+    expect(bar).toMatchObject({ x: 32, y: 32, size: 16 });
   });
 
   it("drops to centimetres for very large-scale pages", () => {

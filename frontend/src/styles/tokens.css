@@ -49,6 +49,15 @@
   --paper-mark: #0f62fe; /* marks drawn on the white sheet, same in both themes */
   --paper-mark-soft: rgba(15, 98, 254, 0.05);
 
+  /* clean redraw (#54): the only sheet that follows the theme (D-013) */
+  --redraw-bg: #ffffff;
+  --redraw-line: #161616; /* walls, scale bar */
+  --redraw-text: #393939;
+  --redraw-faint: #c6c6c6; /* room outlines */
+  --redraw-room: #f6f8fb; /* room fill */
+  --redraw-mark: #0f62fe; /* overlay marks on the redraw */
+  --redraw-mark-soft: rgba(15, 98, 254, 0.05);
+
   /* type */
   --font-text: "IBM Plex Sans", system-ui, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -103,6 +112,13 @@
     --danger-ink: #ffb3b8;
     --dim: rgba(6, 7, 10, 0.62);
     --shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.5);
+    --redraw-bg: #15171c;
+    --redraw-line: #c9ccd3;
+    --redraw-text: #9aa0aa;
+    --redraw-faint: #3a3e47;
+    --redraw-room: #1a1d23;
+    --redraw-mark: #78a9ff;
+    --redraw-mark-soft: rgba(120, 169, 255, 0.1);
   }
 }
 
@@ -137,4 +153,11 @@
   --danger-ink: #ffb3b8;
   --dim: rgba(6, 7, 10, 0.62);
   --shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --redraw-bg: #15171c;
+  --redraw-line: #c9ccd3;
+  --redraw-text: #9aa0aa;
+  --redraw-faint: #3a3e47;
+  --redraw-room: #1a1d23;
+  --redraw-mark: #78a9ff;
+  --redraw-mark-soft: rgba(120, 169, 255, 0.1);
 }

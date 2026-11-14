@@ -1,4 +1,5 @@
-/* Drawing and 3D viewers. Sheets stay white paper in both themes (D-012). */
+/* Drawing and 3D viewers. Scanned sheets stay white paper in both themes (D-012);
+   only the clean redraw follows the theme (D-013). */
 
 /* ---------- drawing viewer ---------- */
 .viewer,
@@ -76,6 +77,66 @@
   fill: none;
   stroke: var(--paper-mark);
   stroke-width: 3;
+}
+
+/* ---------- clean redraw (#54) ---------- */
+.segmented {
+  display: inline-flex;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+/* The shared overlay reads the paper tokens; on the redraw they follow the theme. */
+.sheet.is-clean {
+  --paper-mark: var(--redraw-mark);
+  --paper-mark-soft: var(--redraw-mark-soft);
+  --paper-ink: var(--redraw-text);
+}
+.clean-sheet {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.clean-bg {
+  fill: var(--redraw-bg);
+}
+.clean-wall {
+  fill: var(--redraw-line);
+}
+.clean-room {
+  fill: var(--redraw-room);
+  stroke: var(--redraw-faint);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.clean-sheet text {
+  fill: var(--redraw-text);
+  font-family: var(--font-text);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.clean-sheet .clean-dimension,
+.clean-sheet .clean-area,
+.clean-sheet .clean-scale text,
+.clean-sheet .clean-room-area {
+  font-family: var(--font-mono);
+}
+.clean-sheet .clean-room-name {
+  fill: var(--redraw-line);
+  font-weight: 600;
+}
+.clean-scale path {
+  stroke: var(--redraw-line);
+}
+.clean-sheet .clean-scale text {
+  text-anchor: start;
+}
+.clean-note {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-3);
+  max-width: 40ch;
+}
+.clean-note p {
+  margin: 0;
 }
 .viewer-empty {
   flex: 1;

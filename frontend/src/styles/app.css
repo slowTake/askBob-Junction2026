@@ -147,7 +147,8 @@ a {
   opacity: 0.4;
   cursor: default;
 }
-.chip-toggle.is-on {
+.chip-toggle.is-on,
+.chip-toggle.is-on:hover:not(:disabled) {
   background: var(--ink);
   color: var(--surface);
 }

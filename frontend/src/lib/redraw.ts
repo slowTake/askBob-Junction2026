@@ -132,7 +132,10 @@ export function hasEnoughForClean(sheet: CleanSheet): boolean {
   return sheet.walls.length >= MIN_WALLS;
 }
 
-/** A round-length scale bar for the bottom-left corner, or null when the scale is unknown. */
+/**
+ * A round-length scale bar for the top-left margin (title blocks sit along the bottom),
+ * or null when the scale is unknown.
+ */
 export function scaleBar(page: Size, mmPerPx: number | null): ScaleBar | null {
   if (!mmPerPx || mmPerPx <= 0) return null;
   const max = page.width * SCALE_BAR_MAX;
@@ -142,7 +145,7 @@ export function scaleBar(page: Size, mmPerPx: number | null): ScaleBar | null {
   const margin = 2 * size;
   return {
     x: margin,
-    y: page.height - margin,
+    y: margin,
     length: (metres * 1000) / mmPerPx,
     label: metres >= 1 ? `${metres} m` : `${Math.round(metres * 100)} cm`,
     size,
