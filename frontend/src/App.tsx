@@ -6,6 +6,7 @@ import { DocumentList } from "./components/DocumentList";
 import { DocumentStatus } from "./components/DocumentStatus";
 import { DrawingViewer } from "./components/DrawingViewer";
 import { EmptyState } from "./components/EmptyState";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { NavBar } from "./components/NavBar";
 import { useAsk } from "./hooks/useAsk";
 import { useDocuments } from "./hooks/useDocuments";
@@ -15,6 +16,7 @@ import { pageIndexFor, type PageRef } from "./lib/pages";
 import { describe } from "./lib/planLayer";
 import type { PlanTarget } from "./lib/target";
 import { availableViews, pickView, type View } from "./lib/views";
+import { viewerErrorMessage } from "./lib/webgl";
 
 // three.js is large: load the 3D viewer only when the 3D tab opens.
 const ModelViewer = lazy(() =>
@@ -182,14 +184,20 @@ export function App() {
                   onAskAbout={askAbout}
                 />
               ) : (
-                <Suspense fallback={<div className="viewer-note">Loading 3D viewer…</div>}>
-                  <ModelViewer
-                    key={selected.id}
-                    documentId={selected.id}
-                    highlightGuid={target?.kind === "citation" ? target.citation.ifc_guid : null}
-                    omitted={Number(selected.meta.meshes_omitted ?? 0)}
-                  />
-                </Suspense>
+                <ErrorBoundary
+                  key={selected.id}
+                  fallback={(error) => (
+                    <div className="viewer-note">{viewerErrorMessage(error)}</div>
+                  )}
+                >
+                  <Suspense fallback={<div className="viewer-note">Loading 3D viewer…</div>}>
+                    <ModelViewer
+                      documentId={selected.id}
+                      highlightGuid={target?.kind === "citation" ? target.citation.ifc_guid : null}
+                      omitted={Number(selected.meta.meshes_omitted ?? 0)}
+                    />
+                  </Suspense>
+                </ErrorBoundary>
               )}
             </>
           )}

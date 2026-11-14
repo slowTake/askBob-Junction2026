@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { api } from "../api/client";
 import { isTranslucent, materialRole, type MaterialRole } from "../lib/materials";
+import { WebGLUnavailable } from "../lib/webgl";
 
 interface Props {
   documentId: string;
@@ -53,7 +54,12 @@ export function ModelViewer({ documentId, highlightGuid, omitted = 0 }: Props) {
     const el = host.current;
     if (!el) return;
     let disposed = false;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    } catch {
+      throw new WebGLUnavailable(); // the ErrorBoundary around the viewer explains it
+    }
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setClearColor(0x000000, 0);
     el.appendChild(renderer.domElement);
