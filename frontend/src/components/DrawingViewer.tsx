@@ -69,6 +69,7 @@ export function DrawingViewer(props: Props) {
     ready: laidOut,
     animated,
     dragging,
+    pointerFocus,
     handlers,
     zoomIn,
     zoomOut,
@@ -148,7 +149,7 @@ export function DrawingViewer(props: Props) {
       )}
       <div
         ref={viewportRef}
-        className={`plan-viewport${dragging ? " is-dragging" : ""}`}
+        className={`plan-viewport${dragging ? " is-dragging" : ""}${pointerFocus ? " is-pointer-focus" : ""}`}
         tabIndex={0}
         aria-label="Plan. Drag to pan, scroll to zoom, + and - keys zoom, 0 fits the page."
         {...handlers}

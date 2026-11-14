@@ -40,6 +40,7 @@ export function useCamera(page: Size | null, pageKey: string, content: BBox | nu
   const [fitSize, setFitSize] = useState<Size | null>(null);
   const [fitBox, setFitBox] = useState<BBox | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [pointerFocus, setPointerFocus] = useState(false);
   const drag = useRef<Drag | null>(null);
   const swallowClick = useRef(false);
 
@@ -136,6 +137,9 @@ export function useCamera(page: Size | null, pageKey: string, content: BBox | nu
   const handlers = {
     onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
       swallowClick.current = false;
+      // Focused by a click, not the keyboard: no focus ring. Chrome would show one for a
+      // Shift+click, as Shift counts as keyboard use; Tab still shows it.
+      setPointerFocus(true);
       if (e.button !== 0 || !camera) return;
       if ((e.target as HTMLElement).closest("[data-no-pan]")) return; // cards, buttons
       drag.current = { x: e.clientX, y: e.clientY, from: camera, moved: false };
@@ -162,6 +166,7 @@ export function useCamera(page: Size | null, pageKey: string, content: BBox | nu
       swallowClick.current = false;
       e.stopPropagation();
     },
+    onBlur: () => setPointerFocus(false),
     onKeyDown: (e: React.KeyboardEvent) => {
       if (e.key === "+" || e.key === "=") zoomBy(STEP);
       else if (e.key === "-") zoomBy(1 / STEP);
@@ -178,6 +183,7 @@ export function useCamera(page: Size | null, pageKey: string, content: BBox | nu
     ready,
     animated,
     dragging,
+    pointerFocus,
     handlers,
     zoomIn: () => zoomBy(STEP),
     zoomOut: () => zoomBy(1 / STEP),
