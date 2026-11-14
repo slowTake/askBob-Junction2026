@@ -1,5 +1,6 @@
 """Database engine and sessions (Aiven for PostgreSQL in every shared environment)."""
 
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
@@ -17,6 +18,20 @@ _INIT_LOCK_ID = 727_001  # any constant; serializes schema creation across proce
 def get_engine() -> Engine:
     # pool_pre_ping: Aiven closes idle connections; reconnect transparently.
     return create_engine(get_settings().sqlalchemy_url, pool_pre_ping=True, pool_size=5)
+
+
+def _forget_inherited_connections() -> None:
+    """In a forked child, start with an empty pool instead of the parent's connections (#56).
+
+    RQ forks a work horse per job. A child that reused the parent's pooled connection would
+    share its server session, and psycopg's auto-prepared statements then collide after a
+    few jobs. `close=False` leaves the parent's connections open for the parent.
+    """
+    if get_engine.cache_info().currsize:
+        get_engine().dispose(close=False)
+
+
+os.register_at_fork(after_in_child=_forget_inherited_connections)
 
 
 @lru_cache
