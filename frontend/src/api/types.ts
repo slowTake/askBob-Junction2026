@@ -78,7 +78,18 @@ export interface Answer {
   caveats: string;
   verified: boolean;
   citations: Citation[];
+  views?: PlanView[]; // what the agent showed on the plan, in order
   cached: boolean;
+}
+
+/** An agent instruction for the plan: light up elements, maybe draw a measured line. */
+export interface PlanView {
+  document_id: string;
+  page_id: string;
+  page_index: number;
+  element_ids: string[];
+  line: { from: [number, number]; to: [number, number]; label: string } | null;
+  caption: string | null;
 }
 
 export interface AskStep {

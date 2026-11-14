@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
-import type { Citation, DocumentDetail, ElementInfo } from "../api/types";
-import { LAYERS, type LayerKey } from "../lib/planLayer";
+import type { Citation, DocumentDetail, ElementInfo, PlanView } from "../api/types";
+import { LAYERS, unionBox, type LayerKey } from "../lib/planLayer";
 import { ElementCard } from "./ElementCard";
 import { PlanLayer } from "./PlanLayer";
 import { focusBox, focusIsHere } from "../lib/focus";
@@ -15,6 +15,7 @@ interface Props {
   focus: Citation | null;
   onClearFocus: () => void;
   highlightIds?: string[]; // elements to light up (agent or citation)
+  planView?: PlanView | null; // the agent's latest instruction for this document
 }
 
 const DEFAULT_LAYERS: LayerKey[] = ["openings", "fixtures"];
@@ -23,7 +24,8 @@ const FOCUS_PAD_PX = 12;
 
 /** Page image with an SVG overlay in page-pixel coordinates: bboxes need no conversion. */
 export function DrawingViewer(props: Props) {
-  const { documentId, pageIndex, onPageChange, focus, onClearFocus, highlightIds } = props;
+  const { documentId, pageIndex, onPageChange, focus, onClearFocus, highlightIds, planView } =
+    props;
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [zoom, setZoom] = useState(1);
   const [zoomedFor, setZoomedFor] = useState<Citation | null>(null);
@@ -75,6 +77,22 @@ export function DrawingViewer(props: Props) {
     );
     el.scrollTo({ ...target, behavior: "smooth" });
   }, [focus, page, pageIndex, effectiveZoom]);
+
+  const viewHere = planView && planView.page_index === pageIndex ? planView : null;
+
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || !page || !viewHere) return;
+    const shown = unionBox(elements, new Set(viewHere.element_ids));
+    if (!shown) return;
+    const target = scrollToCenter(
+      shown,
+      { width: page.width_px, height: page.height_px },
+      el.clientWidth * effectiveZoom,
+      { width: el.clientWidth, height: el.clientHeight },
+    );
+    el.scrollTo({ ...target, behavior: "smooth" });
+  }, [viewHere, elements, page, effectiveZoom]);
 
   if (!detail) return <div className="viewer-empty">Loading drawing…</div>;
   if (!page) return <div className="viewer-empty">This document has no drawing pages.</div>;
@@ -138,6 +156,15 @@ export function DrawingViewer(props: Props) {
           </button>
         </div>
       </div>
+      {viewHere && (
+        <div className="focus-banner">
+          <span className="badge badge-dark">Shown by the assistant</span>
+          <span className="body-sm">{viewHere.caption ?? viewHere.line?.label ?? ""}</span>
+          <button type="button" className="btn btn-subtle btn-sm" onClick={onClearFocus}>
+            Clear
+          </button>
+        </div>
+      )}
       {focus && focusIsHere(focus, pageIndex) && (
         <div className="focus-banner">
           <span className={`badge ${focus.verified ? "badge-ok" : "badge-warn"}`}>
@@ -163,11 +190,29 @@ export function DrawingViewer(props: Props) {
             <PlanLayer
               elements={elements}
               visible={layers}
-              highlighted={new Set(highlightIds ?? [])}
+              highlighted={new Set([...(highlightIds ?? []), ...(viewHere?.element_ids ?? [])])}
               selectedId={pinned?.id ?? null}
               onHover={setHovered}
               onSelect={setSelected}
             />
+            {viewHere?.line && (
+              <g className="measure">
+                <line
+                  x1={viewHere.line.from[0]}
+                  y1={viewHere.line.from[1]}
+                  x2={viewHere.line.to[0]}
+                  y2={viewHere.line.to[1]}
+                  vectorEffect="non-scaling-stroke"
+                />
+                <text
+                  x={(viewHere.line.from[0] + viewHere.line.to[0]) / 2}
+                  y={(viewHere.line.from[1] + viewHere.line.to[1]) / 2}
+                  fontSize={Math.max(14, w / 70)}
+                >
+                  {viewHere.line.label}
+                </text>
+              </g>
+            )}
             {box && (
               <>
                 <defs>

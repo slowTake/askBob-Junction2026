@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Citation } from "../api/types";
+import type { Citation, PlanView } from "../api/types";
 import type { Turn } from "../hooks/useAsk";
 import { AnswerCard } from "./AnswerCard";
 
@@ -17,9 +17,11 @@ interface Props {
   scopeLabel: string | null; // selected document name, if any
   onAsk: (question: string, onlySelected: boolean) => void;
   onCitation: (citation: Citation) => void;
+  onShowView: (view: PlanView) => void;
 }
 
-export function AskPanel({ turns, busy, canAsk, scopeLabel, onAsk, onCitation }: Props) {
+export function AskPanel(props: Props) {
+  const { turns, busy, canAsk, scopeLabel, onAsk, onCitation, onShowView } = props;
   const [question, setQuestion] = useState("");
   const [onlySelected, setOnlySelected] = useState(false);
   const end = useRef<HTMLDivElement>(null);
@@ -57,7 +59,13 @@ export function AskPanel({ turns, busy, canAsk, scopeLabel, onAsk, onCitation }:
           </div>
         )}
         {turns.map((t, i) => (
-          <AnswerCard key={t.id} turn={t} latest={i === turns.length - 1} onCitation={onCitation} />
+          <AnswerCard
+            key={t.id}
+            turn={t}
+            latest={i === turns.length - 1}
+            onCitation={onCitation}
+            onShowView={onShowView}
+          />
         ))}
         <div ref={end} />
       </div>

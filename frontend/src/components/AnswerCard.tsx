@@ -1,4 +1,4 @@
-import type { Citation } from "../api/types";
+import type { Citation, PlanView } from "../api/types";
 import type { Turn } from "../hooks/useAsk";
 import { describeStep } from "../lib/steps";
 
@@ -6,10 +6,11 @@ interface Props {
   turn: Turn;
   latest: boolean;
   onCitation: (citation: Citation) => void;
+  onShowView: (view: PlanView) => void;
 }
 
 /** The latest answer is a card with an accent rule; older turns fall back to plain text. */
-export function AnswerCard({ turn, latest, onCitation }: Props) {
+export function AnswerCard({ turn, latest, onCitation, onShowView }: Props) {
   const { answer, error, steps, pending } = turn;
   return (
     <article className={`answer-card${latest ? " is-latest" : ""}`}>
@@ -51,6 +52,15 @@ export function AnswerCard({ turn, latest, onCitation }: Props) {
                 </button>
               ))}
             </div>
+          )}
+          {turn.views.length > 0 && (
+            <button
+              type="button"
+              className="citation"
+              onClick={() => onShowView(turn.views[turn.views.length - 1])}
+            >
+              Show on plan
+            </button>
           )}
           {answer.caveats && <p className="caveats">{answer.caveats}</p>}
         </>

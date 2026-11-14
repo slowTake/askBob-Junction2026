@@ -1,6 +1,6 @@
 import { describe as group, expect, it } from "vitest";
 import type { ElementInfo } from "../api/types";
-import { describe, drawOrder, layerOf, shapeOf } from "./planLayer";
+import { describe, drawOrder, layerOf, shapeOf, unionBox } from "./planLayer";
 
 function el(over: Partial<ElementInfo>): ElementInfo {
   return {
@@ -65,5 +65,17 @@ group("planLayer", () => {
     });
     const door = el({ kind: "door", label: "09", value_mm: 900, source: "ocr", confidence: 0.62 });
     expect(describe(door).details).toEqual(["900 mm wide", "ocr, 62% sure"]);
+  });
+});
+
+group("unionBox", () => {
+  it("frames the chosen elements only", () => {
+    const els = [
+      el({ id: "a", bbox: [0, 0, 10, 10] }),
+      el({ id: "b", bbox: [20, 5, 30, 40] }),
+      el({ id: "c", bbox: [100, 100, 110, 110] }),
+    ];
+    expect(unionBox(els, new Set(["a", "b"]))).toEqual([0, 0, 30, 40]);
+    expect(unionBox(els, new Set(["zzz"]))).toBeNull();
   });
 });
