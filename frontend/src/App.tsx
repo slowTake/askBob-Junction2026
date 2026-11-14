@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api/client";
 import type { Citation, ElementInfo, PlanView } from "./api/types";
 import { AskPanel } from "./components/AskPanel";
@@ -12,8 +12,10 @@ import { useAsk } from "./hooks/useAsk";
 import { useDocuments } from "./hooks/useDocuments";
 import { useStoredFlag } from "./hooks/useStoredFlag";
 import { useTheme } from "./hooks/useTheme";
+import { conversationShown } from "./lib/conversations";
 import { pageIndexFor, type PageRef } from "./lib/pages";
-import { describe } from "./lib/planLayer";
+import { questionContext } from "./lib/question";
+import { aboutLabel } from "./lib/selection";
 import type { PlanTarget } from "./lib/target";
 import { availableViews, pickView, type View } from "./lib/views";
 import { viewerErrorMessage } from "./lib/webgl";
@@ -31,7 +33,7 @@ export function App() {
   const [view, setView] = useState<View>("drawing");
   const [page, setPage] = useState<PageRef | null>(null);
   const [target, setTarget] = useState<PlanTarget | null>(null);
-  const [about, setAbout] = useState<ElementInfo | null>(null);
+  const [about, setAbout] = useState<ElementInfo[]>([]); // selected on the plan to ask about
   const [focusSignal, setFocusSignal] = useState(0);
 
   // The agent drives the plan: open its document and page, then frame what it shows.
@@ -41,28 +43,54 @@ export function App() {
     setView("drawing");
     setTarget({ kind: "view", view: v });
   }, []);
-  const asker = useAsk(showView);
+  // An answer's views move the plan only while its conversation is on screen: an answer
+  // still running for another document must not take over the plan (PR #92 review).
+  // Its views stay as buttons on the answer.
+  const chatKeyRef = useRef<string | null>(null);
+  const showAnswerView = useCallback(
+    (v: PlanView, key: string) => {
+      if (key === chatKeyRef.current) showView(v);
+    },
+    [showView],
+  );
+  const asker = useAsk(showAnswerView);
 
   const selected = docs.documents.find((d) => d.id === selectedId) ?? docs.documents[0] ?? null;
+  // The conversation on screen: the one picked in the list or last asked in, else the open
+  // document's (see conversationShown).
+  const [chatFor, setChatFor] = useState<string | null>(null);
+  const chatKey = conversationShown(
+    chatFor,
+    selected?.id ?? null,
+    docs.documents.map((d) => d.id),
+  );
+  useEffect(() => {
+    chatKeyRef.current = chatKey;
+  }, [chatKey]);
+  const chatDoc = docs.documents.find((d) => d.id === chatKey) ?? null;
   const ready = docs.documents.filter((d) => d.status === "ready");
   const views = selected ? availableViews(selected) : [];
   const activeView = pickView(view, views);
   const pageIndex = pageIndexFor(page, selected?.id ?? null);
 
+  // Each document has its own conversation. Picking one in the list (or uploading one)
+  // shows its conversation; a new upload starts empty. When the agent or a citation opens
+  // another document, the conversation stays: showView and showCitation don't change it.
+  const select = (id: string) => {
+    setChatFor(id);
+    setSelectedId(id);
+    setPage(null);
+    setTarget(null);
+    setAbout([]);
+  };
+
   const upload = (files: File[]) => {
     files.forEach(
       (file) =>
         void docs.upload(file).then((doc) => {
-          if (doc) setSelectedId(doc.id);
+          if (doc) select(doc.id);
         }),
     );
-  };
-
-  const select = (id: string) => {
-    setSelectedId(id);
-    setPage(null);
-    setTarget(null);
-    setAbout(null);
   };
 
   const showCitation = (c: Citation) => {
@@ -77,25 +105,31 @@ export function App() {
     }
   };
 
-  const askAbout = (el: ElementInfo) => {
-    setAbout(el);
+  // Asking about elements selected on a plan is a question about that plan's document.
+  const askAbout = (elements: ElementInfo[]) => {
+    if (elements.length > 0) setChatFor(elements[0].document_id);
+    setAbout(elements);
     setFocusSignal((n) => n + 1);
   };
 
   const ask = (question: string, onlySelected: boolean) => {
+    if (!chatKey) return;
+    // Pin it: the agent's views and clicked sources may open another document meanwhile.
+    setChatFor(chatKey);
     const onPlan = selected?.status === "ready" && activeView === "drawing";
-    void asker.ask(question, {
-      documentIds: onlySelected && selected ? [selected.id] : [],
-      context: selected
-        ? {
-            document_id: selected.id,
-            page_index: onPlan ? pageIndex : null,
-            element_id: about?.document_id === selected.id ? about.id : null,
-          }
-        : null,
-      about: about ? `${about.kind.replaceAll("_", " ")} ${describe(about).title}` : null,
+    const { documentIds, context } = questionContext({
+      chatDocId: chatKey,
+      openDocId: selected?.id ?? null,
+      pageOnScreen: onPlan ? pageIndex : null,
+      about,
+      onlyThisDocument: onlySelected,
     });
-    setAbout(null);
+    void asker.ask(chatKey, question, {
+      documentIds,
+      context,
+      about: aboutLabel(about.filter((e) => e.document_id === chatKey)),
+    });
+    setAbout([]);
   };
 
   const toast = docs.error && (
@@ -110,7 +144,7 @@ export function App() {
   if (docs.loaded && docs.documents.length === 0) {
     return (
       <>
-        <NavBar onFiles={upload} context={null} theme={theme} onToggleTheme={toggleTheme} />
+        <NavBar onFiles={upload} theme={theme} onToggleTheme={toggleTheme} />
         {toast}
         <EmptyState onFiles={upload} />
       </>
@@ -121,7 +155,6 @@ export function App() {
     <>
       <NavBar
         onFiles={upload}
-        context={selected?.filename ?? null}
         theme={theme}
         onToggleTheme={toggleTheme}
         sidebarOpen={sidebarOpen}
@@ -135,14 +168,15 @@ export function App() {
             progress={docs.progress}
             workers={docs.workers}
             selectedId={selected?.id ?? null}
+            ifcUrl={selected?.has_ifc ? api.modelIfcUrl(selected.id) : null}
             onSelect={select}
-            onDelete={(id) => void docs.remove(id)}
+            onDelete={(id) => void docs.remove(id).then((removed) => removed && asker.clear(id))}
           />
         )}
         <section className="stage">
           {selected && (
             <>
-              {(views.length > 1 || selected.has_ifc) && (
+              {(views.length > 1 || (!sidebarOpen && selected.has_ifc)) && (
                 <div className="stage-header">
                   <div className="tabs" role="tablist">
                     {views.length > 1 &&
@@ -159,7 +193,8 @@ export function App() {
                         </button>
                       ))}
                   </div>
-                  {selected.has_ifc && (
+                  {/* In the documents panel when it's open; here while it's collapsed. */}
+                  {!sidebarOpen && selected.has_ifc && (
                     <a className="btn btn-secondary btn-sm" href={api.modelIfcUrl(selected.id)}>
                       Download IFC
                     </a>
@@ -203,18 +238,14 @@ export function App() {
           )}
         </section>
         <AskPanel
-          turns={asker.turns}
-          busy={asker.busy}
+          turns={asker.turnsFor(chatKey)}
+          busy={asker.busyFor(chatKey)}
           canAsk={ready.length > 0}
-          scopeLabel={selected?.status === "ready" ? selected.filename : null}
-          about={about ? `${about.kind.replaceAll("_", " ")} ${describe(about).title}` : null}
+          scopeLabel={chatDoc?.status === "ready" ? chatDoc.filename : null}
+          about={aboutLabel(about)}
           focusSignal={focusSignal}
-          onClearAbout={() => setAbout(null)}
+          onClearAbout={() => setAbout([])}
           onAsk={ask}
-          onClear={() => {
-            asker.clear();
-            setTarget(null);
-          }}
           onCitation={showCitation}
           onShowView={showView}
         />

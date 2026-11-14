@@ -6,9 +6,9 @@ interface Props {
   elements: ElementInfo[];
   visible: Set<LayerKey>;
   highlighted: Set<string>; // element ids lit up by the agent or a citation
-  selectedId: string | null;
+  selectedIds: ReadonlySet<string>; // keep its identity while it doesn't change (memo)
   onHover: (el: ElementInfo | null) => void;
-  onSelect: (el: ElementInfo | null) => void;
+  onSelect: (el: ElementInfo, additive: boolean) => void; // additive: Shift held
 }
 
 /**
@@ -21,7 +21,7 @@ export const PlanLayer = memo(function PlanLayer({
   elements,
   visible,
   highlighted,
-  selectedId,
+  selectedIds,
   onHover,
   onSelect,
 }: Props) {
@@ -39,7 +39,7 @@ export const PlanLayer = memo(function PlanLayer({
           `plan-${layer}`,
           shown ? "is-shown" : "is-hit-area",
           lit ? "is-highlighted" : "",
-          el.id === selectedId ? "is-selected" : "",
+          selectedIds.has(el.id) ? "is-selected" : "",
         ].join(" ");
         const handlers = {
           className,
@@ -47,7 +47,7 @@ export const PlanLayer = memo(function PlanLayer({
           onMouseLeave: () => onHover(null),
           onClick: (e: React.MouseEvent) => {
             e.stopPropagation();
-            onSelect(el.id === selectedId ? null : el);
+            onSelect(el, e.shiftKey);
           },
         };
         return shape.type === "polygon" ? (

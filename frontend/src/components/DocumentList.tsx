@@ -6,12 +6,13 @@ interface Props {
   progress: Record<string, IngestProgress>;
   workers: number | null;
   selectedId: string | null;
+  ifcUrl: string | null; // the selected document's IFC model, when it has one
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
 export function DocumentList(props: Props) {
-  const { documents, progress, workers, selectedId, onSelect, onDelete } = props;
+  const { documents, progress, workers, selectedId, ifcUrl, onSelect, onDelete } = props;
   return (
     <nav className="sidebar" aria-label="Documents">
       <h2 className="eyebrow">Documents</h2>
@@ -59,6 +60,13 @@ export function DocumentList(props: Props) {
           );
         })}
       </ul>
+      {ifcUrl && (
+        <div className="sidebar-footer">
+          <a className="btn btn-secondary btn-sm" href={ifcUrl}>
+            Download IFC
+          </a>
+        </div>
+      )}
     </nav>
   );
 }

@@ -34,3 +34,11 @@ export function describeStep(tool: string, input: Record<string, unknown>): stri
       return tool;
   }
 }
+
+/** The one status line shown while the agent works: its latest step. */
+export function currentStatus(
+  steps: readonly { tool: string; input: Record<string, unknown> }[],
+): string {
+  const last = steps.at(-1);
+  return last ? describeStep(last.tool, last.input) : "Thinking";
+}
