@@ -1,5 +1,6 @@
 /** Pan and zoom for the plan. A camera maps page pixels to viewport pixels:
- * screen = page * scale + (x, y). 100 % zoom means "the whole page fits". */
+ * screen = page * scale + (x, y). 100 % zoom means "as Fit shows it": the drawing,
+ * or the whole page when its extent is unknown. */
 
 export type BBox = [number, number, number, number];
 
@@ -37,14 +38,22 @@ export function fitScale(page: Size, viewport: Size): number {
   return Math.min(width / page.width, height / page.height);
 }
 
-export function limits(page: Size, viewport: Size): Limits {
-  const fit = fitScale(page, viewport);
-  return { min: fit * MIN_OF_FIT, max: Math.max(MAX_SCALE, fit) };
+/** Zoom range: out to a quarter of Fit, in to MAX_SCALE. `fitted` is the Fit scale,
+ * the whole page unless Fit frames only the drawing. */
+export function limits(page: Size, viewport: Size, fitted = fitScale(page, viewport)): Limits {
+  return { min: fitted * MIN_OF_FIT, max: Math.max(MAX_SCALE, fitted) };
 }
 
 /** The whole page, centred. */
 export function fitPage(page: Size, viewport: Size): Camera {
   return centreOn([0, 0, page.width, page.height], fitScale(page, viewport), viewport);
+}
+
+/** Fit: the drawing itself (its ink, see lib/ink.ts) rather than the whole sheet with its
+ * paper margins. A small drawing keeps some page around it (see frameBox); without a
+ * content box, the whole page. */
+export function fitContent(content: BBox | null, page: Size, viewport: Size): Camera {
+  return content ? frameBox(content, page, viewport) : fitPage(page, viewport);
 }
 
 /**
@@ -81,9 +90,9 @@ export function clampPan(camera: Camera, page: Size, viewport: Size): Camera {
   };
 }
 
-/** Zoom label: 100 % when the whole page fits the viewport. */
-export function zoomPercent(camera: Camera, page: Size, viewport: Size): number {
-  return Math.round((camera.scale / fitScale(page, viewport)) * 100);
+/** Zoom label: 100 % at the Fit scale `fitted`. */
+export function zoomPercent(camera: Camera, fitted: number): number {
+  return Math.round((camera.scale / fitted) * 100);
 }
 
 /** Keep the middle of the view in place when the viewport changes size. */

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import type { DocumentDetail, ElementInfo } from "../api/types";
 import { useCamera } from "../hooks/useCamera";
+import { useInkBox } from "../hooks/useInkBox";
 import { zoomPercent } from "../lib/camera";
 import type { LayerKey } from "../lib/planLayer";
 import { onPage, type PlanTarget, type TargetOnPage } from "../lib/target";
@@ -58,9 +59,11 @@ export function DrawingViewer(props: Props) {
   const w = page?.width_px ?? 0;
   const h = page?.height_px ?? 0;
   const size = useMemo(() => (w && h ? { width: w, height: h } : null), [w, h]);
+  const src = api.pageImageUrl(documentId, pageIndex);
+  // Fit frames the drawing's ink, not the sheet's paper margins (#83).
+  const content = useInkBox(src, size);
   const {
     viewportRef,
-    viewport,
     camera,
     ready: laidOut,
     animated,
@@ -69,8 +72,9 @@ export function DrawingViewer(props: Props) {
     zoomIn,
     zoomOut,
     fit,
+    fitted,
     frame,
-  } = useCamera(size, `${documentId}:${pageIndex}`);
+  } = useCamera(size, `${documentId}:${pageIndex}`, content);
 
   // Elements of another page never show on this one, even for a moment.
   const ready = loaded?.page === pageIndex;
@@ -107,11 +111,10 @@ export function DrawingViewer(props: Props) {
     [],
   );
 
-  const src = api.pageImageUrl(documentId, pageIndex);
   const pinned = selected && page && selected.page_id === page.id ? selected : null;
   const hover = hovered && page && hovered.page_id === page.id ? hovered : null;
   const card = pinned ?? hover;
-  const percent = camera && size && viewport ? zoomPercent(camera, size, viewport) : 100;
+  const percent = camera && fitted ? zoomPercent(camera, fitted) : 100;
 
   return (
     <div className="viewer">

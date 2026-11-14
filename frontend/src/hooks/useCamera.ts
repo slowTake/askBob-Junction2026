@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type React from "react";
 import {
   clampPan,
-  fitPage,
+  fitContent,
   frameBox,
   limits,
   resize,
@@ -26,8 +26,10 @@ interface Drag {
 /**
  * Pan and zoom for one page: wheel zooms at the cursor, dragging pans, + - 0 keys.
  * `pageKey` identifies the page; a new page starts fitted to the viewport.
+ * `content` is the part of the page the drawing covers (see contentBox); fitting frames
+ * it, or the whole page while it is null. Keep its identity stable (useMemo).
  */
-export function useCamera(page: Size | null, pageKey: string) {
+export function useCamera(page: Size | null, pageKey: string, content: BBox | null = null) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Size | null>(null);
   const [camera, setCamera] = useState<Camera | null>(null);
@@ -36,6 +38,7 @@ export function useCamera(page: Size | null, pageKey: string) {
   // While nobody has panned or zoomed, the page stays fitted as the panels settle or resize.
   const [autoFit, setAutoFit] = useState(true);
   const [fitSize, setFitSize] = useState<Size | null>(null);
+  const [fitBox, setFitBox] = useState<BBox | null>(null);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<Drag | null>(null);
   const swallowClick = useRef(false);
@@ -45,12 +48,16 @@ export function useCamera(page: Size | null, pageKey: string) {
     setFittedFor(pageKey);
     setAutoFit(true);
     setFitSize(viewport);
+    setFitBox(content);
     setAnimated(false);
-    setCamera(fitPage(page, viewport));
-  } else if (page && viewport && autoFit && fitSize !== viewport) {
+    setCamera(fitContent(content, page, viewport));
+  } else if (page && viewport && autoFit && (fitSize !== viewport || fitBox !== content)) {
+    // The panels resized, or the elements arrived after the page: still fitted, so refit.
+    // Glide when only the content changed, so the view doesn't jump.
+    setAnimated(fitSize === viewport);
     setFitSize(viewport);
-    setAnimated(false);
-    setCamera(fitPage(page, viewport));
+    setFitBox(content);
+    setCamera(fitContent(content, page, viewport));
   }
 
   useEffect(() => {
@@ -69,10 +76,13 @@ export function useCamera(page: Size | null, pageKey: string) {
     return () => observer.disconnect();
   }, []);
 
+  // The Fit scale: 100 % on the zoom label, and the zoom limits are relative to it.
+  const fitted = page && viewport ? fitContent(content, page, viewport).scale : null;
+
   useEffect(() => {
     const el = viewportRef.current;
-    if (!el || !page || !viewport) return;
-    const lim = limits(page, viewport);
+    if (!el || !page || !viewport || fitted === null) return;
+    const lim = limits(page, viewport, fitted);
     const onWheel = (e: WheelEvent) => {
       e.preventDefault(); // also stops a trackpad pinch from zooming the whole browser page
       const rect = el.getBoundingClientRect();
@@ -86,24 +96,25 @@ export function useCamera(page: Size | null, pageKey: string) {
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [page, viewport]);
+  }, [page, viewport, fitted]);
 
   const ready = page !== null && viewport !== null && camera !== null;
 
   const zoomBy = (factor: number) => {
-    if (!page || !viewport) return;
+    if (!page || !viewport || fitted === null) return;
     const centre = { x: viewport.width / 2, y: viewport.height / 2 };
     setAutoFit(false);
     setAnimated(true);
-    setCamera((c) => (c ? zoomAt(c, factor, centre, limits(page, viewport)) : c));
+    setCamera((c) => (c ? zoomAt(c, factor, centre, limits(page, viewport, fitted)) : c));
   };
 
   const fit = () => {
     if (!page || !viewport) return;
     setAutoFit(true);
     setFitSize(viewport);
+    setFitBox(content);
     setAnimated(true);
-    setCamera(fitPage(page, viewport));
+    setCamera(fitContent(content, page, viewport));
   };
 
   const frame = (box: BBox) => {
@@ -170,6 +181,7 @@ export function useCamera(page: Size | null, pageKey: string) {
     zoomIn: () => zoomBy(STEP),
     zoomOut: () => zoomBy(1 / STEP),
     fit,
+    fitted,
     frame,
   };
 }
