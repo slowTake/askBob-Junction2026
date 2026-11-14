@@ -155,21 +155,22 @@ export function scaleBar(page: Size, mmPerPx: number | null): ScaleBar | null {
 function roomArea(room: RedrawElement, printedAreas: [number, number][]): string | null {
   const m2 = room.properties.area_m2;
   if (!isFiniteNumber(m2)) return null;
-  const extent = polygonExtent(room.properties.polygon_px);
-  if (extent && printedAreas.some(([x, y]) => inside(extent, x, y))) return null;
+  const outline = polygonPoints(room.properties.polygon_px)
+    ? (room.properties.polygon_px as [number, number][])
+    : null;
+  if (outline && printedAreas.some(([x, y]) => insidePolygon(outline, x, y))) return null;
   return formatArea(m2);
 }
 
-function polygonExtent(raw: unknown): BBox | null {
-  if (polygonPoints(raw) === null) return null;
-  const pts = raw as [number, number][];
-  const xs = pts.map((p) => p[0]);
-  const ys = pts.map((p) => p[1]);
-  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
-}
-
-function inside(box: BBox, x: number, y: number): boolean {
-  return x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3];
+/** Ray casting: count edge crossings of a horizontal ray from (x, y) to the right. */
+function insidePolygon(poly: [number, number][], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 function center(b: BBox): [number, number] {

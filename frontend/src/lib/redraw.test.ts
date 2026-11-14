@@ -116,6 +116,34 @@ describe("buildCleanSheet", () => {
     expect(shape.title).toBe("KPH"); // no long name: the code doubles as the tooltip
   });
 
+  it("tests printed areas against the room's outline, not its bounding box", () => {
+    // An L: the 100..200 × 100..200 corner of its bounding box belongs to a neighbour.
+    const ell = [
+      [0, 0],
+      [200, 0],
+      [200, 100],
+      [100, 100],
+      [100, 200],
+      [0, 200],
+    ];
+    const room = el({
+      id: "r1",
+      kind: "room",
+      label: "OH",
+      bbox: [30, 30, 70, 50],
+      properties: { polygon_px: ell, area_m2: 30 },
+    });
+    // Centre (150, 150): inside the bounding box, outside the L, so the neighbour's.
+    const neighbours = el({ id: "a1", kind: "area", label: "9.0 m2", bbox: [130, 140, 170, 160] });
+    // Centre (50, 150): inside the L's lower arm, so this room prints its own.
+    const own = el({ id: "a2", kind: "area", label: "30.0 m2", bbox: [30, 140, 70, 160] });
+    expect(buildCleanSheet([room, neighbours]).rooms[0].area).toBe("30.0 m²");
+    const sheet = buildCleanSheet([room, own]);
+    expect(sheet.rooms[0].area).toBeNull();
+    // The printed area is still drawn, as a label.
+    expect(sheet.labels.map((l) => l.text)).toEqual(["30.0 m2"]);
+  });
+
   it("hides the computed area when the drawing prints its own area inside the room", () => {
     const room = el({
       id: "r1",
