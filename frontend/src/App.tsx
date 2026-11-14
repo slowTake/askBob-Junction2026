@@ -114,7 +114,7 @@ export function App() {
   if (docs.loaded && docs.documents.length === 0) {
     return (
       <>
-        <NavBar onFiles={upload} context={null} theme={theme} onToggleTheme={toggleTheme} />
+        <NavBar onFiles={upload} theme={theme} onToggleTheme={toggleTheme} />
         {toast}
         <EmptyState onFiles={upload} />
       </>
@@ -125,7 +125,6 @@ export function App() {
     <>
       <NavBar
         onFiles={upload}
-        context={selected?.filename ?? null}
         theme={theme}
         onToggleTheme={toggleTheme}
         sidebarOpen={sidebarOpen}
@@ -139,6 +138,7 @@ export function App() {
             progress={docs.progress}
             workers={docs.workers}
             selectedId={selected?.id ?? null}
+            ifcUrl={selected?.has_ifc ? api.modelIfcUrl(selected.id) : null}
             onSelect={select}
             onDelete={(id) => void docs.remove(id)}
           />
@@ -146,28 +146,22 @@ export function App() {
         <section className="stage">
           {selected && (
             <>
-              {(views.length > 1 || selected.has_ifc) && (
+              {views.length > 1 && (
                 <div className="stage-header">
                   <div className="tabs" role="tablist">
-                    {views.length > 1 &&
-                      views.map((v) => (
-                        <button
-                          key={v}
-                          type="button"
-                          role="tab"
-                          aria-selected={activeView === v}
-                          className={`tab${activeView === v ? " is-active" : ""}`}
-                          onClick={() => setView(v)}
-                        >
-                          {v === "drawing" ? "Plan" : "3D model"}
-                        </button>
-                      ))}
+                    {views.map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        role="tab"
+                        aria-selected={activeView === v}
+                        className={`tab${activeView === v ? " is-active" : ""}`}
+                        onClick={() => setView(v)}
+                      >
+                        {v === "drawing" ? "Plan" : "3D model"}
+                      </button>
+                    ))}
                   </div>
-                  {selected.has_ifc && (
-                    <a className="btn btn-secondary btn-sm" href={api.modelIfcUrl(selected.id)}>
-                      Download IFC
-                    </a>
-                  )}
                 </div>
               )}
               {selected.status !== "ready" ? (
