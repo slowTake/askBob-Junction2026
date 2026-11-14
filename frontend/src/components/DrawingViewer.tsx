@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { Citation, DocumentDetail, ElementInfo } from "../api/types";
+import { LAYERS, type LayerKey } from "../lib/planLayer";
+import { ElementCard } from "./ElementCard";
+import { PlanLayer } from "./PlanLayer";
 import { focusBox, focusIsHere } from "../lib/focus";
 import { scrollToCenter } from "../lib/viewport";
 import { focusZoom, stepZoom } from "../lib/zoom";
@@ -11,18 +14,23 @@ interface Props {
   onPageChange: (index: number) => void;
   focus: Citation | null;
   onClearFocus: () => void;
+  highlightIds?: string[]; // elements to light up (agent or citation)
 }
+
+const DEFAULT_LAYERS: LayerKey[] = ["openings", "fixtures"];
 
 const FOCUS_PAD_PX = 12;
 
 /** Page image with an SVG overlay in page-pixel coordinates: bboxes need no conversion. */
 export function DrawingViewer(props: Props) {
-  const { documentId, pageIndex, onPageChange, focus, onClearFocus } = props;
+  const { documentId, pageIndex, onPageChange, focus, onClearFocus, highlightIds } = props;
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [zoom, setZoom] = useState(1);
   const [zoomedFor, setZoomedFor] = useState<Citation | null>(null);
-  const [showElements, setShowElements] = useState(false);
+  const [layers, setLayers] = useState<Set<LayerKey>>(() => new Set(DEFAULT_LAYERS));
   const [elements, setElements] = useState<ElementInfo[]>([]);
+  const [hovered, setHovered] = useState<ElementInfo | null>(null);
+  const [selected, setSelected] = useState<ElementInfo | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,7 +45,6 @@ export function DrawingViewer(props: Props) {
   }, [documentId]);
 
   useEffect(() => {
-    if (!showElements) return;
     let live = true;
     api.elements(documentId, pageIndex).then(
       (els) => live && setElements(els),
@@ -46,7 +53,7 @@ export function DrawingViewer(props: Props) {
     return () => {
       live = false;
     };
-  }, [documentId, pageIndex, showElements]);
+  }, [documentId, pageIndex]);
 
   const page = detail?.pages.find((p) => p.index === pageIndex) ?? null;
   // A newly focused citation zooms in once; after that − and + move freely.
@@ -72,6 +79,9 @@ export function DrawingViewer(props: Props) {
   if (!detail) return <div className="viewer-empty">Loading drawing…</div>;
   if (!page) return <div className="viewer-empty">This document has no drawing pages.</div>;
 
+  // A pinned card belongs to its page; switching pages hides it.
+  const pinned = selected && selected.page_id === page.id ? selected : null;
+  const shown = pinned ?? hovered;
   const w = page.width_px;
   const h = page.height_px;
   const box = focusBox(focus, pageIndex);
@@ -89,7 +99,7 @@ export function DrawingViewer(props: Props) {
             ‹
           </button>
           <span className="body-sm">
-            Page {pageIndex + 1} of {detail.pages.length}
+            {page.label ?? `Page ${pageIndex + 1}`} ({pageIndex + 1} of {detail.pages.length})
           </span>
           <button
             type="button"
@@ -101,13 +111,16 @@ export function DrawingViewer(props: Props) {
           </button>
         </div>
         <div className="chip-row">
-          <button
-            type="button"
-            className={`chip chip-toggle${showElements ? " is-on" : ""}`}
-            onClick={() => setShowElements((s) => !s)}
-          >
-            Extracted elements
-          </button>
+          {LAYERS.map((layer) => (
+            <button
+              key={layer.key}
+              type="button"
+              className={`chip chip-toggle${layers.has(layer.key) ? " is-on" : ""}`}
+              onClick={() => setLayers((current) => toggled(current, layer.key))}
+            >
+              {layer.label}
+            </button>
+          ))}
           <button
             type="button"
             className="btn btn-subtle btn-sm"
@@ -136,26 +149,25 @@ export function DrawingViewer(props: Props) {
           </button>
         </div>
       )}
+      {shown && (
+        <ElementCard element={shown} pinned={pinned !== null} onClose={() => setSelected(null)} />
+      )}
       <div className="sheet-scroller" ref={scroller}>
         <div className="sheet" style={{ width: `${effectiveZoom * 100}%` }}>
           <img src={api.pageImageUrl(documentId, pageIndex)} alt={`Page ${pageIndex + 1}`} />
-          <svg viewBox={`0 0 ${w} ${h}`} className="sheet-overlay" aria-hidden>
-            {showElements &&
-              elements.map((el) =>
-                el.bbox ? (
-                  <rect
-                    key={el.id}
-                    className={`el el-${el.kind}`}
-                    x={el.bbox[0]}
-                    y={el.bbox[1]}
-                    width={el.bbox[2] - el.bbox[0]}
-                    height={el.bbox[3] - el.bbox[1]}
-                    vectorEffect="non-scaling-stroke"
-                  >
-                    <title>{`${el.kind}: ${el.name ?? el.label ?? ""} (${el.source})`}</title>
-                  </rect>
-                ) : null,
-              )}
+          <svg
+            viewBox={`0 0 ${w} ${h}`}
+            className="sheet-overlay"
+            onClick={() => setSelected(null)}
+          >
+            <PlanLayer
+              elements={elements}
+              visible={layers}
+              highlighted={new Set(highlightIds ?? [])}
+              selectedId={pinned?.id ?? null}
+              onHover={setHovered}
+              onSelect={setSelected}
+            />
             {box && (
               <>
                 <defs>
@@ -188,4 +200,11 @@ export function DrawingViewer(props: Props) {
       </div>
     </div>
   );
+}
+
+function toggled(current: Set<LayerKey>, key: LayerKey): Set<LayerKey> {
+  const next = new Set(current);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  return next;
 }

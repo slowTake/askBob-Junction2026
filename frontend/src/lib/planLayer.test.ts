@@ -1,0 +1,69 @@
+import { describe as group, expect, it } from "vitest";
+import type { ElementInfo } from "../api/types";
+import { describe, drawOrder, layerOf, shapeOf } from "./planLayer";
+
+function el(over: Partial<ElementInfo>): ElementInfo {
+  return {
+    id: "e",
+    document_id: "d",
+    page_id: "p",
+    kind: "room",
+    text: null,
+    label: null,
+    name: null,
+    value_mm: null,
+    bbox: [10, 20, 50, 80],
+    ifc_guid: null,
+    properties: {},
+    source: "dxf",
+    confidence: 1,
+    ...over,
+  };
+}
+
+group("planLayer", () => {
+  it("assigns kinds to layers", () => {
+    expect(layerOf("door")).toBe("openings");
+    expect(layerOf("room_number")).toBe("labels");
+    expect(layerOf("storey")).toBeNull();
+  });
+
+  it("uses the room outline when present, else the box", () => {
+    const outline = el({
+      properties: {
+        polygon_px: [
+          [0, 0],
+          [10, 0],
+          [10, 5],
+        ],
+      },
+    });
+    expect(shapeOf(outline)).toEqual({ type: "polygon", points: "0,0 10,0 10,5" });
+    // bbox [10, 20, 50, 80] -> x 10, y 20, 40 wide, 60 high
+    expect(shapeOf(el({}))).toEqual({ type: "rect", x: 10, y: 20, width: 40, height: 60 });
+    expect(shapeOf(el({ bbox: null }))).toBeNull();
+  });
+
+  it("draws apartments, then rooms, then everything else", () => {
+    const order = drawOrder([
+      el({ id: "d", kind: "door" }),
+      el({ id: "r" }),
+      el({ id: "u", kind: "unit" }),
+    ]);
+    expect(order.map((e) => e.id)).toEqual(["u", "r", "d"]);
+  });
+
+  it("describes a room and a door", () => {
+    const room = el({
+      text: "Zimmer",
+      name: "room (Zimmer) 2.01",
+      properties: { number: "2.01", area_m2: 15.61, unit: "A" },
+    });
+    expect(describe(room)).toEqual({
+      title: "Zimmer",
+      details: ["room (Zimmer) 2.01", "No. 2.01", "15.61 m²", "Apartment A", "dxf"],
+    });
+    const door = el({ kind: "door", label: "09", value_mm: 900, source: "ocr", confidence: 0.62 });
+    expect(describe(door).details).toEqual(["900 mm wide", "ocr, 62% sure"]);
+  });
+});
