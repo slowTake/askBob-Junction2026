@@ -30,9 +30,9 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
 | D-025 | 2026-11-14 | The server counts: `count_elements`, not the model adding up search results | Accepted |
 | D-025 | 2026-11-14 | Upscale is one on-demand vision pass per page; the redraw shares the page's coordinates | Accepted |
-| D-026 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Accepted |
-
 | D-026 | 2026-11-14 | The agent knows its step budget, and its last turn is the answer | Accepted |
+| D-027 | 2026-11-14 | On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured | Superseded in part by D-028 |
+| D-028 | 2026-11-14 | Sketch check rounds show the draft in red over the photo, and the model is told where the ink is | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -407,9 +407,9 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 **Consequences:** The redraw is only as good as extraction plus one vision pass: a vision model's boxes are approximate and can still miss elements, and doors and windows are boxes, not swing symbols. Low-resolution scans give tiny text at fit zoom. A re-ingest replaces the pages, so a page has to be upscaled again. The 0.6 text cut-off and the 1/100 text size are first guesses from one cubicasa page.
 
-## D-026: On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured
+## D-027: On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured
 
-**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-025 (for raster image pages only)
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-028 (how a check round shows the draft) · **Refines:** D-025 (for raster image pages only)
 
 **Context:** The demo shows a photo of a hand-drawn floor plan (a napkin sketch) turned into a clean plan with one button (#82). D-025's pass asks a small model once for what ingest *missed* and draws boxes. On a sketch, ingest's OCR and line detection are the unreliable part, so filling its gaps keeps its noise; boxes cannot show a door swing; and one unchecked answer has no way to notice its own mistakes. The owner's rules: one button; redraw, never invent (no measurement unless written on the sketch); a stronger, slower model is allowed for this path; output is the Redrawn view plus Download SVG and Print, no DXF.
 
@@ -426,11 +426,11 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 **Consequences:** A redraw takes minutes and costs a few strong-model calls (each round sends the photo, cached after the first, and a render). The plan is only as good as the model's reading: tidying straightens and joins but never adds a wall. OCR on handwriting is weak, so a dimension that really is written on a sketch can be dropped when OCR missed it; that loses information but never invents it. Line work in the redraw is relative to the page size, not to any real length. Not verified end to end against the real model when this was written (no API key was available).
 
 
-## D-027: Sketch check rounds show the draft in red over the photo, and the model is told where the ink is
+## D-028: Sketch check rounds show the draft in red over the photo, and the model is told where the ink is
 
-**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes:** the check-round render in D-026
+**Date:** 2026-11-14 · **Status:** Accepted · **Supersedes:** the check-round render in D-027
 
-**Context:** In D-026 the model compared the photo with its draft as two separate pictures. Side by side, a draft that is a little smaller, larger or shifted against the drawing looks right, so a check round can accept a misplaced plan. The first runs against the real model (`claude-opus-5-5`, the napkin test image) were used to tune this.
+**Context:** In D-027 the model compared the photo with its draft as two separate pictures. Side by side, a draft that is a little smaller, larger or shifted against the drawing looks right, so a check round can accept a misplaced plan. The first runs against the real model (`claude-opus-5-5`, the napkin test image) were used to tune this.
 
 **Decision:**
 - In check rounds the draft is drawn in red over the photo, at the size the model was sent, instead of on white. The check prompt says red should cover each drawn line: a drawn line with no red on it, or red with no line under it, is an error. Position and size are checked before the parts. About one wall thickness of difference counts as in place, because hand-drawn lines wobble.
