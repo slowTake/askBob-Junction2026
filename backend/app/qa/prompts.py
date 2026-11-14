@@ -82,11 +82,21 @@ LAST_STEP_NOTE = (
 
 def budget_note(tool_rounds: int) -> str:
     """How many rounds of tool calls the agent gets before it has to answer."""
+    if tool_rounds < 1:  # `max_agent_turns` of 1: the only turn is the answer
+        return (
+            "You have no tool calls for this question. Answer from what is given here. If "
+            "it is not enough to answer, say what is missing in `caveats` and set "
+            "`confidence` to low; do not guess."
+        )
     rounds = "1 round" if tool_rounds == 1 else f"{tool_rounds} rounds"
+    # A miss is not proof of absence: the search matches text, so a label in another
+    # language or an abbreviation ("Küche", "WC") does not match "kitchen" or "toilet".
     return (
         f"You have at most {rounds} of tool calls, and one round can hold several calls. "
-        "Answer as soon as you have the evidence. If two or three searches find nothing "
-        "about the question, the documents do not contain it: say so instead of searching on."
+        "Answer as soon as you have the evidence. If a search finds nothing, try other "
+        "words (labels may be in another language or abbreviated) or another `kind`. If "
+        "those find nothing either, say what you searched for and what is missing instead "
+        "of searching on."
     )
 
 

@@ -67,6 +67,20 @@ def test_budget_note_counts_rounds_and_asks_for_an_early_answer() -> None:
     assert "1 round of tool calls" in budget_note(1)  # singular
 
 
+def test_budget_note_asks_for_other_words_before_reporting_a_miss() -> None:
+    # A search that finds nothing does not show the documents lack it (PR #100 review).
+    note = budget_note(11)
+    assert "try other words" in note
+    assert "do not contain it" not in note
+
+
+def test_budget_note_without_tool_rounds_asks_for_an_answer_from_what_is_given() -> None:
+    # `max_agent_turns` of 1 leaves no round of tool calls.
+    note = budget_note(0)
+    assert note.startswith("You have no tool calls for this question.")
+    assert "0 rounds" not in note
+
+
 def test_several_selected_elements_are_listed() -> None:
     message = scope_message(
         "Which is bigger?",
