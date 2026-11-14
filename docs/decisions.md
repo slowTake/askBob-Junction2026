@@ -21,13 +21,13 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-015 | 2026-11-14 | Every format becomes IFC; one IFC indexer feeds the app | Accepted |
 | D-016 | 2026-11-14 | Floor plans are the interactive surface; 3D only for IFC | Accepted |
 | D-017 | 2026-11-14 | Ingest never leaves a document waiting for a job that is gone | Accepted |
-| D-018 | 2026-11-14 | The plan is a pan/zoom canvas; nothing that appears moves it | Accepted |
+| D-018 | 2026-11-14 | The plan is a pan/zoom canvas; nothing that appears moves it | Superseded in part by D-024 |
 | D-019 | 2026-11-14 | Answers carry a numeric value; the eval scores it by question type | Accepted |
 | D-020 | 2026-11-14 | The Q&A agent can run on Kimi K3.1 Pro on Verda (`LLM_PROVIDER`) | Accepted |
 | D-021 | 2026-11-14 | A citation's box is the element's extent; the printed name is the fallback | Accepted |
 | D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
-| D-024 | 2026-11-14 | Raster rooms are traced from the drawing's lines; RapidOCR reads the text | Accepted |
+| D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -252,7 +252,7 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 ## D-018: The plan is a pan/zoom canvas; nothing that appears moves it
 
-**Date:** 2026-11-14 · **Status:** Accepted · **Refines:** D-016
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-024 (what 100 % means; agent views no longer fly the camera) · **Refines:** D-016
 
 **Context:** The plan flickered: the hover card and banners were inserted above the drawing, so showing them pushed the plan down, the element slid out from under the cursor, and the card vanished again. Zoom stopped at "fit width", so a tall sheet never fit on screen. An agent highlight of one window only scrolled, so users had to zoom out to find it. Older answers were grey on grey, and the agent did not know what the user was looking at.
 

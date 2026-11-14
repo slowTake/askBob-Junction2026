@@ -16,7 +16,8 @@ export interface HealthInfo {
 export interface AskContext {
   document_id: string | null;
   page_index: number | null;
-  element_id: string | null;
+  element_id: string | null; // one clicked element (older form)
+  element_ids: string[]; // every element selected on the plan (Shift+click), in click order
 }
 
 export interface ApiErrorBody {

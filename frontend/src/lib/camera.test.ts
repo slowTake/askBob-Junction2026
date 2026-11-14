@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clampPan,
+  fitContent,
   fitPage,
   fitScale,
   frameBox,
@@ -52,6 +53,25 @@ describe("frameBox", () => {
   });
 });
 
+describe("fitContent", () => {
+  const page = { width: 3000, height: 2000 };
+  const viewport = { width: 1048, height: 648 }; // inner 1000 x 600
+
+  it("frames the drawing instead of the whole sheet", () => {
+    // content 2000 x 1200: min(1000/2000, 600/1200) = 0.5 (the page alone would be 0.3)
+    // centre (1500, 1000): x = 524 - 1500*0.5 = -226, y = 324 - 1000*0.5 = -176
+    expect(fitContent([500, 400, 2500, 1600], page, viewport)).toEqual({
+      scale: 0.5,
+      x: -226,
+      y: -176,
+    });
+  });
+
+  it("fits the whole page when there is no content", () => {
+    expect(fitContent(null, page, viewport)).toEqual(fitPage(page, viewport));
+  });
+});
+
 describe("zoomAt", () => {
   it("keeps the page point under the cursor where it is", () => {
     // before: page (100, 50) is under (100, 50); after: (100 - -100)/2 = 100, (50 - -50)/2 = 50
@@ -77,13 +97,21 @@ describe("limits", () => {
       max: 4,
     });
   });
+
+  it("is relative to Fit when Fit frames only the drawing", () => {
+    // Fit scale 0.8 (the drawing is smaller than the sheet): min = 0.8 / 4 = 0.2
+    expect(limits({ width: 1000, height: 1000 }, { width: 548, height: 548 }, 0.8)).toEqual({
+      min: 0.2,
+      max: 4,
+    });
+  });
 });
 
 describe("zoomPercent", () => {
-  it("is relative to the whole page fitting the viewport", () => {
-    // fit = 0.25 (see fitScale); 0.125 / 0.25 = 50 %
-    const page = { width: 1000, height: 2000 };
-    expect(zoomPercent({ scale: 0.125, x: 0, y: 0 }, page, { width: 548, height: 548 })).toBe(50);
+  it("is 100 % at the Fit scale", () => {
+    // Fit at 0.25: 0.125 / 0.25 = 50 %, 0.25 / 0.25 = 100 %
+    expect(zoomPercent({ scale: 0.125, x: 0, y: 0 }, 0.25)).toBe(50);
+    expect(zoomPercent({ scale: 0.25, x: 0, y: 0 }, 0.25)).toBe(100);
   });
 });
 
