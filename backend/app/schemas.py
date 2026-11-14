@@ -4,7 +4,9 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+from app.domain.ingest_errors import error_message
 
 
 class PageOut(BaseModel):
@@ -31,6 +33,17 @@ class DocumentOut(BaseModel):
     error_code: str | None
     created_at: datetime
     meta: dict[str, Any]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def error_message(self) -> str | None:
+        return error_message(self.error_code)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def has_ifc(self) -> bool:
+        """An IFC model is downloadable: uploaded IFC, or one built from the drawing."""
+        return self.status == "ready" and (self.kind == "ifc" or "model" in self.meta)
 
 
 class DocumentDetailOut(DocumentOut):
