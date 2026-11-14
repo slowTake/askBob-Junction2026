@@ -6,7 +6,12 @@ from app.domain.areas import outline_agrees
 from app.domain.dimensions import mm_per_px
 from app.domain.geometry import Point, bbox_center, bbox_to_plan_polygon, footprint_mm
 from app.domain.kinds import DrawingKind
-from app.domain.labels import Label, link_room_labels, unnumbered_are_legend
+from app.domain.labels import (
+    Label,
+    is_numbering_scheme,
+    link_room_labels,
+    unnumbered_are_legend,
+)
 from app.domain.polygons import polygon_bbox
 from app.domain.tokens import Word, classify, merge_split_numbers
 from app.ingest.dimension_lines import fit_dimension_scale
@@ -142,6 +147,13 @@ def _link_printed_labels(elements: list[ExtractedElement]) -> None:
     labels = [Label(e.kind, e.bbox) for e in elements if e.bbox is not None]
     indexed = [e for e in elements if e.bbox is not None]
     links = link_room_labels(labels)
+    numbers = [indexed[f["room_number"]].label or "" for f in links.values() if "room_number" in f]
+    if len(numbers) >= 3 and not is_numbering_scheme(numbers):
+        # "d.dd" under a name can be a metre dimension ("3.20"), not a room number:
+        # without a plan-wide numbering, link no numbers and keep every room a room.
+        # (Fewer than three can't switch rooms to legend entries, so they stay linked.)
+        for found in links.values():
+            found.pop("room_number", None)
     rooms = [i for i, lb in enumerate(labels) if lb.kind == "room"]
     numbered = sum(1 for i in rooms if "room_number" in links.get(i, {}))
     if unnumbered_are_legend(numbered, len(rooms) - numbered):

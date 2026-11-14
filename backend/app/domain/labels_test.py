@@ -1,4 +1,4 @@
-from app.domain.labels import Label, link_room_labels, unnumbered_are_legend
+from app.domain.labels import Label, is_numbering_scheme, link_room_labels, unnumbered_are_legend
 
 
 def test_stacked_name_number_area() -> None:
@@ -32,3 +32,17 @@ def test_unnumbered_names_are_legend_when_the_plan_numbers_its_rooms() -> None:
     # A plan without room numbers (e.g. Finnish real-estate plans): names are rooms.
     assert not unnumbered_are_legend(numbered=0, unnumbered=6)
     assert not unnumbered_are_legend(numbered=2, unnumbered=1)  # too few to tell
+
+
+def test_room_numbers_of_one_plan_share_their_floor_prefix() -> None:
+    # Swiss plan: 1.01, 1.07, 1.17, U1.05 are rooms of floor 1.
+    assert is_numbering_scheme(["1.01", "1.07", "1.17", "U1.05"])
+
+
+def test_metre_dimensions_are_not_a_numbering_scheme() -> None:
+    # PR #65 review: "3.20", "4.10", "2.75" under Nordic room names are dimensions.
+    assert not is_numbering_scheme(["3.20", "4.10", "2.75"])
+
+
+def test_too_few_numbers_are_not_a_scheme() -> None:
+    assert not is_numbering_scheme(["1.01", "1.02"])

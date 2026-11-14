@@ -52,3 +52,16 @@ def unnumbered_are_legend(numbered: int, unnumbered: int) -> bool:
     """On a plan that numbers its rooms, a room name without a number is a legend
     entry, not a room. Needs a few numbered rooms to be sure of the convention."""
     return numbered >= 3 and numbered > unnumbered
+
+
+def is_numbering_scheme(numbers: list[str]) -> bool:
+    """Whether candidate room numbers are a plan's numbering, not metre dimensions.
+
+    A plan's rooms share their floor prefix ("1.01", "1.07", "U1.17"); dimensions that
+    happen to look like "d.dd" ("3.20", "4.10", "2.75") don't. Needs three to tell.
+    """
+    prefixes = [n.lstrip("U").split(".")[0] for n in numbers]
+    if len(prefixes) < 3:
+        return False
+    most = max(prefixes.count(p) for p in set(prefixes))
+    return most >= 0.75 * len(prefixes)
