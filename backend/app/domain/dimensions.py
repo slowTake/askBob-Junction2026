@@ -3,7 +3,7 @@
 import re
 
 _DIMENSION = re.compile(r"^(\d{1,3})[ \u00a0\u202f](\d{3})$|^(\d{2,6})$")
-_SCALE = re.compile(r"^1\s*:\s*(\d{1,4})$")
+_SCALE = re.compile(r"(?<![\d.])1\s*:\s*(\d{1,4})(?!\d)")
 _AREA = re.compile(r"^(\d+(?:[.,]\d+)?)\s*(?:M2|M²|m2|m²)$")
 
 MM_PER_INCH = 25.4
@@ -27,8 +27,8 @@ def parse_dimension_mm(text: str) -> int | None:
 
 
 def parse_scale(text: str) -> int | None:
-    """ "1:50" -> 50. Returns the scale denominator."""
-    match = _SCALE.match(text.strip())
+    """ "1:50", or "Massstab 1:200 (A3)" -> the scale denominator."""
+    match = _SCALE.search(text)
     if not match:
         return None
     value = int(match.group(1))

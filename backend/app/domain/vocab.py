@@ -65,6 +65,50 @@ CODES: dict[str, Code] = {
 
 _DOOR_TAG = re.compile(r"^(0[6-9]|1[0-2])$")
 
+# Full room names as printed (German, French, Italian, English) -> (category, outdoor).
+# Collected from the ROOM_TEXT layer of the dataset's swiss_dwellings DXFs.
+_ROOM_NAMES: dict[str, tuple[str, bool]] = {}
+for _category, _outdoor, _names in [
+    ("room", False, "Zimmer|Pièce|Stanza|Locale|Room"),
+    ("bedroom", False, "Schlafzimmer|Chambre à coucher|Camera da letto|Bedroom"),
+    (
+        "living room",
+        False,
+        "Wohnen/Essen|Wohnen|Séjour/repas|Séjour|Soggiorno/pranzo|Soggiorno|Living room",
+    ),
+    ("dining", False, "Essen|Repas|Pranzo|Dining"),
+    ("kitchen", False, "Küche|Cuisine|Cucina|Kitchen"),
+    ("bathroom", False, "Bad|Bain|Bagno|Dusche|Douche|Doccia|Bathroom|Shower"),
+    ("toilet", False, "WC|Toilet"),
+    ("corridor", False, "Korridor|Gang|Couloir|Corridoio|Corridor|Hall|Entrée|Ingresso"),
+    ("storage", False, "Reduit|Réduit|Ripostiglio|Abstellraum|Storage"),
+    ("stairwell", False, "Treppenhaus|Cage d'escalier|Vano scala|Stairwell"),
+    ("elevator", False, "Lift|Aufzug|Ascenseur|Ascensore|Elevator"),
+    ("entrance hall", False, "Eingangshalle|Hall d'entrée"),
+    ("office", False, "Bürofläche|Büro|Bureau|Ufficio|Office"),
+    ("balcony", True, "Balkon|Balcon|Balcone|Balcony"),
+    ("loggia", True, "Loggia"),
+    ("terrace", True, "Terrasse|Terrazza|Terrace"),
+]:
+    for _name in _names.split("|"):
+        _ROOM_NAMES[_name.lower()] = (_category, _outdoor)
+
+_UNIT = re.compile(
+    r"^(?:App\.?|Apt\.?|Whg\.?|Apartment|Appartement|Wohnung|Appartamento)\s+([A-Z0-9]{1,3})$",
+    re.IGNORECASE,
+)
+
+
+def lookup_room_name(text: str) -> tuple[str, bool] | None:
+    """A printed room name -> (category, is_outdoor). Exact match, ignoring case."""
+    return _ROOM_NAMES.get(" ".join(text.split()).lower())
+
+
+def unit_label(text: str) -> str | None:
+    """ "App. A" / "Whg. B" / "Apartment 12" -> the unit's id."""
+    match = _UNIT.match(" ".join(text.split()))
+    return match.group(1).upper() if match else None
+
 
 def lookup_code(text: str) -> Code | None:
     """Look up a room or fixture code; tolerates case, spaces and trailing dots."""

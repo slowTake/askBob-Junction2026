@@ -7,7 +7,7 @@ from typing import Any
 from app.domain.dimensions import parse_area_m2, parse_dimension_mm, parse_scale
 from app.domain.geometry import BBox, bbox_union
 from app.domain.kinds import DrawingKind
-from app.domain.vocab import door_width_mm, lookup_code
+from app.domain.vocab import door_width_mm, lookup_code, lookup_room_name, unit_label
 
 
 @dataclass(frozen=True)
@@ -28,6 +28,7 @@ class Classified:
 
 _DIGITS = re.compile(r"^\d{1,3}$")
 _THOUSANDS = re.compile(r"^\d{3}$")
+_ROOM_NUMBER = re.compile(r"^U?\d{1,2}\.\d{2}$")  # "2.01", "U1.05"
 
 
 def merge_split_numbers(words: list[Word]) -> list[Word]:
@@ -62,6 +63,21 @@ def classify(text: str) -> Classified:
     area = parse_area_m2(text)
     if area is not None:
         return Classified("area", label=text.strip(), properties={"area_m2": area})
+    unit = unit_label(text)
+    if unit is not None:
+        return Classified("unit", label=unit, name=f"apartment {unit}")
+    if _ROOM_NUMBER.match(text.strip()):
+        return Classified("room_number", label=text.strip())
+    room = lookup_room_name(text)
+    if room is not None:
+        category, outdoor = room
+        local = " ".join(text.split())
+        return Classified(
+            "room",
+            label=local,
+            name=f"{category} ({local})",
+            properties={"local_name": local, "category": category, "outdoor": outdoor},
+        )
     code = lookup_code(text)
     if code is not None:
         return Classified(

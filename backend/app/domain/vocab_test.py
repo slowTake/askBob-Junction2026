@@ -1,4 +1,4 @@
-from app.domain.vocab import door_width_mm, lookup_code
+from app.domain.vocab import door_width_mm, lookup_code, lookup_room_name, unit_label
 
 
 def test_room_code_lookup() -> None:
@@ -35,3 +35,20 @@ def test_door_tag_rejects_other_numbers() -> None:
     assert door_width_mm("9") is None  # not zero-padded: likely a grid label
     assert door_width_mm("3600") is None
     assert door_width_mm("13") is None
+
+
+def test_room_names_in_swiss_languages() -> None:
+    # Labels taken from data/swiss_dwellings/*.dxf (ROOM_TEXT layer).
+    assert lookup_room_name("Stanza") == ("room", False)
+    assert lookup_room_name("Chambre à coucher") == ("bedroom", False)
+    assert lookup_room_name("wohnen/essen") == ("living room", False)
+    assert lookup_room_name("Balkon") == ("balcony", True)  # outdoor
+    assert lookup_room_name("Loggia") == ("loggia", True)
+    assert lookup_room_name("Projekt: Site 1000") is None
+
+
+def test_unit_labels() -> None:
+    assert unit_label("App. A") == "A"
+    assert unit_label("Whg. B") == "B"
+    assert unit_label("Apartment 12") == "12"
+    assert unit_label("Appartement") is None
