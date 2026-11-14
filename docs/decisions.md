@@ -38,6 +38,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-026 | 2026-11-14 | Room highlights require boundaries traced from the drawing (#103) | Accepted |
 | D-027 | 2026-11-14 | Match raster drawings to uploaded native DXF room boundaries (#108) | Accepted |
 | D-030 | 2026-11-14 | Matched CAD rooms survive the redraw integration (#108) | Accepted |
+| D-031 | 2026-11-14 | Claude omits unused tool filters to stay within strict-schema limits (#111) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -512,3 +513,14 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 **Decision:** A matched CAD PNG renders its clean sheet from the existing CAD elements immediately. Its upscale endpoint returns a no-op without model calls or element changes. Other raster sketches retain main's model redraw. Preserve the PNG image load/error timeout and retry behavior alongside the redraw UI; allow the synchronous sketch API request the server's default bounded claim budget rather than the normal 30-second document request budget.
 
 **Consequences:** CAD-matched room geometry, identifiers and areas remain unchanged when switching views or requesting upscale. PNG-only sketches continue to use the model loop. Main and the earlier unmerged branches used some overlapping decision IDs; the existing entries are preserved and are distinguished by their titles and issue references.
+
+
+## D-031: Claude omits unused tool filters to stay within strict-schema limits
+
+**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #111
+
+**Context:** Claude rejected the complete request before answering because the shared strict tool schemas contained 15 nullable parameters and the answer schema contained five more. Anthropic limits union parameters across all strict schemas to 16.
+
+**Decision:** Adapt only Claude's tool definitions: a required nullable filter becomes an optional property of its non-null type. Existing Pydantic handlers already default missing filters to None. Keep required inputs, enum constraints, strict validation, every tool and the structured answer. Deep-copy shared definitions so the Verda path is unchanged. Regression tests cover the actual request payload and the combined schema budget.
+
+**Consequences:** The request has five union parameters and 15 optional tool parameters, within Claude's documented limits. No tools or filters are removed. Future schema additions must keep the combined tool/answer budget within provider limits.

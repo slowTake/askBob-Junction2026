@@ -135,6 +135,18 @@ def test_the_question_states_the_step_budget(claude: FakeClaude) -> None:
     assert "at most 2 rounds of tool calls" in claude.requests[0]["messages"][0]["content"]
 
 
+def test_claude_request_omits_unused_filters_instead_of_compiling_nullable_unions(
+    claude: FakeClaude,
+) -> None:
+    claude.responses = [_answer_turn()]
+    _loop()
+    tools = {tool["name"]: tool for tool in claude.requests[0]["tools"]}
+    find = tools["find_elements"]["input_schema"]
+    assert find["required"] == []
+    assert find["properties"]["document_id"] == {"type": "string"}
+    assert tools["count_elements"]["input_schema"]["required"] == ["kind"]
+
+
 def test_step_limit_when_the_last_turn_still_gives_no_answer(claude: FakeClaude) -> None:
     claude.responses = [_tool_turn("t1"), _tool_turn("t2"), _tool_turn("t3")]
     with pytest.raises(AgentError) as raised:
