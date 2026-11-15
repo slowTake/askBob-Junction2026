@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gateFor, loginErrorMessage, TEAM } from "./login";
+import { gateFor, LOGGED_OUT_EVENT, loginErrorMessage, signalLoggedOut, TEAM } from "./login";
 
 describe("gateFor", () => {
   it("asks for a login when the server requires one and the browser has none", () => {
@@ -32,5 +32,19 @@ describe("loginErrorMessage", () => {
 describe("TEAM", () => {
   it("lists the four team members in the order the team gave", () => {
     expect(TEAM).toEqual(["Peter Nurmi", "Cristian Dohanici", "Niklas Raatikainen", "Lucio Surco"]);
+  });
+});
+
+describe("signalLoggedOut", () => {
+  it("fires the logged-out event on the target once", () => {
+    const target = new EventTarget();
+    let fired = 0;
+    target.addEventListener(LOGGED_OUT_EVENT, () => fired++);
+    signalLoggedOut(target);
+    expect(fired).toBe(1);
+  });
+
+  it("does nothing without a window (server render, tests)", () => {
+    expect(() => signalLoggedOut(undefined)).not.toThrow();
   });
 });

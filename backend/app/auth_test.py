@@ -104,3 +104,20 @@ def test_a_malformed_login_body_uses_the_envelope() -> None:
     response = make_client("open sesame").post("/api/login", json={"pw": 1})
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_a_non_ascii_cookie_is_refused_not_a_server_error() -> None:
+    client = make_client("open sesame")
+    response = client.get(
+        "/api/documents", headers={"cookie": "bob_session=\xe9".encode("latin-1")}
+    )
+    assert response.status_code == 401
+    session = client.get("/api/session", headers={"cookie": "bob_session=\xe9".encode("latin-1")})
+    assert session.status_code == 200
+    assert session.json()["data"] == {"required": True, "authenticated": False}
+
+
+def test_head_and_a_trailing_slash_are_gated_too() -> None:
+    client = make_client("open sesame")
+    assert client.head("/api/documents").status_code == 401
+    assert client.get("/api/documents/").status_code == 401

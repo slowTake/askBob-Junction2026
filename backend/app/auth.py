@@ -37,7 +37,11 @@ def is_open_path(path: str) -> bool:
 
 
 def _valid(cookie: str | None, password: str) -> bool:
-    return cookie is not None and hmac.compare_digest(cookie, session_token(password))
+    # Compare bytes: compare_digest raises on a str with non-ASCII characters.
+    if cookie is None:
+        return False
+    given = cookie.encode("utf-8", "surrogateescape")
+    return hmac.compare_digest(given, session_token(password).encode())
 
 
 class LoginBody(BaseModel):

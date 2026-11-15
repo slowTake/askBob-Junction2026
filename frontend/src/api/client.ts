@@ -1,5 +1,6 @@
 /** Every call to the backend goes through here. Responses use one envelope shape. */
 
+import { signalLoggedOut } from "../lib/login";
 import { readSSE } from "./sse";
 import type {
   Answer,
@@ -56,7 +57,9 @@ async function unwrap<T>(response: Response): Promise<T> {
     throw new ApiError("bad_response", "The server sent an unexpected response.");
   }
   if (!body.ok || body.data === null) {
-    throw new ApiError(body.error?.code ?? "unknown", body.error?.message ?? "Request failed.");
+    const code = body.error?.code ?? "unknown";
+    if (code === "unauthorized") signalLoggedOut(); // the session ended: show the login page
+    throw new ApiError(code, body.error?.message ?? "Request failed.");
   }
   return body.data;
 }

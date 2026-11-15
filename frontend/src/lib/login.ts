@@ -22,3 +22,11 @@ export function loginErrorMessage(code: string): string {
   if (code === "timeout" || code === "network") return "Cannot reach the server. Try again.";
   return "Logging in failed. Try again.";
 }
+
+/** Fired on window when the server answers `unauthorized`, so AuthGate shows the login. */
+export const LOGGED_OUT_EVENT = "bob:logged-out";
+
+/** Tell the app its session ended (cookie expired or password changed). */
+export function signalLoggedOut(target: EventTarget | undefined = globalThis.window): void {
+  target?.dispatchEvent(new Event(LOGGED_OUT_EVENT));
+}

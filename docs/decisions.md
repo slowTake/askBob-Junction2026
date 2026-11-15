@@ -755,4 +755,9 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 - `POST /api/login` compares the password in constant time and sets an HttpOnly, SameSite=Lax cookie for 12 hours. Its value is HMAC-SHA256 of a fixed label keyed by the password: stateless, valid across API restarts, and changing `APP_PASSWORD` logs everyone out. A wrong password waits 0.5 s before answering.
 - The UI asks `/api/session` first and shows a login page (the askBob mark and name, the team, one password field) until it is logged in. If the server can't be reached, the app opens and shows its usual errors.
 
-**Consequences:** One password for everyone; nobody is told apart and there is no rate limit beyond the delay, so the password should not be trivially short. The cookie has no Secure flag because nginx doesn't pass on the scheme; Runtime serves HTTPS only. The worker and the vision and OCR services are not behind it; they aren't reachable from outside. Changing the password means changing the console setting and restarting, which wipes uploaded files (D-034).
+**Consequences:** One password for everyone; nobody is told apart. Limits, accepted for a demo (from the PR #130 review):
+- The token never expires on the server: `max_age` only limits the browser, logout revokes nothing, and a copied cookie works until the password changes.
+- The token is HMAC of a public label keyed by the password, so anyone holding a cookie can guess the password offline, and the 0.5 s delay doesn't stop parallel guessing. Use a long passphrase (four or more random words), not a short word.
+- A real fix would sign an issued-at time with a separate server secret and limit failed logins per IP.
+
+When any API call answers `unauthorized` mid-use (cookie expired, password changed), the UI goes back to the login page. The cookie has no Secure flag because nginx doesn't pass on the scheme; Runtime serves HTTPS only. The worker and the vision and OCR services are not behind it; they aren't reachable from outside. Changing the password means changing the console setting and restarting, which wipes uploaded files (D-034).
