@@ -54,6 +54,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-044 | 2026-11-14 | Compact answer inventories and Opus at low effort (#115) | Accepted |
 | D-045 | 2026-11-14 | Answer rows own their drawing interactions (#115) | Accepted |
 | D-046 | 2026-11-15 | Plan answers draw what they say: a distance line alone, area labels, walking routes | Accepted |
+| D-048 | 2026-11-15 | A shared password in front of /api, checked by the server (#129) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -743,3 +744,15 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 **Consequences:** A route is only as good as the extracted walls and doors: a missed door blocks the way (the tool then says so), a missed wall lets the route through it. Windows stay blocked. Routes do not cross pages or storeys. Labels can overlap the drawing's own text. Tested on synthetic pages; not yet checked on the dataset's plans with a real model.
 
+## D-048: A shared password in front of /api, checked by the server (#129)
+
+**Date:** 2026-11-15 · **Status:** Accepted
+
+**Context:** The demo URL will be public for judging. Every question can cost a Claude call and every upload an ingest run, so a stranger with the URL could spend our credits. We want one simple password the team can share with judges, with about two hours left before submission. A check made only in the browser was considered first and rejected: anyone could still call `/api` directly.
+
+**Decision:**
+- `APP_PASSWORD` is set in the Aiven Runtime console, never in a file. When it is set, every `/api` route except `/api/health`, `/api/login` and `/api/session` answers 401 in the usual envelope (`unauthorized`) until the browser has logged in. When it is unset or empty (local dev, CI, Compose), the gate is off.
+- `POST /api/login` compares the password in constant time and sets an HttpOnly, SameSite=Lax cookie for 12 hours. Its value is HMAC-SHA256 of a fixed label keyed by the password: stateless, valid across API restarts, and changing `APP_PASSWORD` logs everyone out. A wrong password waits 0.5 s before answering.
+- The UI asks `/api/session` first and shows a login page (the askBob mark and name, the team, one password field) until it is logged in. If the server can't be reached, the app opens and shows its usual errors.
+
+**Consequences:** One password for everyone; nobody is told apart and there is no rate limit beyond the delay, so the password should not be trivially short. The cookie has no Secure flag because nginx doesn't pass on the scheme; Runtime serves HTTPS only. The worker and the vision and OCR services are not behind it; they aren't reachable from outside. Changing the password means changing the console setting and restarting, which wipes uploaded files (D-034).

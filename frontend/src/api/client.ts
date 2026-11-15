@@ -13,6 +13,7 @@ import type {
   HealthInfo,
   MeshData,
   PlanView,
+  SessionInfo,
   UpscaleResult,
 } from "./types";
 
@@ -69,6 +70,13 @@ export interface AskHandlers {
 
 export const api = {
   health: () => request<HealthInfo>("/api/health"),
+  session: () => request<SessionInfo>("/api/session"),
+  login: (password: string) =>
+    request<{ authenticated: boolean }>("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    }),
   listDocuments: () => request<DocumentInfo[]>("/api/documents"),
   getDocument: (id: string) => request<DocumentDetail>(`/api/documents/${id}`),
   elements: (id: string, page: number) =>
