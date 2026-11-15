@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import ask, documents, events, health, upscale
+from app.auth import install_auth
 from app.config import get_settings
 from app.db import init_db
 from app.envelope import install_error_handlers
@@ -29,5 +30,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 install_error_handlers(app)
+install_auth(app, get_settings().app_password)  # D-048: off when unset
 for module in (health, documents, upscale, events, ask):
     app.include_router(module.router)

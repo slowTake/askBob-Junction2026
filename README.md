@@ -140,6 +140,7 @@ Secrets, in the app's settings (type them in the console, never in chat or a fil
 - `DATABASE_URL` and `VALKEY_URL`: connect `pg-2c3baae` and `valkey-bobbuilder` under
   **Connected services** with those variable names, or paste their service URIs as secrets.
 - `ANTHROPIC_API_KEY`; optionally `LLM_PROVIDER=verda` with `VERDA_API_KEY`.
+- `APP_PASSWORD`: the shared password on the login page. Without it the API is open to anyone with the URL ([D-048](docs/decisions.md)).
 
 Pushing does not redeploy: after a merge, use **Actions → Deploy latest commit**. Limits
 of this setup: files live on the container's own disk, so a redeploy or restart loses

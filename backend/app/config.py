@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     ocr_engine: Literal["rapid", "tesseract"] = "rapid"  # D-024; Tesseract is also the fallback
     max_upload_mb: int = 200
     answer_cache_ttl_s: int = 86_400
+    # Shared password in front of /api (D-048); unset or empty means no login. Set it in
+    # the Aiven Runtime console, never in a file.
+    app_password: str | None = None
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8080"]
 
     @field_validator("database_url", "valkey_url")

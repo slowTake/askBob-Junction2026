@@ -12,6 +12,12 @@ export interface HealthInfo {
   ingest_workers?: number | null; // missing on servers older than this field
 }
 
+/** Whether /api needs a login (D-048) and whether this browser has one. */
+export interface SessionInfo {
+  required: boolean;
+  authenticated: boolean;
+}
+
 /** What the user looks at while asking: the agent reads "this room" and "here" from it. */
 export interface AskContext {
   document_id: string | null;
