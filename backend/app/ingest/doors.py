@@ -9,6 +9,10 @@ For every hinge near a traced wall, radius and quadrant, a door is:
 - an empty swing: the quarter disc inside the arc holds little ink and no wall;
 - a leaf: ink along most of the line from the hinge to the arc's end across the wall;
 - on a wall at both ends: the hinge and the arc's other end, where the door closes.
+Every such candidate is then moved onto its wall's centre line and kept only if (D-057):
+- its gap lies on a traced wall;
+- its leaf is not a wall that runs on past the leaf's end (a wall corner);
+- its arc does not run on past both of its ends (a circle or a rounded corner).
 Overlapping doors keep the one whose arc is longest and fits its radius best, and of
 equal ones the one whose hinge is nearest the wall.
 
@@ -39,7 +43,8 @@ TIE_PER_PX = 0.1  # of equal arcs, the hinge nearer the wall wins (less than a s
 OVERLAP = 0.1  # doors whose boxes overlap more than this (of the smaller) are one
 CARVE_PX = 1  # the leaf and arc are carved this much wider than drawn
 WORK_SIDE_PX = 700  # bigger pages are read at this size: 3 s on a 3,000 px page
-GAP_ON_WALL = 0.9  # at least this share of the gap lies within 1 px of a traced wall (D-057)
+CENTRE_PX = 6  # a gap moves at most this far across its wall, onto the wall's centre (D-057)
+GAP_ON_WALL = 0.9  # at least this share of the gap lies within 1 px of a traced wall
 LEAF_ON_WALL = 0.5  # a leaf more than this share on a traced wall (from SWING_MARGIN_PX out)
 RUNS_ON = 0.6  # whose wall goes on over this share of PAST_LEAF_PX past its end is a wall
 PAST_LEAF_PX = (3, 8)
@@ -70,11 +75,11 @@ def find_doors(
     away = cv2.distanceTransform((~walls).astype(np.uint8), cv2.DIST_L2, 3)
     radii = _radii(max(3, round(min_radius_px * scale)), round(max_radius_px * scale))
     on_wall = cv2.dilate(walls.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
-    found = [
-        (score, door)
-        for score, door in _candidates(arc, lines, walls, away, radii)
-        if _accepted(door, arc, on_wall, away)
-    ]
+    found = []
+    for score, door in _candidates(arc, lines, walls, away, radii):
+        centred = _centred(door, walls)
+        if _accepted(door, centred, arc, on_wall, away):
+            found.append((score, centred))
     kept = _suppressed(found)
     return [_scaled(d, 1 / scale) for d in kept] if scale < 1.0 else kept
 
@@ -91,19 +96,24 @@ def _candidates(
     return found
 
 
-def _accepted(door: Door, arc: np.ndarray, on_wall: Mask, away: np.ndarray) -> bool:
-    """A candidate is a door only if its gap lies on a wall, its leaf is not a wall that
-    runs on past the leaf's end, and its arc stops at its ends. The rules run before the
+def _accepted(door: Door, centred: Door, arc: np.ndarray, on_wall: Mask, away: np.ndarray) -> bool:
+    """A candidate is a door only if its centred gap lies on a wall, its leaf is not a
+    wall that runs on past the leaf's end, and its arc stops at its ends. The leaf is
+    read where it was found; the arc's ends round both hinges, as found and centred: a
+    circle read from a hinge up to WALL_NEAR_PX off its centre drifts off the ring past
+    its ends, and centring puts that hinge back on the centre. The rules run before the
     candidates compete, so a wrong reading of an arc frees the right one."""
-    if _share_on(on_wall, door.a, door.b) < GAP_ON_WALL:
+    if _share_on(on_wall, centred.a, centred.b) < GAP_ON_WALL:
         return False
-    return not _leaf_runs_on(door, away) and not _arc_runs_on(door, arc)
+    if _leaf_runs_on(door, away) or _arc_runs_on(door, arc):
+        return False
+    return centred == door or not _arc_runs_on(centred, arc)
 
 
 def _leaf_runs_on(d: Door, away: np.ndarray) -> bool:
     """The leaf lies on a traced wall that goes on past the leaf's end: a wall corner
     read as a leaf. A thin leaf traced as a short wall stops where the leaf does."""
-    ux, uy = (d.leaf[0] - d.a[0]) / d.radius_px, (d.leaf[1] - d.a[1]) / d.radius_px
+    ux, uy = _leaf_unit(d)
     m, r, near = SWING_MARGIN_PX, d.radius_px, away <= WALL_NEAR_PX
 
     def at(k: float) -> Point:
@@ -154,6 +164,41 @@ def _share_on(layer: Mask, p: Point, q: Point) -> float:
     xs = np.round(np.linspace(p[0], q[0], n)).astype(int).clip(0, width - 1)
     ys = np.round(np.linspace(p[1], q[1], n)).astype(int).clip(0, height - 1)
     return float(layer[ys, xs].mean())
+
+
+def _centred(d: Door, walls: Mask) -> Door:
+    """The door moved along its leaf so its gap lies on the centre of the wall's run
+    through the gap's middle (the nearest run within `CENTRE_PX`, if the middle is off
+    the wall). A door drawn over a band is read from the band's edge; CAD and the truth
+    put the gap on the wall's centre line."""
+    ux, uy = _leaf_unit(d)
+    mx, my = (d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2
+    height, width = walls.shape
+    on = {}
+    for o in range(-CENTRE_PX, CENTRE_PX + 1):
+        x, y = round(mx + o * ux), round(my + o * uy)
+        on[o] = 0 <= x < width and 0 <= y < height and bool(walls[y, x])
+    hits = [o for o, wall in on.items() if wall]
+    if not hits:
+        return d
+    lo = hi = 0 if on[0] else min(hits, key=abs)
+    while on.get(lo - 1, False):
+        lo -= 1
+    while on.get(hi + 1, False):
+        hi += 1
+    shift = (lo + hi) / 2
+    if shift == 0:
+        return d
+
+    def moved(p: Point) -> Point:
+        return (p[0] + shift * ux, p[1] + shift * uy)
+
+    return Door(moved(d.a), moved(d.b), moved(d.toward), moved(d.leaf), d.radius_px)
+
+
+def _leaf_unit(d: Door) -> tuple[float, float]:
+    """The unit vector from the hinge along the leaf: across the wall."""
+    return (d.leaf[0] - d.a[0]) / d.radius_px, (d.leaf[1] - d.a[1]) / d.radius_px
 
 
 def _suppressed(found: list[tuple[float, Door]]) -> list[Door]:

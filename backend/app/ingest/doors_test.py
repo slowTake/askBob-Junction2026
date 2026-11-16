@@ -99,6 +99,31 @@ def test_a_page_bigger_than_the_working_size_is_read_shrunk_and_scaled_back() ->
     assert door.radius_px == pytest.approx(80, abs=4)
 
 
+def test_a_door_on_a_band_is_stored_on_the_band_s_centre() -> None:
+    # A 7 px band, rows 48..54, drawn and traced; the door is drawn from its lower edge:
+    # hinge (80, 54), leaf down to (80, 74), arc from (100, 54) round to it.
+    symbols = np.zeros((H, W), np.uint8)
+    symbols[48:55, 10:151] = 1
+    walls = symbols.astype(bool)
+    cv2.line(symbols, (80, 54), (80, 74), 1, 1)
+    cv2.ellipse(symbols, (80, 54), (20, 20), 0, 0, 90, 1, 1)
+    (door,) = _find(symbols, walls)
+    # Across the band (along the leaf) its wall run is rows 48..54: centre (48 + 54) / 2
+    # = 51, so the door moves 3 px up from the edge, and every point with it.
+    assert door.a == pytest.approx((80, 51), abs=0.6)
+    assert door.b == pytest.approx((100, 51), abs=0.6)
+    assert door.leaf == pytest.approx((80, 71), abs=0.6)
+
+
+def test_a_door_on_a_thin_line_is_not_moved() -> None:
+    symbols, walls = _wall()
+    _door(symbols, 20, 0, 90)
+    (door,) = _find(symbols, walls)
+    # The wall run across the gap's middle is the one row y = 50: its centre is the line.
+    assert door.a == pytest.approx((80, 50), abs=0.6)
+    assert door.b == pytest.approx((100, 50), abs=0.6)
+
+
 def test_a_gap_off_the_wall_is_not_a_door() -> None:
     # The wall breaks between x 85 and 95, and the door's gap is x 80..100 on y = 50:
     # within 1 px of the wall are x 80..85 and 95..100, 12 of its 21 px (0.57 < 0.9).
@@ -139,8 +164,9 @@ def test_a_circle_whose_quarter_sits_like_a_door_is_not_a_door() -> None:
     # A circle of radius 20 round (80, 50) on the wall, and a radial line down to
     # (80, 70): each quarter below the wall is a leaf and an arc, but the ring goes on
     # past both ends of it, in all 3 sectors past the leaf and past the free end. Read
-    # from a hinge 1 px off the centre, at radius 21, the circle lies up to 1 px off
-    # that ring past the free end (20 + sin of the angle): within 2 px, not within 1.5.
+    # from a hinge k px off the centre (k <= WALL_NEAR_PX = 2), the circle lies up to
+    # k px off that ring past the free end (20 + k sin of the angle); centred on the
+    # wall y = 50, that hinge is the circle's centre again.
     symbols, walls = _wall()
     cv2.circle(symbols, (80, 50), 20, 1, 1)
     cv2.line(symbols, (80, 50), (80, 70), 1, 1)
