@@ -178,11 +178,70 @@ describe("buildCleanSheet", () => {
       el({ id: "d1", kind: "door", bbox: [10, 20, 50, 60] }), // 40 × 40
       el({ id: "n1", kind: "window", label: "W2", bbox: [100, 0, 180, 8] }), // 80 × 8
     ]);
+    const none = { gap: null, leaf: null, arc: null, frame: null };
     expect(sheet.openings).toEqual([
-      { id: "d1", kind: "door", x: 10, y: 20, width: 40, height: 40, added: false },
-      { id: "n1", kind: "window", x: 100, y: 0, width: 80, height: 8, added: false },
+      { id: "d1", kind: "door", x: 10, y: 20, width: 40, height: 40, added: false, ...none },
+      { id: "n1", kind: "window", x: 100, y: 0, width: 80, height: 8, added: false, ...none },
     ]);
     expect(sheet.labels).toEqual([]); // a symbol, not text
+  });
+
+  it("draws a door with a stored swing as its leaf and arc (D-055)", () => {
+    // Gap (80, 50)..(100, 50), hinge "a", opening downwards: the leaf runs from the hinge
+    // 20 px down to (80, 70); the arc, radius 20, from there back to (100, 50). From the
+    // leaf (pointing down) to the gap (pointing right) is a quarter turn anticlockwise on
+    // screen (y down), so the sweep flag is 0.
+    const door = el({
+      id: "d1",
+      kind: "door",
+      bbox: [80, 50, 100, 70],
+      properties: { opening: { a: [80, 50], b: [100, 50] }, hinge: "a", toward: [90, 60] },
+    });
+    const [o] = sheetOf([door]).openings;
+    expect(o.leaf).toBe("M80 50L80 70");
+    expect(o.arc).toBe("M80 70A20 20 0 0 0 100 50");
+    expect(o.gap).toBeNull();
+  });
+
+  it("swings a door the other way when it opens upwards from the far end", () => {
+    // Hinge "b" at (100, 50), free end (80, 50), opening up: leaf to (100, 30), and from
+    // there (pointing up) to the gap (pointing left) is anticlockwise again: sweep 0.
+    const door = el({
+      id: "d1",
+      kind: "door",
+      bbox: [80, 30, 100, 50],
+      properties: { opening: { a: [80, 50], b: [100, 50] }, hinge: "b", toward: [90, 40] },
+    });
+    const [o] = sheetOf([door]).openings;
+    expect(o.leaf).toBe("M100 50L100 30");
+    expect(o.arc).toBe("M100 30A20 20 0 0 0 80 50");
+  });
+
+  it("draws a window by its stored frame, and an opening without a swing by its gap", () => {
+    const frame = [
+      [40, 44],
+      [69, 44],
+      [69, 48],
+      [40, 48],
+    ];
+    const sheet = sheetOf([
+      el({
+        id: "n1",
+        kind: "window",
+        bbox: [40, 44, 69, 48],
+        properties: { opening: { a: [40, 50], b: [69, 50] }, polygon_px: frame },
+      }),
+      el({
+        id: "d1",
+        kind: "door",
+        bbox: [0, 0, 20, 4],
+        properties: { opening: { a: [0, 2], b: [20, 2] } },
+      }),
+      el({ id: "d2", kind: "door", bbox: [0, 0, 20, 4], properties: { opening: { a: [0, 2] } } }),
+    ]);
+    expect(sheet.openings[0].frame).toBe("40,44 69,44 69,48 40,48");
+    expect(sheet.openings[1]).toMatchObject({ gap: "M0 2L20 2", leaf: null, frame: null });
+    expect(sheet.openings[2]).toMatchObject({ gap: null, leaf: null, frame: null }); // its box
   });
 
   it("marks what the upscale pass added, so it is drawn apart from what ingest found", () => {

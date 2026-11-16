@@ -33,16 +33,22 @@ export const CleanSheet = memo(function CleanSheet({ sheet, width, height, bar }
       {sheet.walls.map((w) => (
         <polygon key={w.id} points={w.points} className={`clean-wall${added(w.added)}`} />
       ))}
-      {sheet.openings.map((o) => (
-        <rect
-          key={o.id}
-          x={o.x}
-          y={o.y}
-          width={o.width}
-          height={o.height}
-          className={`clean-${o.kind}${added(o.added)}`}
-        />
-      ))}
+      {sheet.openings.map((o) => {
+        const cls = `clean-${o.kind}${added(o.added)}`;
+        if (o.leaf && o.arc) {
+          return (
+            <g key={o.id} className={cls}>
+              <path d={o.leaf} className="clean-leaf" />
+              <path d={o.arc} className="clean-arc" />
+            </g>
+          );
+        }
+        if (o.frame) return <polygon key={o.id} points={o.frame} className={cls} />;
+        if (o.gap) return <path key={o.id} d={o.gap} className={`clean-gap${added(o.added)}`} />;
+        return (
+          <rect key={o.id} x={o.x} y={o.y} width={o.width} height={o.height} className={cls} />
+        );
+      })}
       {sheet.labels.map((l) => (
         <text key={l.id} x={l.x} y={l.y} fontSize={l.size} className={`clean-text clean-${l.kind}`}>
           {l.text}

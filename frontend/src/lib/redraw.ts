@@ -50,11 +50,19 @@ export interface RoomShape {
 export interface OpeningShape {
   id: string;
   kind: "door" | "window";
+  /** The box, drawn when ingest stored no gap (`properties.opening`). */
   x: number;
   y: number;
   width: number;
   height: number;
   added: boolean;
+  /** SVG path of the gap on its wall: an opening with a stored gap but no swing or frame. */
+  gap: string | null;
+  /** A door with a stored swing (D-055): its leaf from the hinge, and the arc back to the wall. */
+  leaf: string | null;
+  arc: string | null;
+  /** A window's frame as drawn, SVG `points`. */
+  frame: string | null;
 }
 
 export interface LabelShape {
@@ -137,6 +145,7 @@ export function buildCleanSheet(elements: RedrawElement[], page: Size): CleanShe
         width: x1 - x0,
         height: y1 - y0,
         added,
+        ...storedOpening(e.kind, e.properties),
       });
       continue;
     }
@@ -183,6 +192,64 @@ export function scaleBar(page: Size, mmPerPx: number | null): ScaleBar | null {
     label: metres >= 1 ? `${metres} m` : `${Math.round(metres * 100)} cm`,
     size,
   };
+}
+
+type Point = [number, number];
+type StoredShape = Pick<OpeningShape, "gap" | "leaf" | "arc" | "frame">;
+
+/**
+ * An opening's stored shape (D-055; mirrored by the benchmark's `redraw_elements.py`):
+ * a door with a gap, a hinge end ("a" or "b") and a point it opens toward is its leaf and
+ * arc; a window with a gap and a frame is its frame; any other gap is its line.
+ */
+function storedOpening(kind: string, properties: Record<string, unknown>): StoredShape {
+  const none: StoredShape = { gap: null, leaf: null, arc: null, frame: null };
+  const opening = properties.opening as Record<string, unknown> | undefined;
+  const a = asPoint(opening?.a);
+  const b = asPoint(opening?.b);
+  if (!a || !b) return none;
+  const toward = asPoint(properties.toward);
+  const hinge = properties.hinge === "a" ? a : properties.hinge === "b" ? b : null;
+  if (kind === "door" && hinge && toward) {
+    const free = hinge === a ? b : a;
+    const swing = doorSwing(hinge, free, toward);
+    if (swing) return { ...none, ...swing };
+  }
+  const frame = kind === "window" ? polygonPoints(properties.polygon_px) : null;
+  if (frame) return { ...none, frame };
+  return { ...none, gap: `M${num(a[0])} ${num(a[1])}L${num(b[0])} ${num(b[1])}` };
+}
+
+/** The leaf turned open toward `toward` (as long as the gap), and the arc back to `free`. */
+function doorSwing(
+  hinge: Point,
+  free: Point,
+  toward: Point,
+): Pick<StoredShape, "leaf" | "arc"> | null {
+  const r = Math.hypot(free[0] - hinge[0], free[1] - hinge[1]);
+  if (r === 0) return null;
+  const [ux, uy] = [(free[0] - hinge[0]) / r, (free[1] - hinge[1]) / r];
+  let [nx, ny] = [-uy, ux];
+  if (nx * (toward[0] - hinge[0]) + ny * (toward[1] - hinge[1]) < 0) [nx, ny] = [-nx, -ny];
+  const leaf: Point = [hinge[0] + r * nx, hinge[1] + r * ny];
+  // Sweep 1 turns clockwise on screen (y down): from the leaf to the gap when n × u > 0.
+  const sweep = nx * uy - ny * ux > 0 ? 1 : 0;
+  const [hx, hy, lx, ly] = [hinge[0], hinge[1], leaf[0], leaf[1]].map(num);
+  return {
+    leaf: `M${hx} ${hy}L${lx} ${ly}`,
+    arc: `M${lx} ${ly}A${num(r)} ${num(r)} 0 0 ${sweep} ${num(free[0])} ${num(free[1])}`,
+  };
+}
+
+function asPoint(raw: unknown): Point | null {
+  if (!Array.isArray(raw) || raw.length !== 2) return null;
+  const [x, y] = raw as unknown[];
+  return isFiniteNumber(x) && isFiniteNumber(y) ? [x, y] : null;
+}
+
+/** Two decimals at most, and no "-0". */
+function num(v: number): number {
+  return Math.round(v * 100) / 100 || 0;
 }
 
 function roomArea(room: RedrawElement, printedAreas: [number, number][]): string | null {

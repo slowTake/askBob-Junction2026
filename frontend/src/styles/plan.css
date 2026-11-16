@@ -169,6 +169,17 @@
 .clean-window {
   fill: var(--redraw-room);
 }
+/* A door drawn from its stored swing, and a gap with no symbol (D-055). */
+.clean-leaf,
+.clean-arc,
+.clean-gap {
+  fill: none;
+  stroke: var(--redraw-line);
+  stroke-width: calc(1.5px * var(--u));
+}
+.clean-arc {
+  stroke-width: calc(1px * var(--u));
+}
 .clean-sheet .is-added {
   stroke: var(--redraw-added);
   stroke-dasharray: calc(4px * var(--u)) calc(3px * var(--u));
