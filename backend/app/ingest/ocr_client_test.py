@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from app.config import Settings
+from app.domain.ocr_wire import words_to_json
 from app.domain.tokens import Word
 from app.ingest import ocr_client
 from app.ingest.ocr_client import page_words
@@ -91,3 +92,21 @@ def test_any_failure_falls_back_to_local_ocr(
     _serve(monkeypatch, answer)
     assert page_words(GRAY, _settings("http://gpu:8002")) == LOCAL
     assert local == [("fin+eng", "rapid")]
+
+
+def test_line_work_is_dropped_from_local_and_service_words(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A 2 px line across a 20 x 30 page, read as "mm" (a line, dropped), and "==" with
+    # no letter or digit (dropped); "WC" on blank paper has nothing to judge and is kept.
+    gray = GRAY.copy()
+    gray[10:12, :] = 0
+    words = [
+        Word((0, 8, 30, 14), "mm", 0.86),
+        Word((0, 0, 10, 6), "==", 0.9),
+        Word((15, 0, 25, 6), "WC", 0.9),
+    ]
+    monkeypatch.setattr(ocr_client, "ocr_words", lambda *args: words)
+    assert [w.text for w in page_words(gray, _settings(None))] == ["WC"]
+    _serve(monkeypatch, {"ok": True, "data": {"words": words_to_json(words)}})
+    assert [w.text for w in page_words(gray, _settings("http://gpu:8002"))] == ["WC"]
