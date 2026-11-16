@@ -19,9 +19,9 @@ is the rules and the stored shape, pure.
 """
 
 import math
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, TypeGuard
+from typing import Any, Protocol, TypeGuard
 
 from app.domain.geometry import BBox, Point
 
@@ -73,9 +73,39 @@ class RedrawConfidence:
     added: tuple[Mark, ...]
 
 
+class Drawn(Protocol):
+    """What the view reads of an element: ingest's `ExtractedElement` or a stored row."""
+
+    @property
+    def kind(self) -> str: ...
+    @property
+    def bbox(self) -> Any: ...  # a 4-sequence of numbers, or None
+    @property
+    def label(self) -> str | None: ...
+    @property
+    def text(self) -> str | None: ...
+    @property
+    def confidence(self) -> float: ...
+    @property
+    def properties(self) -> Mapping[str, Any]: ...
+
+
 def score(covered: float, on_ink: float) -> float:
     total = covered + on_ink
     return 2 * covered * on_ink / total if total else 0.0
+
+
+def shapes_of(elements: Iterable[Drawn], page_width: float) -> list[Shape]:
+    """Everything the view draws for these elements, on a page `page_width` px wide."""
+    shapes = []
+    for e in elements:
+        box = _box(e.bbox)
+        if e.bbox is not None and box is None:
+            continue  # not four numbers: nothing the view can draw
+        shape = drawn_shape(e.kind, box, e.label, e.text, e.confidence, e.properties, page_width)
+        if shape is not None:
+            shapes.append(shape)
+    return shapes
 
 
 def drawn_shape(
@@ -117,6 +147,12 @@ def drawn_shape(
         ((cx - half_w, cy - half_h), (cx + half_w, cy - half_h),
          (cx + half_w, cy + half_h), (cx - half_w, cy + half_h)),
     )  # fmt: skip
+
+
+def _box(raw: object) -> BBox | None:
+    if not isinstance(raw, list | tuple) or len(raw) != 4 or not all(_finite(v) for v in raw):
+        return None
+    return (float(raw[0]), float(raw[1]), float(raw[2]), float(raw[3]))
 
 
 def confidence_meta(c: RedrawConfidence) -> dict[str, Any]:

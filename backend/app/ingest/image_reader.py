@@ -10,8 +10,10 @@ import numpy as np
 from PIL import Image, ImageSequence, UnidentifiedImageError
 
 from app.config import Settings
+from app.domain.redraw_confidence import CONFIDENCE_KEY, confidence_meta, shapes_of
 from app.domain.redraw_mode import STATS_KEY, stats_meta
 from app.ingest.annotate import annotate_page
+from app.ingest.confidence import score_redraw
 from app.ingest.errors import ReaderError
 from app.ingest.ink import separate_colours
 from app.ingest.ocr_client import page_words
@@ -81,6 +83,8 @@ def _page(
     # What the page looks like decides its redraw: a printed plan or a sketch (#138).
     dimensions = sum(1 for e in elements if e.kind == "dimension")
     meta[STATS_KEY] = stats_meta(page_stats(layers, dimensions))
+    # How much of the page's own ink the Redrawn view accounts for (#132).
+    meta[CONFIDENCE_KEY] = confidence_meta(score_redraw(layers, shapes_of(elements, image.width)))
     return ExtractedPage(
         index=index,
         image_png=png,
