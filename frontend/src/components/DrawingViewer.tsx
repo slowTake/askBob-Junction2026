@@ -13,6 +13,7 @@ import { buildSketchSheet, isSketchPage, planElements, redrawScaleBar } from "..
 import { selectElement } from "../lib/selection";
 import { onPage, type PlanTarget, type TargetOnPage } from "../lib/target";
 import { CleanSheet, SketchSheetSvg } from "./CleanSheet";
+import { ConfidenceBadge } from "./ConfidenceBadge";
 import { ElementCard } from "./ElementCard";
 import type { SheetExport } from "./ExportMenu";
 import { PlanCanvas } from "./PlanCanvas";
@@ -142,6 +143,13 @@ export function DrawingViewer(props: Props) {
     );
   }, [redrawn, sketch, ready, elements, w, h, mmPerPx]);
   const layerElements = useMemo(() => planElements(elements, sketch), [elements, sketch]);
+  // The redraw's confidence from the page's own ink (#132): the page redraw only, since
+  // the sketch redraw measures nothing. The breakdown is open for one page key, so
+  // another page starts closed.
+  const confidence = redraw && !sketch ? (page?.redraw_confidence ?? null) : null;
+  const [confidenceOpenFor, setConfidenceOpenFor] = useState<string | null>(null);
+  const pageKey = `${documentId}:${pageIndex}`;
+  const confidenceOpen = confidence !== null && confidenceOpenFor === pageKey;
 
   // The Export menu (documents panel) downloads or prints the redrawn sheet
   // while it's on screen; otherwise its SVG and Print are greyed out.
@@ -261,6 +269,14 @@ export function DrawingViewer(props: Props) {
             }}
             onError={() => setImageFailed(src)}
             redraw={redraw}
+            marks={confidenceOpen ? confidence : null}
+          />
+        )}
+        {confidence && (
+          <ConfidenceBadge
+            confidence={confidence}
+            open={confidenceOpen}
+            onToggle={(open) => setConfidenceOpenFor(open ? pageKey : null)}
           />
         )}
         {sheetMode === "redrawn" && page && !availableRedraw && (
