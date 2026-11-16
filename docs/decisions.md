@@ -25,7 +25,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-019 | 2026-11-14 | Answers carry a numeric value; the eval scores it by question type | Accepted |
 | D-020 | 2026-11-14 | The Q&A agent can run on Kimi K3.1 Pro on Verda (`LLM_PROVIDER`) | Accepted |
 | D-021 | 2026-11-14 | A citation's box is the element's extent; the printed name is the fallback | Accepted |
-| D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Accepted |
+| D-022 | 2026-11-14 | A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans | Superseded in part by D-053 |
 | D-023 | 2026-11-14 | The `vision` service works within a fixed pixel budget, whatever the upload | Accepted |
 | D-024 | 2026-11-14 | Fit frames the drawing's ink; agent highlights keep the plan fitted; one conversation per document | Superseded in part by D-035 |
 | D-024 | 2026-11-14 | Raster rooms are traced from the drawing's lines; RapidOCR reads the text | Accepted |
@@ -59,6 +59,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-050 | 2026-11-16 | Written-out Finnish room names, one-edit OCR matching, decimal-comma dimensions and ceiling heights (#36) | Accepted |
 | D-051 | 2026-11-16 | Raster pages are split by colour before thresholding: line work, fills, red annotations (#89) | Accepted |
 | D-052 | 2026-11-16 | OCR words that are line work are dropped before they become elements (#90) | Accepted |
+| D-053 | 2026-11-16 | Raster walls are traced from the ink as polygons: bands and thin lines; model walls only add (#137) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -329,7 +330,7 @@ The PDF path still lacks doors, windows and apartment membership. Fixtures (WC, 
 
 ## D-022: A floor-plan model (CubiCasa5k) in its own `vision` service reads raster plans
 
-**Date:** 2026-11-14 · **Status:** Accepted
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-053 (walls on raster pages); the rest still applies
 
 **Context:** On PNG/JPG drawings and scanned PDF pages the readers only find OCR text, rooms flood-filled from their labels and low-confidence wall boxes. There are no door, window or fixture elements, so a question like "where is the exit?" gets the word EXIT highlighted instead of a door. Vector PDFs have exact walls and text but no doors or windows either (0% in the swiss_dwellings scores). We tested the pretrained CubiCasa5k model (#84) on dataset plans:
 - On CubiCasa's own Finnish plans its door, window, WC and sink counts were mostly within one of the dataset answers.
@@ -854,6 +855,44 @@ The CI floors for walls precision, rooms outlined, texts found, digits and kind 
 **Measured.** colorful-34 (`python -m eval.redraw_bench`, recorded OCR, vision off), main → this change: 1 of 39 words dropped ("1281", the stove; checked by eye). Texts drawn 30 → 29, precision 83.3 % → 86.2 %; found 25/35, exact 11, digits 13, kind 16, walls, openings, rooms and redraw unchanged. "Ink off walls" stays 32.2 %: it is measured on the colour layers' ink mask, which OCR doesn't touch. A CI floor for text precision (0.862) is added; none is lowered. On 25 CubiCasa pages (local RapidOCR on the OCR page): 3 of 227 words dropped, all line work: "1281" (stove), "Boo" (hob and cupboard symbols on high_quality-11384) and "smlis6mot2igtniix" (a mirrored estate-agent logo, white on a grey banner, on colorful-7513). No room code, height, decimal-comma dimension or handwritten name was dropped.
 
 **Consequences:** Symbol frames and line work no longer reach the redraw, the agent or the room flood fill as text. Letters read off furniture without a frame, dashed lines read as "LI", and misread handwriting ("yw" for "mh") remain. Thresholds were set on CubiCasa pages only, not the Swiss PDFs; a boxed label whose OCR box is its box would be dropped, which RapidOCR's tight boxes have not shown so far.
+
+## D-053: Raster walls are traced from the ink as polygons: bands and thin lines; model walls only add (#137)
+
+**Date:** 2026-11-16 · **Status:** Accepted · **Supersedes in part:** D-022 (model walls replace the pixel wall boxes)
+
+**Context:** On raster pages without vector walls, walls were `rooms.wall_boxes`: thick, straight, horizontal or vertical runs, stored as boxes. On the colorful-34 benchmark (D-049) that drew 3 walls and covered 15.8 % of the true walls: thin outer walls, double-line partitions, the diagonal wall and L-shaped bands were lost. When the vision service answered, its walls replaced the boxes outright.
+
+**Decision:**
+- `app/ingest/wall_trace.py: trace_walls` reads the ink layer (D-051) for two kinds of wall drawing. Pure, tested on hand-built masks.
+  - **Bands** (solid, hatched or close double-line walls): the ink is closed over 5 px gaps (as for room tracing, D-024) and what stays at least 3 px thick is a band. A band network is cut along its skeleton, one piece per branch between junctions, so no polygon covers the room it encloses; a junction-free ring is cut in two at its hole. An L-shaped or slanted band with no junction stays one polygon. Each piece keeps its real outline as `polygon_px` and its measured thickness (twice the median distance from its skeleton to the paper).
+  - **Lines** (walls drawn as one 1–3 px line): straight horizontal or vertical runs at least 4 % of the page's longest side long (at least 12 px; 20 px on colorful-34), longer than its dashes and letters. A scanned line may step by a row; it is drawn along the fitted line, as thick as its pixels per unit length.
+- **What is not a wall:**
+  - a band mostly inside OCR word boxes (lettering), and word boxes are cut out of thin lines;
+  - a band piece whose own ink is less than 60 % on straight strokes 9 px long in one of eight directions: handwriting and fixture symbols that the closing merged into a band are curves (on colorful-34 this dropped about 1,380 px of false wall for 155 px of true wall);
+  - a thin line within 1.5 label heights of a printed dimension and reaching it, and any line continuing it in line past a tick.
+- **The model's walls only add.** When the vision service answered, its walls join the traced ones unless half of a model wall lies within 2 px of a traced wall: where both have a wall, the drawing's outline wins.
+- Traced walls stay `source: "derived"` at confidence 0.3 (pixels, to be checked by eye), with `properties.thickness_px` and `properties.drawn` (`band` or `line`). `wall_boxes` is gone. Vector walls (PDF hatching) still win over all of this.
+
+**Measured.** colorful-34 (`python -m eval.redraw_bench`, recorded OCR, vision off), main with the OCR line-work filter (D-052) → this change:
+
+| | before | after |
+| --- | --- | --- |
+| walls drawn | 3 | 158 |
+| walls recall / precision / F1 | 15.8 % / 97.0 % / 27.2 % | 96.5 % / 80.5 % / 87.8 % |
+| ink redrawn / on ink | 14.0 % / 99.0 % | 79.5 % / 99.8 % |
+| rooms named / outlined | 3 / 3 of 16 | 3 / 3 of 16 |
+| texts found / precision / exact / digits / kind | 25 / 86.2 % / 11 / 13 / 16 | unchanged |
+
+Room outlines do not read walls (they come from the line network, D-024), so they are unchanged. The CI floors for walls recall and redraw on ink are raised, and "ink redrawn" gets a floor (0.795).
+
+**Walls precision is lowered from 0.969 to 0.804**, against the rule that floors only rise. Three thick walls were right almost everywhere they were drawn; the whole wall network now is, but so are fixtures and handwriting that touch a wall (the octagonal table, the WC, a doorstep, a handwritten "RN"), a few shelf and window-frame lines, and thick walls drawn 1–3 px wider than the truth. Nothing measured on this page separates those from short wall pieces: thickness, elongation, outline straightness and skeleton straightness were each tried per piece and lose about as much true wall as false. Requiring longer runs trades one for the other (8 % of the page, measured before D-052: recall 91.5 %, precision 87.1 %) without a better F1 at the cost of short walls between doors. So the precision floor drops to what is measured, and fixtures and windows are left to the door, window and fixture work that comes next. Measured before D-052 the same tracing gave 94.6 % / 80.9 %: once the stove's misread "1281" is dropped from OCR, its word box no longer hides the stove symbol, which is now traced as a band (without the walls in that 30 × 30 px area precision is 81.0 %), and the thin wall lines that box cut are whole again (recall +1.9 points).
+
+**Consequences:**
+- The redraw draws the plan's walls instead of three boxes, as polygons that the room-leak (#34) and door work can build on: one piece per branch, with its thickness.
+- A wall count on a raster page counts pieces, not walls; element lists stay capped (50).
+- The route tool (`domain/route.py`) now meets every traced wall. Where a door is drawn over an unbroken wall line (colorful-34's lower aula, doors in orange) there is no way through until doors are detected and carved; a thin wall narrower than a route cell (pages over 900 px on their longest side) may not block it.
+- IFC export gets one `IfcWall` per traced piece when the scale is known.
+- Tracing takes 0.08 s on colorful-34 and about 1 s on a 2,900 × 3,000 px page.
 
 ## D-054: Each raster page gets the page redraw or the sketch redraw from what it looks like (#138)
 
