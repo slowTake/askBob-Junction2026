@@ -62,17 +62,30 @@ def find_doors(
     arc = (symbols & ~thick.astype(bool)).astype(np.uint8)
     lines = symbols.astype(np.uint8)
     away = cv2.distanceTransform((~walls).astype(np.uint8), cv2.DIST_L2, 3)
+    radii = _radii(max(3, round(min_radius_px * scale)), round(max_radius_px * scale))
+    kept = _suppressed(_candidates(arc, lines, walls, away, radii))
+    return [_scaled(d, 1 / scale) for d in kept] if scale < 1.0 else kept
+
+
+def _candidates(
+    arc: np.ndarray, lines: np.ndarray, walls: Mask, away: np.ndarray, radii: list[int]
+) -> list[tuple[float, Door]]:
+    """Every reading of a leaf and arc at every radius and quadrant, with its score."""
     found = []
-    for r in _radii(max(3, round(min_radius_px * scale)), round(max_radius_px * scale)):
+    for r in radii:
         for sx in (1, -1):
             for sy in (1, -1):
                 found += _quadrant(arc, lines, walls, away, r, sx, sy)
-    found.sort(key=lambda c: -c[0])
+    return found
+
+
+def _suppressed(found: list[tuple[float, Door]]) -> list[Door]:
+    """Non-maximum suppression: the best scored of overlapping candidates is the door."""
     kept: list[Door] = []
-    for _, door in found:
+    for _, door in sorted(found, key=lambda c: -c[0]):
         if all(_overlap(door, k) <= OVERLAP for k in kept):
             kept.append(door)
-    return [_scaled(d, 1 / scale) for d in kept] if scale < 1.0 else kept
+    return kept
 
 
 def door_carve(doors: list[Door], symbols: Mask, ink: Mask) -> Mask:
