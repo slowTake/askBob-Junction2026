@@ -57,6 +57,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-048 | 2026-11-15 | A shared password in front of /api, checked by the server (#129) | Accepted |
 | D-049 | 2026-11-16 | The redraw is scored against a hand-made truth of colorful-34, kept at its low resolution (#131) | Accepted |
 | D-050 | 2026-11-16 | Written-out Finnish room names, one-edit OCR matching, decimal-comma dimensions and ceiling heights (#36) | Accepted |
+| D-051 | 2026-11-16 | Raster pages are split by colour before thresholding: line work, fills, red annotations (#89) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -804,3 +805,34 @@ When any API call answers `unauthorized` mid-use (cookie expired, password chang
 - Benchmark, before → after (recorded OCR, vision off): texts exact 10 → 11, of the right kind 0 → 15 of 20 found; rooms named 3 → 3; every other number unchanged. Floors raised to match. The page's scale is now fitted from the decimal-comma dimensions (5,341 and 10,747 agree on 61.2 mm/px), so the wc gets a computed area and the redraw draws one more text that the truth doesn't have (text precision 80.0 % → 76.9 %, not floored).
 
 **Consequences:** Finnish plans that write names out get rooms, and their dimensions can set the scale. Room naming on colorful-34 does not improve until OCR reads the handwriting better (#89 works on its input); the fuzzy rule is deliberately too strict to rescue two-letter misreads. Ambiguous decimal-comma numbers stay text until a page-wide unit is known.
+## D-051: Raster pages are split by colour before thresholding: line work, fills, red annotations (#89)
+
+**Date:** 2026-11-16 · **Status:** Accepted
+
+**Context:** Raster ingest turned each page grey and thresholded it (Otsu in `ink_mask`, grey below 215 in `line_trace`). On a coloured scan that mixes everything: on colorful-34 the blue sloped-ceiling zones (grey ~203) became wall bands for line tracing, the red height labels and leaders (grey 140–160) became ink, and the room fills reached OCR as noise. Many CubiCasa plans are coloured, and some draw their walls red.
+
+**Decision:**
+- `app/ingest/ink.py: separate_colours(rgb)` sorts every pixel before anything thresholds it. Pure, tested on hand-built pages.
+  - **Neutral** (channels within 24 of each other): left as it is. A black and white scan gives exactly the grey page it gave before, so its results are unchanged (tested in `image_reader_test.py`).
+  - **Red** (red above green and blue by 48): an **annotation**, unless it is a dark band at least 3 px thick that spans 3 % of the page's longest side: then it is a red wall and stays line work. colorful-34's red labels span at most 2.6 %; red wall pieces between doors on other CubiCasa plans 3.6 % or more.
+  - **Other colours darker than grey 160:** line work (a black line blended with the fill under it, dark pen).
+  - **Other colours:** a **fill** (room colour, zone tint).
+- Walls, room regions, line tracing and the dimension fit read the **ink page**: fills and annotations become paper. `ColourLayers.ink` (Otsu on the ink page) and `.annotations` are the masks later work (traced wall outlines, OCR line-work filtering #90) reuses.
+- OCR reads the page with each **fill divided out**: every pixel within a window of 3 % of the page's longest side (at least 15 px) of a fill is divided by the brightest fill colour there, per channel. A fill turns white, ink on it reads as it would on paper, and the soft edges of letters stay soft. Whitening the fills outright left jagged letters: local RapidOCR then read 10 words on colorful-34 instead of 34. Darkening red labels to their darkest channel also read worse (24 words), so annotations are kept as they are.
+- PDF pages, CAD renderings and the upscale (vision model) pass keep the plain grey or colour page; they are out of scope here.
+
+**Measured.** colorful-34 (`python -m eval.redraw_bench`, vision off), on main after the vocabulary work (D-050) and with colour separation on top, its OCR re-recorded from the new OCR page with local RapidOCR:
+
+| | before | after |
+| --- | --- | --- |
+| walls recall / precision | 15.8 % / 96.9 % | 15.8 % / 97.0 % |
+| rooms named / outlined | 3 / 0 of 16 | 3 / 3 of 16 |
+| texts found / exact / digits / kind | 20 / 11 / 12 / 15 of 35 | 25 / 11 / 13 / 16 of 35 |
+| OCR words | 34 | 39 |
+| ink finds walls / off walls | 99.4 % / 42.4 % | 98.4 % / 32.2 % |
+| redraw ink redrawn / on ink | 10.9 % / 98.9 % | 14.0 % / 99.0 % |
+
+The CI floors for walls precision, rooms outlined, texts found, digits and kind and redraw on ink are raised; none is lowered. "Ink finds walls" (not a floor) drops by one point: the light fringes of black lines over a fill now count as fill. Twelve other CubiCasa pages from the dataset preview (wall boxes, closed regions of the Otsu ink, OCR words and mean confidence) change little: OCR keeps its word counts or drops noise words at higher confidence (colorful-8389: 11 words at 0.87 to 9 at 0.95), and wall boxes change on four pages (colorful-13685 49 to 57, -8759 47 to 43, -7513 8 to 6, -2194 10 to 9). Known losses: on colorful-6327 short red wall stubs at door jambs are under the 3 % span and become annotations, so two closed regions open; on high_quality-1097 (black ink with blue pen markup) the light parts of the pen strokes become fill while their dark parts stay ink.
+
+**Consequences:** Colour no longer decides what is a wall on a coloured scan, and OCR sees fills as paper. Red walls depend on a span rule, which can miss short stubs; pen markup in colours other than red is only partly separated. Both are left for later, as are room outlines from the fill colours themselves.
+

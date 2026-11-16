@@ -2,7 +2,7 @@
 
 Raster ingest used to turn a page grey and threshold it, so on a coloured scan a blue
 ceiling zone (grey ~203) became wall ink and red height labels became lines. Each pixel
-is sorted first (D-050):
+is sorted first (D-051):
 
 - neutral (channels within `NEUTRAL_CHROMA` of each other): left as it is, so a black
   and white scan gives exactly the grey page it gave before;
