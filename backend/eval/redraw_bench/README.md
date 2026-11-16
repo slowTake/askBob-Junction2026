@@ -6,9 +6,17 @@ The drawing the Redrawn view is scored against (#131).
 
 It stays at that size on purpose. The product has to read a floor plan of any quality, so a sharper copy would only hide the problem. There is no higher-resolution original.
 
+## Files
+
+- `colorful-34.truth.json`: the hand-made truth. **Draft**: its `notes` list every entry still to be checked by eye. Check it with an overlay: `uv run python -m eval.redraw_overlay eval/redraw_bench/colorful-34.truth.json /tmp/overlay.png --scale 3` (each element carries its index: w, o, r, t).
+- `colorful-34.ocr.json`: the app's OCR words for the page, recorded so the benchmark runs offline.
+- `colorful-34.vision.json`: the vision service's answer, or `{"status": "unavailable"}` when none was running.
+
+Run the benchmark with `uv run python -m eval.redraw_bench` (from `backend/`). `--live` runs OCR and the vision service instead of the recordings; `--record` also rewrites them. No paid model is called.
+
 ## Truth file format
 
-`colorful-34.truth.json` (not written yet) is read by `eval/redraw_sheet.py:load_sheet`. Coordinates are shares of the page, 0..1 of its width (x) and height (y). A malformed entry is refused, never repaired.
+`colorful-34.truth.json` is read by `eval/redraw_sheet.py:load_sheet`. Coordinates are shares of the page, 0..1 of its width (x) and height (y). A malformed entry is refused, never repaired.
 
 ```json
 {

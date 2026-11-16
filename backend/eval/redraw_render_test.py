@@ -20,6 +20,14 @@ def test_walls_are_filled_where_their_outline_is() -> None:
     assert not mask[11, 25]  # 5 px past its end
 
 
+def test_where_walls_overlap_the_page_stays_filled() -> None:
+    # Two 10 x 10 squares overlapping on x 5..10, y 5..10 (a T-junction's shared corner):
+    # (7, 7) lies in both, so it is wall.
+    a = Wall(((0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)))
+    b = Wall(((5.0, 5.0), (15.0, 5.0), (15.0, 15.0), (5.0, 15.0)))
+    assert wall_mask([a, b], 20, 20)[7, 7]
+
+
 def test_a_wall_off_the_page_is_clipped_not_an_error() -> None:
     mask = wall_mask([Wall(((-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0)))], 10, 10)
     assert mask[0, 0] and not mask[9, 9]
