@@ -108,6 +108,83 @@
   white-space: nowrap;
 }
 
+/* The redraw confidence badge (#132): top left, its breakdown dropping under it. */
+.confidence-badge {
+  position: absolute;
+  top: var(--s-3);
+  left: var(--s-3);
+  display: grid;
+  gap: var(--s-2);
+  justify-items: start;
+  cursor: default;
+}
+.confidence-badge > .btn {
+  background: var(--surface);
+  box-shadow:
+    var(--shadow-pop),
+    inset 0 0 0 1px var(--line);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.confidence-badge > .btn.is-on {
+  box-shadow:
+    var(--shadow-pop),
+    inset 0 0 0 1px var(--accent);
+}
+.confidence-panel {
+  width: min(360px, calc(100vw - 2 * var(--s-4)));
+  padding: var(--s-3);
+  background: var(--surface);
+  box-shadow:
+    var(--shadow-pop),
+    inset 0 0 0 1px var(--line);
+}
+.confidence-panel p {
+  margin: 0 0 var(--s-2);
+  color: var(--ink-2);
+}
+.confidence-legend {
+  list-style: none;
+  margin: 0 0 var(--s-2);
+  padding: 0;
+  display: flex;
+  gap: var(--s-4);
+}
+.confidence-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: var(--s-1);
+  vertical-align: -1px;
+}
+.confidence-swatch.is-missed {
+  background: color-mix(in srgb, var(--danger) 25%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--danger);
+}
+.confidence-swatch.is-added {
+  background: color-mix(in srgb, var(--redraw-added) 25%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--redraw-added);
+}
+.confidence-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.confidence-table th,
+.confidence-table td {
+  padding: 2px var(--s-2) 2px 0;
+  text-align: right;
+  font-weight: 400;
+}
+.confidence-table th[scope="row"],
+.confidence-table th:first-child {
+  text-align: left;
+}
+.confidence-table thead th {
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--line);
+}
+
 .element-bar {
   flex: none;
   height: 44px; /* fixed: changing the text never moves the plan */

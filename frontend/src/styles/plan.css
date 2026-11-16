@@ -109,6 +109,23 @@
   pointer-events: none;
 }
 
+/* The redraw's missed ink and added paper (#132), lit like citation highlights. */
+.confidence-marks {
+  pointer-events: none;
+}
+.confidence-mark {
+  stroke-width: calc(2px * var(--u));
+  stroke-linejoin: round;
+}
+.confidence-mark.is-missed {
+  fill: color-mix(in srgb, var(--danger) 25%, transparent);
+  stroke: var(--danger);
+}
+.confidence-mark.is-added {
+  fill: color-mix(in srgb, var(--redraw-added) 25%, transparent);
+  stroke: var(--redraw-added);
+}
+
 .spotlight {
   pointer-events: none;
 }

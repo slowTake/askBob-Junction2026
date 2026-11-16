@@ -1,6 +1,13 @@
 import { useId, useMemo, type CSSProperties, type ReactNode } from "react";
-import type { ElementInfo, PlanLabel as PlanLabelData, PlanPath, PlanView } from "../api/types";
+import type {
+  ElementInfo,
+  PlanLabel as PlanLabelData,
+  PlanPath,
+  PlanView,
+  RedrawConfidence,
+} from "../api/types";
 import type { BBox, Camera } from "../lib/camera";
+import { markPoints } from "../lib/confidence";
 import type { LayerKey } from "../lib/planLayer";
 import { readingOrder, type TargetOnPage } from "../lib/target";
 import { PlanLayer } from "./PlanLayer";
@@ -24,6 +31,8 @@ interface Props {
   onError: () => void;
   /** The redrawn page (#82), drawn over the image and under the same overlay. */
   redraw: ReactNode | null;
+  /** The redraw's missed and added patches (#132), lit while the breakdown is open. */
+  marks: RedrawConfidence | null;
 }
 
 const SPOTLIGHT_PAD_PX = 10;
@@ -76,6 +85,7 @@ export function PlanCanvas(props: Props) {
           onHover={props.onHover}
           onSelect={props.onSelect}
         />
+        {props.marks && <ConfidenceMarks marks={props.marks} />}
         {shown?.spotlight && (
           <Spotlight
             box={shown.spotlight}
@@ -95,6 +105,23 @@ export function PlanCanvas(props: Props) {
         ))}
       </svg>
     </div>
+  );
+}
+
+/** Ink the redraw missed, and redraw on blank paper, outlined as citations are. */
+function ConfidenceMarks({ marks }: { marks: RedrawConfidence }) {
+  const patches = (list: RedrawConfidence["missed"], kind: "missed" | "added") =>
+    list.map((mark, i) => {
+      const points = markPoints(mark);
+      return points ? (
+        <polygon key={`${kind}:${i}`} points={points} className={`confidence-mark is-${kind}`} />
+      ) : null;
+    });
+  return (
+    <g className="confidence-marks">
+      {patches(marks.missed, "missed")}
+      {patches(marks.added, "added")}
+    </g>
   );
 }
 
