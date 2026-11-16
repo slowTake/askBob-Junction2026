@@ -41,9 +41,38 @@ def test_a_wall_is_its_outline_else_its_box() -> None:
     assert shape("wall", (10, 20, 30, 40), properties={"polygon_px": "no"}) == box
 
 
-def test_doors_and_windows_are_their_boxes() -> None:
+def test_doors_and_windows_without_a_stored_gap_are_their_boxes() -> None:
     assert shape("door", (0, 0, 8, 2)) == Shape("openings", ((0, 0), (8, 0), (8, 2), (0, 2)))
     assert shape("window", (0, 0, 2, 8)) == Shape("openings", ((0, 0), (2, 0), (2, 8), (0, 8)))
+    # A gap that is not two points: the box, as redraw.ts does.
+    bad = {"opening": {"a": [0, 1], "b": [8]}}
+    assert shape("door", (0, 0, 8, 2), properties=bad) == shape("door", (0, 0, 8, 2))
+
+
+def test_a_door_with_a_swing_is_its_leaf_and_arc_as_one_line() -> None:
+    # Gap (80, 50)..(100, 50), hinge "a", opening downwards: the leaf runs from the hinge
+    # 20 px down to (80, 70), then the arc of radius 20 round the hinge back to (100, 50).
+    door = {"opening": {"a": [80, 50], "b": [100, 50]}, "hinge": "a", "toward": [90, 60]}
+    s = shape("door", (80, 50, 100, 70), properties=door)
+    assert s is not None and s.part == "openings" and s.stroke
+    assert s.polygon[:2] == ((80, 50), (80, 70))
+    assert s.polygon[-1] == pytest.approx((100, 50))
+    # Sampled every 5 degrees: 45 degrees is on it, at (80 + 20 cos 45, 50 + 20 sin 45).
+    assert (94.142, 64.142) in [(round(x, 3), round(y, 3)) for x, y in s.polygon]
+    assert len(s.polygon) == 2 + 18  # hinge, leaf end, then 90 / 5 = 18 steps to the gap
+
+
+def test_a_window_is_its_frame_and_a_bare_gap_its_line() -> None:
+    frame = [[40, 44], [69, 44], [69, 48], [40, 48]]
+    window = {"opening": {"a": [40, 50], "b": [69, 50]}, "polygon_px": frame}
+    # The frame's outline, closed: its first corner again at the end.
+    assert shape("window", (40, 44, 69, 48), properties=window) == Shape(
+        "openings", ((40, 44), (69, 44), (69, 48), (40, 48), (40, 44)), stroke=True
+    )
+    gap = {"opening": {"a": [0, 2], "b": [20, 2]}}  # a door with no swing
+    assert shape("door", (0, 0, 20, 4), properties=gap) == Shape(
+        "openings", ((0, 2), (20, 2)), stroke=True
+    )
 
 
 def test_a_room_name_is_drawn_at_the_box_centre_in_the_room_size() -> None:
