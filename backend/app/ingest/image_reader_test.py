@@ -8,6 +8,7 @@ from PIL import Image
 from app.config import Settings
 from app.ingest import image_reader
 from app.ingest.errors import ReaderError
+from app.ingest.types import ExtractedElement
 
 
 def test_transparent_png_is_composited_on_white() -> None:
@@ -121,3 +122,32 @@ def test_a_coloured_scan_reads_its_line_work_and_its_labels_apart(
     # (220, 40, 40) / (176, 208, 240) * 255 = (255 capped, 49.0, 42.5) -> (255, 49, 42),
     # grey 0.299 * 255 + 0.587 * 49 + 0.114 * 42 = 110.
     assert (seen["ocr"][6] == 110).all() and (seen["ocr"] == 255).sum() == 72
+
+
+def test_each_page_stores_what_it_looks_like_for_its_redraw(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = Image.new("RGB", (12, 8), (176, 208, 240))  # a blue zone: a colour fill
+    for x in range(12):
+        image.putpixel((x, 3), (0, 0, 0))  # a wall line across the page
+    image.save(tmp_path / "plan.png")
+    found = [ExtractedElement(kind="dimension", source="ocr", text=t) for t in ("3,450", "5,341")]
+    found.append(ExtractedElement(kind="text", source="ocr", text="mh"))
+
+    def annotate(*args: Any, **kwargs: Any) -> tuple[list[Any], None, dict[str, Any]]:
+        return found, None, {"words": 3}
+
+    monkeypatch.setattr(image_reader, "page_words", lambda *a: [])
+    monkeypatch.setattr(image_reader, "analyse_page", lambda *a: (None, "unavailable"))
+    monkeypatch.setattr(image_reader, "annotate_page", annotate)
+    result = image_reader.read_image(tmp_path / "plan.png", Settings.model_construct(),
+                                     lambda *_: None)  # fmt: skip
+    meta = result.pages[0].meta
+    assert meta["words"] == 3  # the annotator's meta is kept
+    stats = meta["page_stats"]
+    # 84 of 96 px are the blue fill; the wall row's 12 px are all the ink, in one run
+    # longer than the 9 px minimum; two of the three elements are dimensions.
+    assert stats["fill_share"] == round(84 / 96, 3)
+    assert stats["straight_share"] == 1.0
+    assert stats["dimension_words"] == 2
+    assert isinstance(stats["paper_spread"], float)
