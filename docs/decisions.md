@@ -951,3 +951,42 @@ What this says:
 - Missed is real. The 24 % of colorful-34's ink the redraw misses is the door arcs and leaves (openings 0/34), the stairs, the fixtures and the labels OCR did not read; the patches on the plan show exactly where.
 
 **Consequences:** Every scanned plan gets a number and a map of what the redraw left out and made up, with no answer key. The number means "how much of the page's line work is accounted for", not "how much is right": it is blind to a fixture traced as a wall and to a misread label, and the badge's caveat says so. Later signals (#132's "later"): a pixel check of each model addition, and OCR's own confidence for the labels it kept. PDF and CAD pages are not scored; scanned PDF pages could be with the same code once their colour layers are kept. The patches are capped at 40 each, so a page with more small misses shows the largest.
+
+## D-055: Doors and windows are read from the page's symbol layer and carved out of the traced walls (#141)
+
+**Date:** 2026-11-16 · **Status:** Accepted · **Refines:** D-051 (a symbol layer), D-053 (a carve before tracing), D-049 (what "ink redrawn" and "on ink" draw)
+
+**Context:** On the redraw benchmark (D-049) openings scored 0 of 34: raster ingest found no doors or windows, and the Redrawn view drew the vision service's as boxes. About 19.5 % of the traced wall pixels were false (D-053), many of them window frames closed into the outer wall band and door leaves and arcs touching walls. On colorful-34 the door leaves and arcs are 1 px orange-brown lines and the window glazing light blue: D-051 sends them to the fills, so only their darkest pixels are ink. The truth runs its walls straight through 22 of its 24 doors, and through about half of its windows.
+
+**Decision:**
+- **Symbol layer.** `ColourLayers.symbols` is the ink plus every pixel under grey 200 on the page with the fills divided out (`ocr_page`, D-051), less the red annotations. On a grey scan it is the ink and the darker greys.
+- **Windows** (`app/ingest/symbols.py`, pure). A window is a glazing frame: thin straight holes in the symbol layer (glass 2–6 px across, at least twice as long, filling 60 % of their box), panes end to end within 4 px joined into one strip, at least 2.5 % of the page's longest side long (13 px here) and 2.5 times its thickness. It is kept when a traced wall runs within 4 px along 60 % of it (else a shelf or a counter) and one long side has at most 35 % room fill (windows face out; a page without fills passes). Its gap lies on the wall's centre line: the rows of ink that run on past both ends of the frame, followed across a band's thickness.
+- **Doors** (`app/ingest/doors.py`, pure). For every hinge within 2 px of a traced wall, every radius from 1.4 % to 5 % of the page's longest side (7–25 px here) and every quadrant, a door is: thin symbol ink (the layer less `open(ink, 3×3)`) in 9 of 9 ten-degree sectors within 1.5 px of the radius; at most 3 of 9 sectors inked on the ring 3.5 px inside and 4 of 9 outside (a line, not a hatched patch); a swing (the quarter disc, 3 px in from its edges) at most 20 % ink and 8 % traced wall; a leaf, the line from the hinge across the wall, at least 70 % ink; the arc's other end within 2 px of a wall. Overlapping doors (10 % of the smaller box) keep the one with the longest, best-fitting arc. Pages over 700 px are read shrunk to 700 px (3 s on a 3,000 px page; 1.4 s on colorful-34 with the second trace).
+- **Carve.** Walls are traced once to find the symbols, then again (`trace_walls(carve=…)`) without the symbols' own ink: a window's frame box except its wall's centre line and a pixel either side, and a door's leaf and arc dilated by 1 px except thick ink, the gap's line and the thin wall lines the first trace found. The opening's gap is never cut out of its wall: the truth keeps walls continuous through doors, and the route tool and room regions (#34) cut their own passable mask from the stored gaps.
+- **Elements.** Doors and windows are `source: "derived"` at confidence 0.5, with `properties.opening = {a, b}` (the gap on its wall) and `polygon_px`; a window also `thickness_px` and its frame as the polygon; a door `hinge: "a"`, `toward` (a point in its swing) and `radius_px`, the triangle hinge, free end, leaf end as the polygon, and the box round its swing. `value_mm` is the gap's length when the scale is known. No schema change. Vision's doors and windows within 0.8 % of the page's longest side (4 px here) of a detected one are dropped: the ink's shape wins.
+- **The view** (`redraw.ts`, `CleanSheet.tsx`, the SVG export) draws a door with a swing as its leaf and arc, a window with a frame as the frame, any other stored gap as its line, and an opening without one as its box, as before. `eval/redraw_elements.py` mirrors it, and the benchmark draws the same shapes as pixels for "ink redrawn" and "on ink".
+- **"On ink" is read against the symbol layer**: the redraw now draws coloured door arcs and window frames that are on the page but not ink. "Ink redrawn" still asks how much of the ink is redrawn.
+
+**Measured.** colorful-34 (`python -m eval.redraw_bench`, recorded OCR, vision off):
+
+| | before (main) | windows only | after |
+| --- | --- | --- | --- |
+| walls recall / precision | 96.49 % / 80.50 % | 96.72 % / 82.08 % | 96.46 % / 83.55 % |
+| openings found (drawn) | 0 / 34 (0) | 12 / 34 (14) | 20 / 34 (44) |
+| door swings right | 0 / 0 | 0 / 0 | 7 / 8 |
+| ink redrawn / on ink | 79.52 % / 99.82 % | 80.10 % / 99.95 % | 80.85 % / 99.94 % |
+| rooms, texts | unchanged | unchanged | unchanged |
+
+Twelve of the 15 windows are found and 14 drawn: 33 is drawn 6 px off (the scorer allows 4) and the kuisti step is taken for a window; 6 has no glass drawn, and only one pane of 7 is read, too short to count. 8 of the 24 doors are found, 7 of them with the right hinge and swing, and 22 more are drawn: five of them 4–6 px from a real door that the scorer does not count (a smaller arc inside the true one, a hinge a few pixels off), the rest on stools, the stair, handwriting and other curves near walls.
+
+**Floors** (`eval/redraw_bench_test.py`): walls precision 0.804 → 0.835, openings found 0 → 20, a new floor for door swings (7), ink redrawn 0.795 → 0.808, redraw on ink 0.998 → 0.999 (now against the symbol layer; the plan's worry that dropping fixtures would lower "ink redrawn" is moot: fixtures are not done, and drawing doors and windows raised it). Walls recall stays at 0.964: 0.96464 against 0.96488 before, still above it. Nothing is lowered.
+
+**Door thresholds trade recall for precision.** Carving the arcs of every door candidate the looser thresholds find (8 of 9 sectors, leaf 50 %) gave 22 openings and 83.2 % precision but 95.3 % recall, under the floor; carving no doors keeps recall at 96.7 % and precision at 82.1 %. The thresholds above are the strictest that keep recall over its floor. The false doors are where the carve loses true wall, so a better door detector should raise both.
+
+**Not done** (the plan's cut order): **fixtures** and **stairs**. D-053 cuts a band network at its skeleton junctions, so a fixture ring touching a wall is split into arcs with no hole; only 3 closed rings are left in the band mask on colorful-34, and carving them (precision +0.4–0.6 points) put recall at 96.2 %, under its floor. Fixture pieces did not separate from short wall pieces by size, elongation or ink density either (D-053 found the same). Stairs move no score. The double-line window rule (windows drawn without glass) was not needed for 12 of 15.
+
+**Consequences:**
+- Openings exist as stored gaps for the route tool and #34; those must cut the gap themselves, since the walls run through it.
+- Thresholds come from one page and should be measured on more CubiCasa pages (the multi-page harness in `.local/fable-walls/`). The door detector assumes thin (1–2 px) arcs at its working size; a page whose door lines are 3 px or thicker at 700 px has them taken as thick ink.
+- Fixtures (WC, stove, cupboard, table, counter) and stairs are still traced as wall where D-053's straightness test keeps them, and are not a kind yet.
+- Ingest takes a second wall trace and the door scan: about 1.4 s on colorful-34 (0.02 s before), about 5.5 s on a 3,000 px page (1 s before).
