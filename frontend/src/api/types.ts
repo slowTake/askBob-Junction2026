@@ -52,6 +52,36 @@ export interface PageInfo {
    * elements and the scale, or "sketch", a model's whole plan. Missing on older servers.
    */
   redraw_mode?: "plan" | "sketch";
+  /**
+   * How much of the page's own ink the page redraw accounts for (#132). Null when the
+   * page was never scored (PDF, CAD, older pages) or gets the sketch redraw; missing on
+   * older servers.
+   */
+  redraw_confidence?: RedrawConfidence | null;
+}
+
+/** One part of the redraw (walls, openings, room names, …) against the page's ink. */
+export interface ConfidencePart {
+  count: number; // elements drawn
+  drawn_px: number;
+  on_ink: number; // share of the part on ink (1 when nothing is drawn)
+  ink_covered: number; // share of the page's ink within reach of the part
+}
+
+/** A patch of missed or added pixels: its outline in page px and how many it holds. */
+export interface ConfidenceMark {
+  polygon: number[][];
+  px: number;
+}
+
+export interface RedrawConfidence {
+  score: number; // harmonic mean of covered and on_ink
+  covered: number; // share of the ink the redraw lies on; missed = 1 - covered
+  on_ink: number; // share of the redraw on ink; added = 1 - on_ink
+  ink_px: number;
+  parts: Record<string, ConfidencePart>;
+  missed: ConfidenceMark[];
+  added: ConfidenceMark[];
 }
 
 /**
