@@ -31,9 +31,10 @@ class MaskScore:
 def wall_mask(walls: Iterable[Wall], width: int, height: int) -> Mask:
     """The walls filled in, on a `width` x `height` page; parts off the page are clipped."""
     canvas = np.zeros((height, width), dtype=np.uint8)
-    outlines = [np.round(np.array(w.polygon)).astype(np.int32) for w in walls]
-    if outlines:
-        cv2.fillPoly(canvas, outlines, 1)
+    for w in walls:
+        # One call per wall: given several outlines at once, fillPoly leaves their overlap
+        # empty (even-odd), which would cut a hole at every junction.
+        cv2.fillPoly(canvas, [np.round(np.array(w.polygon)).astype(np.int32)], 1)
     return canvas.astype(bool)
 
 
