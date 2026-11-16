@@ -34,15 +34,26 @@ import numpy as np
 from PIL import Image
 
 from app.config import Settings
+from app.domain.geometry import Point
 from app.domain.ocr_wire import parse_words, words_to_json
+from app.domain.redraw_confidence import (
+    GLYPH_WIDTH,
+    ROOM_SIZE,
+    TEXT_SHARE,
+    RedrawConfidence,
+    Shape,
+    shapes_of,
+)
 from app.domain.tokens import Word
 from app.domain.vision import Parsed, parse
 from app.ingest.annotate import annotate_page
+from app.ingest.confidence import score_redraw
 from app.ingest.image_reader import _on_white
 from app.ingest.ink import ColourLayers, separate_colours
 from app.ingest.ocr import ocr_words
 from app.ingest.ocr_filter import drop_line_work
 from app.ingest.rooms import Gray
+from app.ingest.types import ExtractedElement
 from eval.redraw_elements import sheet_from_elements
 from eval.redraw_render import Mask, MaskScore, mask_scores, near_share, wall_mask
 from eval.redraw_score import (
@@ -158,10 +169,61 @@ def page(path: Path) -> tuple[ColourLayers, bytes]:
     return separate_colours(np.asarray(image, dtype=np.uint8)), buffer.getvalue()
 
 
+def page_elements(gray: Gray, words: list[Word], vision: Parsed | None) -> list[ExtractedElement]:
+    """The page's elements after ingest (no upscale pass)."""
+    elements, _, _ = annotate_page(gray, words, "ocr", None, vision=vision)
+    return elements
+
+
 def redraw(gray: Gray, words: list[Word], vision: Parsed | None) -> Sheet:
     """What the Redrawn view shows for the page after ingest (no upscale pass)."""
-    elements, _, _ = annotate_page(gray, words, "ocr", None, vision=vision)
-    return sheet_from_elements(elements, gray.shape[1])
+    return sheet_from_elements(page_elements(gray, words, vision), gray.shape[1])
+
+
+def confidence(layers: ColourLayers, elements: list[ExtractedElement]) -> RedrawConfidence:
+    """The score the app shows for this redraw, from the page's own ink (#132)."""
+    return score_redraw(layers, shapes_of(elements, layers.ink_page.shape[1]))
+
+
+def truth_shapes(truth: Sheet, width: float) -> list[Shape]:
+    """The truth drawn as the view draws (`drawn_shape`): walls as their outlines, room
+    names and texts as boxes of the rendered size. Openings are left out: the view draws
+    a box there, the drawing a gap with a leaf and an arc, and the truth only the gap.
+    This is the ceiling of the truth-free score on the page, not a redraw the app makes.
+    """
+    size = width * TEXT_SHARE
+
+    def label(part: str, text: str, at: Point, em: float) -> Shape:
+        half_w, half_h = GLYPH_WIDTH * em * len(text) / 2, em / 2
+        x, y = at
+        return Shape(
+            part,
+            ((x - half_w, y - half_h), (x + half_w, y - half_h),
+             (x + half_w, y + half_h), (x - half_w, y + half_h)),
+        )  # fmt: skip
+
+    shapes = [Shape("walls", w.polygon) for w in truth.walls]
+    shapes += [label("rooms", r.name, r.label, size * ROOM_SIZE) for r in truth.rooms]
+    for t in truth.texts:
+        part = t.kind + "s" if t.kind in ("dimension", "height") else "text"
+        shapes.append(label(part, t.text, t.at, size))
+    return shapes
+
+
+def confidence_table(label: str, c: RedrawConfidence) -> str:
+    """Two rows: the score, and its parts (count, share on ink, share of the ink covered)."""
+
+    def pct(v: float) -> str:
+        return f"{v:.1%}"
+
+    parts = "  ".join(
+        f"{part} {p.count} ({pct(p.on_ink)} on ink, covers {pct(p.ink_covered)})"
+        for part, p in c.parts.items()
+    )
+    return (
+        f"{label:<10} score {pct(c.score)}  covered {pct(c.covered)}  on ink {pct(c.on_ink)}"
+        f"  missed {len(c.missed)} patches  added {len(c.added)}\n           {parts}"
+    )
 
 
 def recorded_words(raw: Any) -> list[Word]:
@@ -260,12 +322,17 @@ def main() -> int:
         return 2
     truth = load_sheet(_read(TRUTH), width, height)
     words = read_words(layers, ocr)
-    sheet = redraw(layers.ink_page, words, recorded_vision(vision))
+    elements = page_elements(layers.ink_page, words, recorded_vision(vision))
+    sheet = sheet_from_elements(elements, width)
     print(f"{IMAGE.name} {width}x{height}  words {len(ocr['words'])} (kept {len(words)})"
           f"  vision {vision['status']}")  # fmt: skip
     print(f"drawn      walls {len(sheet.walls)}  openings {len(sheet.openings)}"
           f"  rooms {len(sheet.rooms)}  texts {len(sheet.texts)}")  # fmt: skip
     print(table(report(sheet, truth, layers.ink, width, height)))
+    # The truth-free score the app shows (#132), and the same score of the truth itself:
+    # the ceiling on this page, since fixtures and lines the truth leaves out stay missed.
+    print(confidence_table("confidence", confidence(layers, elements)))
+    print(confidence_table("truth", score_redraw(layers, truth_shapes(truth, width))))
     return 0
 
 
