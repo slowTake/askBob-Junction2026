@@ -6,6 +6,31 @@ The drawing the Redrawn view is scored against (#131).
 
 It stays at that size on purpose. The product has to read a floor plan of any quality, so a sharper copy would only hide the problem. There is no higher-resolution original.
 
+## Truth file format
+
+`colorful-34.truth.json` (not written yet) is read by `eval/redraw_sheet.py:load_sheet`. Coordinates are shares of the page, 0..1 of its width (x) and height (y). A malformed entry is refused, never repaired.
+
+```json
+{
+  "walls": [
+    {"a": [0.10, 0.50], "b": [0.50, 0.50], "thickness": 0.008},
+    {"polygon": [[0.1, 0.1], [0.2, 0.1], [0.2, 0.12]]}
+  ],
+  "openings": [
+    {"kind": "door", "a": [0.3, 0.5], "b": [0.33, 0.5], "hinge": "a", "toward": [0.31, 0.53]},
+    {"kind": "window", "a": [0.6, 0.0], "b": [0.65, 0.0]}
+  ],
+  "rooms": [{"name": "keittiö", "label": [0.15, 0.6], "polygon": [[0.07, 0.43], [0.35, 0.43], [0.35, 0.7]]}],
+  "texts": [{"text": "5,341", "kind": "dimension", "at": [0.1, 0.17], "rotation": 0}],
+  "notes": "anything for the author; ignored"
+}
+```
+
+- A wall is its centre line with a thickness (a share of the page width), drawn half a thickness past each end so corners close, or its outline.
+- A door's `hinge` names the end its leaf turns on; `toward` is any point in the room it opens into.
+- A room's `name` is as written; `polygon` may be left out.
+- A text's `kind` is `dimension`, `height` or `other` (room names go under rooms); `rotation` is 0 or 90.
+
 ## Source and licence
 
 `colorful-34.png` is from CubiCasa5K, unchanged (the file name is the one the Junction dataset preview uses).
