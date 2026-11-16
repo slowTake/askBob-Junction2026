@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -91,3 +92,33 @@ def test_a_page_upscaled_in_an_older_format_offers_upscale_again() -> None:
     page = {"id": uuid.uuid4(), "index": 0, "width_px": 10, "height_px": 10, "dpi": None,
             "mm_per_px": None, "meta": {"upscale": old}}  # fmt: skip
     assert PageOut.model_validate(page).model_dump()["upscale"] is None
+
+
+def _page_of(kind: str | None, meta: dict[str, object]) -> object:
+    """A page row as the ORM gives it: its document's kind is one attribute away."""
+    document = SimpleNamespace(kind=kind) if kind else None
+    return SimpleNamespace(id=uuid.uuid4(), index=0, width_px=10, height_px=10, dpi=None,
+                           mm_per_px=None, meta=meta, document=document)  # fmt: skip
+
+
+def test_a_page_says_which_redraw_it_gets() -> None:
+    napkin = {"straight_share": 0.1, "fill_share": 0.0, "dimension_words": 0,
+              "paper_spread": 40.0}  # fmt: skip
+    printed = {**napkin, "fill_share": 0.5}  # colour fills: a printed plan
+    assert PageOut.model_validate(_page_of("image", {"page_stats": napkin})).redraw_mode == (
+        "sketch"
+    )
+    dumped = PageOut.model_validate(_page_of("image", {"page_stats": printed})).model_dump()
+    assert dumped["redraw_mode"] == "plan"
+    assert "document_kind" not in dumped  # only what it decides is sent
+    # Ingested before #138: images are sketches, everything else a plan, as before.
+    assert PageOut.model_validate(_page_of("image", {})).redraw_mode == "sketch"
+    assert PageOut.model_validate(_page_of("pdf", {})).redraw_mode == "plan"
+
+
+def test_a_page_without_its_document_is_a_plan() -> None:
+    # Built from a dict (tests, older callers): no kind, so not a raster image page.
+    page = {"id": uuid.uuid4(), "index": 0, "width_px": 10, "height_px": 10, "dpi": None,
+            "mm_per_px": None, "meta": {}}  # fmt: skip
+    assert PageOut.model_validate(page).redraw_mode == "plan"
+    assert PageOut.model_validate({**page, "document_kind": "image"}).redraw_mode == "sketch"

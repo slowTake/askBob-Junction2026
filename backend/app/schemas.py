@@ -4,9 +4,10 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.ingest_errors import error_message
+from app.domain.redraw_mode import page_redraw_mode
 from app.domain.upscale import FILL_MODE, UPSCALE_FORMAT
 
 
@@ -20,6 +21,12 @@ class PageOut(BaseModel):
     dpi: float | None
     mm_per_px: float | None
     meta: dict[str, Any] = Field(default_factory=dict, exclude=True)
+    # From the page row's document; None when built without one (not a raster image).
+    document_kind: str | None = Field(
+        default=None,
+        exclude=True,
+        validation_alias=AliasChoices("document_kind", AliasPath("document", "kind")),
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -47,6 +54,16 @@ class PageOut(BaseModel):
             "mode": str(entry.get("mode", FILL_MODE)),
             "rounds": int(rounds) if isinstance(rounds, int) else None,
         }
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def redraw_mode(self) -> str:
+        """Which redraw the page gets, or got (#138): "plan" (the page redraw) or "sketch".
+
+        Decided from what the page looks like; an upscale with `?mode=` the other way
+        changes it to the mode that ran.
+        """
+        return page_redraw_mode(self.document_kind or "", self.meta)
 
 
 class DocumentOut(BaseModel):
