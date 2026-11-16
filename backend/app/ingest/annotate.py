@@ -31,7 +31,7 @@ from app.domain.vision import (
 from app.ingest.dimension_lines import fit_dimension_scale
 from app.ingest.ink import ColourLayers
 from app.ingest.line_trace import looks_like_text
-from app.ingest.page_symbols import symbol_elements, trace_with_symbols
+from app.ingest.page_symbols import beyond_symbols, symbol_elements, trace_with_symbols
 from app.ingest.rooms import Gray, Mask, ink_mask, room_region
 from app.ingest.traced_rooms import traced_outlines
 from app.ingest.types import ExtractedElement
@@ -45,6 +45,9 @@ MIN_RUN_SHARE = 0.04
 MIN_RUN_PX = 12
 VECTOR_WALL_CONFIDENCE = 0.95  # hatched regions from the PDF's vector layer
 WALL: DrawingKind = "wall"
+# The model's door or window this close to one read from the ink is the same one (D-055):
+# 4 px on colorful-34's 507 px, the benchmark's position tolerance.
+SAME_OBJECT_SHARE = 0.008
 
 
 def annotate_page(
@@ -65,9 +68,10 @@ def annotate_page(
     ink (D-053).
     `known_mm_per_px` is an exact scale (e.g. a rendered CAD drawing), which wins
     over a printed scale note.
-    `vision` is the floor-plan model's reading of the page (D-022). It always adds
-    doors, windows and fixtures; unless `vision_objects_only`, its walls join the traced
-    ones, and the ink's outline wins where both have a wall. Room highlights always use
+    `vision` is the floor-plan model's reading of the page (D-022). It adds doors,
+    windows and fixtures (not the doors and windows the ink already shows, D-055);
+    unless `vision_objects_only`, its walls join the traced ones, and the ink's outline
+    wins where both have a wall. Room highlights always use
     the drawing's traced boundaries; segmentation fragments are not room boundaries.
     `colours` are a raster page's colour layers (D-051): doors and windows are read from
     their symbol layer and carved out of the traced walls (D-055). Without them the ink
@@ -188,7 +192,9 @@ def annotate_page(
                                   scale_mm, height, colours)  # fmt: skip
 
     if vision is not None:
-        elements += [to_element(o, scale_mm, height) for o in object_findings(vision)]
+        model = [to_element(o, scale_mm, height) for o in object_findings(vision)]
+        reach = SAME_OBJECT_SHARE * max(gray.shape)
+        elements += beyond_symbols(model, [e for e in elements if e.source == "derived"], reach)
 
     meta = {
         "scale_denominators": scales,

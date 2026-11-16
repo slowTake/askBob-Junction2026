@@ -2,7 +2,14 @@ import numpy as np
 import pytest
 
 from app.domain.polygons import point_in_polygon
-from app.ingest.page_symbols import symbol_elements, trace_with_symbols
+from app.ingest.doors import Door
+from app.ingest.page_symbols import (
+    PageSymbols,
+    beyond_symbols,
+    symbol_elements,
+    trace_with_symbols,
+)
+from app.ingest.types import ExtractedElement
 
 H, W = 120, 200
 RUN = 20
@@ -44,3 +51,25 @@ def test_a_window_is_stored_with_its_gap_and_frame() -> None:
     assert el.properties["opening"] == {"a": [40, 52.5], "b": [69, 52.5]}
     assert el.properties["polygon_px"] == [[40, 44], [69, 44], [69, 47], [40, 47]]
     assert el.value_mm == 290  # 29 px between the ends x 10 mm
+
+
+def test_a_door_is_stored_with_its_gap_hinge_and_swing() -> None:
+    # Hinge (80, 50), closing at (100, 50) on the wall, leaf drawn open to (80, 70).
+    door = Door(a=(80, 50), b=(100, 50), toward=(90, 60), leaf=(80, 70), radius_px=20)
+    (el,) = symbol_elements(PageSymbols([], [], [door]), scale_mm=None, page_height=H)
+    assert el.kind == "door"
+    assert el.properties["opening"] == {"a": [80, 50], "b": [100, 50]}
+    assert el.properties["hinge"] == "a" and el.properties["toward"] == [90, 60]
+    assert el.properties["radius_px"] == 20
+    assert el.properties["polygon_px"] == [[80, 50], [100, 50], [80, 70]]
+    # The box round the leaf and its swing: the quarter square from the hinge.
+    assert el.bbox == (80, 50, 100, 70)
+    assert el.value_mm is None  # no scale
+
+
+def test_the_models_doors_and_windows_give_way_to_the_drawn_ones() -> None:
+    drawn = [ExtractedElement(kind="door", source="derived", bbox=(80, 50, 100, 70))]
+    near = ExtractedElement(kind="door", source="vision", bbox=(82, 52, 100, 72))  # 2.8 px
+    far = ExtractedElement(kind="window", source="vision", bbox=(10, 10, 30, 14))
+    fixture = ExtractedElement(kind="fixture", source="vision", bbox=(80, 50, 100, 70))
+    assert beyond_symbols([near, far, fixture], drawn, reach_px=4) == [far, fixture]
