@@ -55,6 +55,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-045 | 2026-11-14 | Answer rows own their drawing interactions (#115) | Accepted |
 | D-046 | 2026-11-15 | Plan answers draw what they say: a distance line alone, area labels, walking routes | Accepted |
 | D-048 | 2026-11-15 | A shared password in front of /api, checked by the server (#129) | Accepted |
+| D-049 | 2026-11-16 | The redraw is scored against a hand-made truth of colorful-34, kept at its low resolution (#131) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -761,3 +762,21 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 - A real fix would sign an issued-at time with a separate server secret and limit failed logins per IP.
 
 When any API call answers `unauthorized` mid-use (cookie expired, password changed), the UI goes back to the login page. The cookie has no Secure flag because nginx doesn't pass on the scheme; Runtime serves HTTPS only. The worker and the vision and OCR services are not behind it; they aren't reachable from outside. Changing the password means changing the console setting and restarting, which wipes uploaded files (D-034).
+
+## D-049: The redraw is scored against a hand-made truth of colorful-34, kept at its low resolution (#131)
+
+**Date:** 2026-11-16 · **Status:** Accepted
+
+**Context:** Nothing measured how close the Redrawn view (D-027) is to the drawing, so no fix could show it helped or be stopped from making things worse. The product has to read a floor plan of any quality. `colorful-34` (CubiCasa5K, 482 × 507 px) is a scanned two-floor Finnish plan with colour fills, handwritten room names, red height labels, decimal-comma dimensions, door swings and stairs, and today's redraw handles most of that badly. There is no higher-resolution original.
+
+**Decision:**
+- `backend/eval/redraw_bench/` holds the image, unchanged, with its source and licence (CC BY-NC-SA 4.0). It stays at 482 px: a sharper copy would hide the problem the product must solve.
+- A truth file is written by hand, in coordinates normalised to the page, and checked by eye. A malformed entry is refused, never repaired (`eval/redraw_sheet.py`). The app's redraw is turned into the same shapes, so both sides are scored by one set of pure functions.
+- **Walls** are scored by pixels, not by matching runs (`eval/redraw_render.py`). Recall is the share of truth wall pixels within the tolerance (straight-line distance) of a redraw wall pixel, and precision the other way round. A wall drawn as one run or as two scores the same.
+- **Openings, rooms and texts** are matched one to one by place: nearest first, within the tolerance, each truth at most once (`eval/redraw_score.py`). Names never match on their own, because the benchmark has four rooms called "mh". What is right about a found element is then counted separately:
+  - a door: hinged at the same end, opening into the same side
+  - a room: named when its folded name is the same and its label lies inside the truth outline; outlined when its outline has an IoU of at least 0.7 with the truth's
+  - a text: exact (ignoring spaces and case), the same digits, the same kind, the same rotation
+- Where a text could match a right reading or a nearer wrong one, the right reading wins.
+
+**Consequences:** "Accurate" becomes a set of numbers per component instead of a judgement. The tolerance is a parameter. The truth file, the runner that turns the app's elements into a sheet, recorded OCR and model answers, and the floors CI enforces come next on the same issue, and each will be added here when it lands. A truth drawn by hand is only as good as its author's reading of a 482 px image, so a few labels may be uncertain even in the truth.
