@@ -16,12 +16,18 @@ from app.config import Settings
 from app.domain.ocr_wire import parse_words
 from app.domain.tokens import Word
 from app.ingest.ocr import ocr_words
+from app.ingest.ocr_filter import drop_line_work
 from app.ingest.rooms import Gray
 
 log = logging.getLogger(__name__)
 
 
 def page_words(gray: Gray, settings: Settings) -> list[Word]:
+    """The page's words, without the line work OCR read as words (D-052)."""
+    return drop_line_work(gray, _read(gray, settings))
+
+
+def _read(gray: Gray, settings: Settings) -> list[Word]:
     if settings.ocr_url:
         words = _remote(gray, settings)
         if words is not None:
