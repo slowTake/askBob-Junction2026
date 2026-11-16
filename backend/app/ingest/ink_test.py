@@ -104,3 +104,16 @@ def test_dark_coloured_pen_is_ink() -> None:
     layers = separate_colours(page)
     assert not layers.fills.any() and not layers.annotations.any()
     assert layers.ink.sum() == 10
+
+
+def test_a_red_wall_network_is_ink_and_red_lettering_is_an_annotation() -> None:
+    page = _page(200, 200)
+    page[2:7, 2:38] = (200, 0, 0)  # a red wall band, 5 x 36 = 180 px (some plans draw walls red)
+    page[20, 2:38] = RED  # a 1 px red leader, 36 px
+    page[25:27, 2:6] = RED  # a 2 px red letter stroke, 2 x 4 = 8 px
+    page[30:34, 2:6] = RED  # a solid 4 x 4 red letter blob, 16 px
+    layers = separate_colours(page)
+    # Walls are 3 px thick or more and span 3 % of the page (6 px): only the band (36 px
+    # long) is both. The leader and the stroke are thinner; the blob spans 4 px.
+    assert layers.annotations.sum() == 36 + 8 + 16
+    assert layers.ink[2:7, 2:38].all() and layers.ink.sum() == 180
