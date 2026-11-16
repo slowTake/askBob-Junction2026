@@ -112,10 +112,12 @@ def test_redraw_runs_ingest_on_the_recorded_reading() -> None:
     blank = np.full((60, 120), 255, dtype=np.uint8)  # no ink: no walls are found
     words = [Word((10, 20, 40, 28), "5341", 0.9), Word((60, 20, 90, 28), "5,341", 0.5)]
     sheet = redraw(blank, words, None)
-    # "5341" is classified as a dimension and drawn at its box centre ((10+40)/2, (20+28)/2).
-    # The app does not read a decimal comma as a dimension yet: "5,341" stays unclassified
-    # text, and at 0.5 confidence it is below the 0.6 cut and not drawn.
-    assert sheet == Sheet(texts=(Text("5341", "dimension", (25, 24)),))
+    # Both are dimensions, drawn at their box centres ((10+40)/2, (20+28)/2) and
+    # ((60+90)/2, 24). "5,341" is metres with a decimal comma (#36); classified text is
+    # drawn whatever its confidence, so 0.5 doesn't hide it.
+    assert sheet == Sheet(
+        texts=(Text("5341", "dimension", (25, 24)), Text("5,341", "dimension", (75, 24)))
+    )
 
 
 # The benchmark itself, offline: recorded OCR and vision answers, the hand-made truth.

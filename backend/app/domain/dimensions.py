@@ -3,6 +3,8 @@
 import re
 
 _DIMENSION = re.compile(r"^(\d{1,3})[ \u00a0\u202f](\d{3})$|^(\d{2,6})$")
+_METRES = re.compile(r"^(0|[1-9]\d{0,2}),(\d{3})$")  # "5,341" m: three decimals only
+_HEIGHT = re.compile(r"^-?([hH][1-9]\d{2,3})-?$")  # "h1600", stray leader strokes allowed
 _SCALE = re.compile(r"(?<![\d.])1\s*:\s*(\d{1,4})(?!\d)")
 _AREA = re.compile(r"^(\d+(?:[.,]\d+)?)\s*(?:M2|M²|m2|m²)$")
 
@@ -16,7 +18,15 @@ def parse_dimension_mm(text: str) -> int | None:
 
     "10 800" -> 10800, "3600" -> 3600. Values outside 50 mm to 200 m are rejected
     because they are almost always grid labels, codes or page numbers.
+
+    Metres with a decimal comma count when they have three decimals: "5,341" -> 5341,
+    the same value whether the comma is a decimal or a thousands mark. "2,40" or "0,5"
+    could be metres, an area or a height, so they are not read as dimensions (D-050).
     """
+    metres = _METRES.match(text.strip())
+    if metres:
+        value = int(metres.group(1)) * 1000 + int(metres.group(2))
+        return value if MIN_DIMENSION_MM <= value <= MAX_DIMENSION_MM else None
     match = _DIMENSION.match(text.strip())
     if not match:
         return None
@@ -24,6 +34,19 @@ def parse_dimension_mm(text: str) -> int | None:
     if text.strip().startswith("0"):
         return None
     return value if MIN_DIMENSION_MM <= value <= MAX_DIMENSION_MM else None
+
+
+def height_label(text: str) -> str | None:
+    """A ceiling height label, "h" and 3-4 digits in mm: "h1600" (or "h746-", where a
+    leader stroke was read as a dash) -> "h1600". Other letters are not guessed to be h."""
+    match = _HEIGHT.match(text.strip())
+    return match.group(1) if match else None
+
+
+def parse_height_mm(text: str) -> int | None:
+    """ "h1600" -> 1600 mm."""
+    label = height_label(text)
+    return int(label[1:]) if label else None
 
 
 def parse_scale(text: str) -> int | None:
