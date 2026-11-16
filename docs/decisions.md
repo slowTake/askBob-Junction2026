@@ -991,3 +991,43 @@ Twelve of the 15 windows are found and 14 drawn: 33 is drawn 6 px off (the score
 - Thresholds come from one page and should be measured on more CubiCasa pages (the multi-page harness in `.local/fable-walls/`). The door detector assumes thin (1–2 px) arcs at its working size; a page whose door lines are 3 px or thicker at 700 px has them taken as thick ink.
 - Fixtures (WC, stove, cupboard, table, counter) and stairs are still traced as wall where D-053's straightness test keeps them, and are not a kind yet.
 - Ingest takes a second wall trace and the door scan: about 1.4 s on colorful-34 (0.02 s before), about 5.5 s on a 3,000 px page (1 s before).
+
+## D-057: Door candidates are accepted by their wall before they compete (#144)
+
+**Date:** 2026-11-16 · **Status:** Accepted · **Refines:** D-055 (doors from the symbol layer)
+
+**Context:** D-055 drew 30 doors on colorful-34, 8 of them real, and 14 windows: 44 openings drawn, 20 found (P 45.5 %). Of the 22 false doors, 5 were real doors read on a band's edge, 4–6 px from the truth's gap on the band's centre; 2 were a real arc read with the wrong axis at a wall corner, which outscored the right reading; 3 used a band's edge as the leaf and a neighbouring line as the arc; 8 were closed shapes (stools, a table, a threshold's rounded corners) whose ring runs on past the quarter; 3 were handwriting and a bracket; 1 is not in the truth. Their carving also took true wall out of the walls.
+
+**Decision** (`app/ingest/doors.py`, pure). `find_doors` collects every candidate as before, then moves and accepts each one, then suppresses overlaps:
+- **The gap is stored on its wall's centre.** Along the leaf through the gap's middle, the door moves onto the centre of the run of traced wall there (the nearest run within 6 px if the middle is off the wall). On a 1–3 px line that is 0–1 px; on a 7–8 px band 3–4 px. A door over a band is drawn from the band's edge; CAD and the truth put the gap on its centre line.
+- **The gap lies on a wall:** at least 90 % of the centred gap within 1 px of a traced wall, **or it is an open break in one**: the wall runs on in line over at least 60 % of the 3–8 px past both ends, and at most 10 % of the gap's inside (from 3 px in) is wall. The second half was added after the multi-page check: drawings that leave the doorway open lost every door to the first half alone.
+- **The leaf is not a wall that runs on:** a candidate whose leaf (from 3 px out) is more than 50 % within 2 px of a traced wall **and** whose 3–8 px past the leaf's end are at least 60 % wall is a wall corner, not a leaf. The "and" keeps thin leaves the first trace took for a short wall: they stop where the leaf does.
+- **The arc stops at its ends:** a candidate is a circle when at least 2 of the 3 ten-degree sectors past the leaf's end (from 5°) **and** 2 of 3 past the free end (from 15°, beyond the wall crossing) hold thin ink, read within 2 px of the radius. One end alone is not safe: a band's halo or the next door's arc runs on past one end of real doors. It is read round the hinge as found and again round the centred hinge: a circle read from a hinge up to 2 px off its centre drifts off the ring past its free end, and centring puts that hinge back on the centre.
+- **The rules run before non-maximum suppression**, so a rejected wrong-axis reading frees the right one (t0 and t5 come back that way). NMS is unchanged.
+
+**Measured.** colorful-34 (`python -m eval.redraw_bench`, recorded OCR, vision off):
+
+| | before (main) | after |
+| --- | --- | --- |
+| walls recall / precision | 96.46 % / 83.55 % | 96.67 % / 81.93 % |
+| openings found (drawn), precision | 20 / 34 (44), 45.5 % | 24 / 34 (27), 88.9 % |
+| doors drawn (real) | 30 (8) | 13 (12) |
+| door swings right | 7 / 8 | 11 / 12 |
+| ink redrawn / on ink | 80.85 % / 99.94 % | 81.03 % / 99.72 % |
+| confidence (D-056) | 86.8 % | 86.9 % |
+| rooms, texts | unchanged | unchanged |
+
+The one false door left, at (117,64)–(129,64), sits on a scalloped line beside the top-left stool (two equal bumps, likely a curtain); it is not a door the truth missed. One more (136,68), on the second bump, goes because of the second reading round the centred hinge.
+
+**Floors** (`eval/redraw_bench_test.py`): openings found 20 → 24, door swings 7 → 11, a new openings precision floor 0.888, walls recall 0.964 → 0.966, ink redrawn 0.808 → 0.81. Two are lowered:
+- **walls precision 0.835 → 0.819.** The false doors on the stools, the table and the threshold carved those fixtures' rings out of the walls; without them the rings are traced as wall again. The fix is the fixture-ring rule (`.local/141-plan.md`, Fixtures), a separate issue; it is not carving doors that are not there. It is lowered in the commit of each rule that moves it (0.826, 0.821, 0.819).
+- **redraw on ink 0.999 → 0.997.** A door is stored with its gap on the wall's centre line, as CAD draws it; the view draws its arc round that hinge, 3–4 px off the arc the scan draws from a band's edge. The fix is a stored arc centre apart from the gap's end, which needs the frontend and `redraw_confidence`; not done here. Undoing the centring would lose 4 found doors.
+
+**Multi-page check** (10 CubiCasa pages, main's `find_doors` against this one, colour layers passed, local OCR; doors drawn): colorful-11960 18 → 6, colorful-6327 9 → 6, colorful-2194 0 → 0, colorful-13685 11 → 9, high_quality-11384 11 → 9, high_quality-1097 11 → 8, high_quality-5682 3 → 3, high_quality_architectural-5742 23 → 6, high_quality_architectural-1772 7 → 4, high_quality_architectural-12617 6 → 0; 99 → 51 in all. By eye: high_quality_architectural-12617 drops 6 false (kitchen counter crosses, the WC, a stub at a big arc's end), loses none (its two big doors were never found); colorful-13685 drops the stair, loses 1 (a door drawn open along a wall that runs on: the leaf rule); high_quality-1097 drops 2 false of 3 (the WC bowl stays), loses 1 (the KH door: a handwritten line crosses its ring past both ends); high_quality-11384 drops 2 false of 8 (burners, sink, shower: small circles inside fixtures), loses none; high_quality-5682 keeps its 3 real doors only with the open-break rule (without it 3 → 0). No page loses more than one clear door. Door scan time is unchanged (2.5 s on the 2,480 px page).
+
+**Not done:** t1 (a dash-dot line and a band inside its swing), t3 (the band beside its outer ring; no candidate survives), t4 (lost to the leaf rule: drawn open along the closet wall), t14–t16 (over bands, no candidate at their hinge; loosening the outer ring lets class C back), t22 (no leaf ink). The stored arc centre and the fixture rings are follow-ups. Supersedes nothing; D-055's thresholds stand.
+
+**Consequences:**
+- Stored door gaps lie on the wall's centre line, as the route tool and #34 want them.
+- Fixtures drawn as small circles inside a cabinet (burners, sinks) still pass as doors on high_quality pages; they need the fixture work.
+- The leaf rule costs doors drawn open flat against a wall that runs on (t4, one on colorful-13685); the alternative, keeping of two readings of one arc the one whose leaf is less on a wall, keeps them but lets the stools back on colorful-34 (P about 79 %).
