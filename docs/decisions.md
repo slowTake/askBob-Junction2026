@@ -493,7 +493,7 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 ## D-028: On raster images a model redraws the whole sketch in a draw, compare, correct loop; nothing is measured
 
-**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft) and D-035 (where Download SVG and Print live) · **Refines:** D-027 (for raster image pages only)
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-029 (how a check round shows the draft), D-035 (where Download SVG and Print live) and D-054 (which pages) · **Refines:** D-027 (for raster image pages only)
 
 **Context:** The demo shows a photo of a hand-drawn floor plan (a napkin sketch) turned into a clean plan with one button (#82). D-027's pass asks a small model once for what ingest *missed* and draws boxes. On a sketch, ingest's OCR and line detection are the unreliable part, so filling its gaps keeps its noise; boxes cannot show a door swing; and one unchecked answer has no way to notice its own mistakes. The owner's rules: one button; redraw, never invent (no measurement unless written on the sketch); a stronger, slower model is allowed for this path; output is the Redrawn view plus Download SVG and Print, no DXF.
 
@@ -836,3 +836,24 @@ The CI floors for walls precision, rooms outlined, texts found, digits and kind 
 
 **Consequences:** Colour no longer decides what is a wall on a coloured scan, and OCR sees fills as paper. Red walls depend on a span rule, which can miss short stubs; pen markup in colours other than red is only partly separated. Both are left for later, as are room outlines from the fill colours themselves.
 
+
+## D-054: Each raster page gets the page redraw or the sketch redraw from what it looks like (#138)
+
+**Date:** 2026-11-16 · **Status:** Accepted · **Supersedes in part:** D-028 ("which pages")
+
+**Context:** D-028 sent every page of a raster image upload (`Document.kind == "image"`) to the sketch redraw: several strong-model calls, minutes, no dimensions, no scale, nothing that can be checked against the drawing's pixels. A scan of a printed plan such as the benchmark's colorful-34 (D-049) never got the page redraw (D-027) that the benchmark measures and that the ingest fixes (D-050, D-051) improve. Photos of hand drawings (the demo's napkin sketch) must keep the sketch redraw. Confidence from the page's ink (#132) and flagging doubtful readings (#133) build on the page redraw, so the choice has to be visible in the API.
+
+**Decision:**
+- **Statistics at ingest.** `app/ingest/page_stats.py` (pure, arrays in) measures every raster image page from its colour layers (D-051), and `image_reader` stores them in `page.meta["page_stats"]`:
+  - **straight share:** the share of the ink in horizontal or vertical runs at least 10 % of the page's longest side (at least 9 px, odd), by a morphological opening with paper beyond the page edge. Ruled walls pass; freehand lines wobble and lean, and break into shorter runs.
+  - **fill share:** the share of the page in light colour fills.
+  - **dimension words:** the elements ingest classified as dimensions.
+  - **paper spread:** the page is cut into 8 × 8 cells, each cell's paper is the 90th percentile of its grey on the ink page, and the spread is between the 5th and 95th percentile of the cells. A scan's paper is even; a photo's has shadows.
+- **The rule** (`app/domain/redraw_mode.py: redraw_mode(kind, stats)`, pure): pages of other formats are always `"plan"`. An image page is a plan when any of these says it was printed: fills cover 5 % of the page, OCR read 3 or more dimensions, or 35 % of the ink is straight on paper whose spread is under 30 grey levels. Everything else is `"sketch"`. An image page without statistics (ingested before this change) is a sketch, as before; re-ingesting it measures it.
+- **Measured** (cuts chosen between these, with room on both sides): colorful-34: fills 0.574, straight 0.472, spread 0, 9 dimensions in its recorded OCR; it is a plan on its fills alone. No photo of a hand drawing is in the repository, so the sketch case is synthetic, drawn in the test: freehand pen lines wobbling by up to 11 px, turned 3°, on warm paper shaded from grey 235 to 175: fills 0, straight 0.117, spread 35.8, a sketch. Both are pinned in `page_stats_test.py`.
+- **`PageOut.redraw_mode`** is `"plan"` or `"sketch"`: the redraw that ran on the page if one did (`page.meta.upscale.mode`, current format), else `"plan"` for a page with matched CAD rooms (D-030), else the rule. It reads the document's kind through the page row.
+- **`POST …/pages/{index}/upscale?mode=plan|sketch`** overrides it. Without `mode` a page gets the redraw it already had, else the one it looks like it needs. Any other value is the usual `validation_error` envelope (422). Running one mode replaces the other's elements: the gap-filling pass now also removes `sketch` rows and does not list them to the model as known. A page with matched CAD rooms stays a no-op whatever the mode (D-030).
+- **An image page on the plan path** gets exactly the PDF page's pass: the same page image, resized to `UPSCALE_MAX_SIDE`, with ingest's elements listed, Haiku's additions merged and dashed, and the scale bar when the page has one (tested with a stubbed model in `app/api/upscale_mode_test.py`).
+- **The frontend** follows `page.redraw_mode` per page (`isSketchPage`): the button (**Upscale** or **Redraw**), the card's text and status line, and which elements Redrawn draws. Older servers without the field fall back to the page's redraw, then to the document kind.
+
+**Consequences:** A scanned printed plan uploaded as PNG or JPG now gets the measurable page redraw, with its dimensions and scale, in one Haiku call instead of minutes of Opus. A photographed printed plan with no fills and fewer than three dimensions read counts as a sketch, and a hand drawing made with a ruler, scanned flat, counts as a plan; `?mode=` corrects both, though the UI has no control for it yet. Scanned PDF pages are not measured and keep the page redraw. The cuts come from one real plan and one synthetic sketch; a real photo of a hand drawing should be measured and added as a test when one is available.
