@@ -117,3 +117,34 @@ def test_a_red_wall_network_is_ink_and_red_lettering_is_an_annotation() -> None:
     # long) is both. The leader and the stroke are thinner; the blob spans 4 px.
     assert layers.annotations.sum() == 36 + 8 + 16
     assert layers.ink[2:7, 2:38].all() and layers.ink.sum() == 180
+
+
+ORANGE = (195, 170, 100)  # colorful-34's door arcs: grey 170, a fill to `separate_colours`
+DOOR_FILL = (250, 230, 150)
+
+
+def test_the_symbol_layer_keeps_coloured_door_arcs_that_the_ink_drops() -> None:
+    page = _page(40, 10)
+    page[:, :] = DOOR_FILL
+    page[2, 2:12] = ORANGE  # a 1 px arc piece on the fill, 10 px
+    page[5, 2:12] = BLACK  # a wall line, 10 px
+    page[8, 2:12] = RED  # a red label stroke, 10 px
+    layers = separate_colours(page)
+    # The arc: grey 0.299 * 195 + 0.587 * 170 + 0.114 * 100 = 170 >= DARK_BELOW, so a fill
+    # and not ink. Divided by the fill: (195/250, 170/230, 100/150) * 255 = (199, 188, 170),
+    # grey 59.5 + 110.4 + 19.4 = 189 < SYMBOL_BELOW 200: a symbol.
+    assert not layers.ink[2, 2:12].any()
+    assert layers.symbols[2, 2:12].all()
+    assert layers.ink[5, 2:12].all() and layers.symbols[5, 2:12].all()  # black: both
+    assert not layers.ink[8].any() and not layers.symbols[8].any()  # red: neither
+    assert layers.symbols.sum() == 20  # nothing else: the fill divides out to white
+
+
+def test_on_a_grey_scan_the_symbols_are_the_ink_and_the_darker_greys() -> None:
+    page = _page()
+    page[2, :] = BLACK  # 10 px
+    page[6, 2:5] = (150, 150, 150)  # a grey line, 3 px below SYMBOL_BELOW
+    page[8, 2:5] = (220, 220, 220)  # a light grey line, above it
+    layers = separate_colours(page)
+    assert layers.symbols[2].all() and layers.symbols[6, 2:5].all()
+    assert layers.symbols.sum() == 13  # 10 + 3: the light line is paper

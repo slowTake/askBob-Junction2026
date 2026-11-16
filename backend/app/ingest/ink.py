@@ -18,6 +18,10 @@ divided by the fill colour around each pixel, so a fill turns white while the so
 of letters drawn on it stay soft; whitening fills outright left jagged letters that
 RapidOCR read far worse on colorful-34.
 
+Door leaves and arcs and window glazing are often drawn in colour (orange-brown lines,
+light blue strips) and so land in the fills. The symbol layer (D-055) reads them where
+OCR does, on the page with the fills divided out, at `SYMBOL_BELOW`.
+
 Pure: arrays in, arrays out.
 """
 
@@ -40,6 +44,9 @@ RED_BAND_PX = 3  # a wall band is thicker than a red leader; a 5 px label's lett
 RED_WALL_SPAN = 0.03
 FILL_WINDOW = 0.03  # share of the page's longest side: a few letter heights
 MIN_WINDOW_PX = 15
+# Grey on the OCR page below which a pixel is drawn: colorful-34's 1 px orange door arcs
+# divide out to ~190 and the yellow fill to 255 (D-055).
+SYMBOL_BELOW = 200
 PAPER = 255
 
 
@@ -54,6 +61,12 @@ class ColourLayers:
     def ink(self) -> Mask:
         """The line work: walls, lines and black text (Otsu on the ink page)."""
         return ink_mask(self.ink_page)
+
+    @property
+    def symbols(self) -> Mask:
+        """The ink plus coloured line work on the fills (door arcs, window glazing), read
+        on the page with the fills divided out; red annotations are not symbols."""
+        return (self.ink | (self.ocr_page < SYMBOL_BELOW)) & ~self.annotations
 
 
 def separate_colours(rgb: npt.NDArray[Any]) -> ColourLayers:
