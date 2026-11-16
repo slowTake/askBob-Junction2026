@@ -9,13 +9,7 @@ import { zoomPercent } from "../lib/camera";
 import type { LayerKey } from "../lib/planLayer";
 import { buildCleanSheet, type SheetMode } from "../lib/redraw";
 import { exportFilename, standaloneSvg } from "../lib/sheetExport";
-import {
-  buildSketchSheet,
-  isSketchDocument,
-  planElements,
-  redrawScaleBar,
-  SKETCH_MODE,
-} from "../lib/sketchSheet";
+import { buildSketchSheet, isSketchPage, planElements, redrawScaleBar } from "../lib/sketchSheet";
 import { selectElement } from "../lib/selection";
 import { onPage, type PlanTarget, type TargetOnPage } from "../lib/target";
 import { CleanSheet, SketchSheetSvg } from "./CleanSheet";
@@ -125,9 +119,16 @@ export function DrawingViewer(props: Props) {
   const availableRedraw = cadRooms || added !== null;
   const redrawn = sheetMode === "redrawn" && availableRedraw;
   const mmPerPx = page?.mm_per_px ?? null;
-  // A raster image is redrawn whole by the model; its redraw shows only the model's plan.
-  const sketchDoc = doc ? isSketchDocument(doc.kind, cadRooms) : false;
-  const sketch = redrawn && !cadRooms && page?.upscale?.mode === SKETCH_MODE;
+  // A photographed sketch is redrawn whole by the model, and its redraw shows only the
+  // model's plan; a scanned printed plan gets the page redraw. The server says which (#138).
+  const redrawMode = page?.redraw_mode;
+  const upscaleMode = page?.upscale?.mode;
+  const kind = doc?.kind ?? "";
+  const sketchPage = useMemo(
+    () => isSketchPage(redrawMode, upscaleMode, kind, cadRooms),
+    [redrawMode, upscaleMode, kind, cadRooms],
+  );
+  const sketch = redrawn && sketchPage;
   const redraw = useMemo(() => {
     if (!redrawn || !ready || !w || !h) return null;
     if (sketch) return <SketchSheetSvg sheet={buildSketchSheet(elements)} width={w} height={h} />;
@@ -266,7 +267,7 @@ export function DrawingViewer(props: Props) {
           <UpscalePrompt
             busy={upscale.busy}
             error={upscale.error}
-            sketch={sketchDoc}
+            sketch={sketchPage}
             onUpscale={upscale.run}
             onClose={showOriginal}
           />

@@ -4,7 +4,7 @@ import { useDismiss } from "../hooks/useDismiss";
 interface Props {
   busy: boolean;
   error: string | null;
-  sketch: boolean; // a raster image: the model redraws the whole page
+  sketch: boolean; // a sketch page (page.redraw_mode): the model redraws the whole page
   onUpscale: () => void;
   onClose: () => void; // back to the original view
 }
