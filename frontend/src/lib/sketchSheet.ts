@@ -8,7 +8,7 @@
  * written on the sketch.
  */
 
-import type { UpscaleInfo } from "../api/types";
+import type { PageInfo, UpscaleInfo } from "../api/types";
 import type { Size } from "./camera";
 import { polygonPoints, scaleBar, type RedrawElement, type ScaleBar } from "./redraw";
 
@@ -26,9 +26,21 @@ export interface SketchSheet {
 /** `page.upscale.mode` of a page the sketch redraw ran on (backend `SKETCH_MODE`). */
 export const SKETCH_MODE: NonNullable<UpscaleInfo["mode"]> = "sketch";
 
-/** Documents whose pages get the sketch redraw: raster images (backend `is_sketch_page`). */
-export function isSketchDocument(kind: string, hasCadRooms = false): boolean {
-  return kind === "image" && !hasCadRooms;
+/**
+ * Whether a page gets, or got, the sketch redraw rather than the page redraw (#138).
+ * The server decides from what the page looks like (`page.redraw_mode`); older servers
+ * don't say, and there a page's own redraw, else a raster image upload, is a sketch.
+ */
+export function isSketchPage(
+  redrawMode: PageInfo["redraw_mode"],
+  upscaleMode: UpscaleInfo["mode"],
+  kind: string,
+  hasCadRooms = false,
+): boolean {
+  if (hasCadRooms) return false;
+  if (redrawMode) return redrawMode === "sketch";
+  if (upscaleMode) return upscaleMode === SKETCH_MODE;
+  return kind === "image";
 }
 
 /** The elements the plan layer offers: on a redrawn sketch, only the model's plan. */

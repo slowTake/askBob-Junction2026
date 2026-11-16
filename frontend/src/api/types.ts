@@ -47,6 +47,11 @@ export interface PageInfo {
   label: string | null; // e.g. the storey of an IFC floor plan
   /** Set once the page had its upscale vision pass (#82); missing on older servers. */
   upscale?: UpscaleInfo | null;
+  /**
+   * Which redraw the page gets, or got (#138): "plan", the page redraw with ingest's
+   * elements and the scale, or "sketch", a model's whole plan. Missing on older servers.
+   */
+  redraw_mode?: "plan" | "sketch";
 }
 
 /**

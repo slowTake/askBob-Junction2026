@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RedrawElement } from "./redraw";
 import {
   buildSketchSheet,
-  isSketchDocument,
+  isSketchPage,
   planElements,
   polylinePoints,
   redrawScaleBar,
@@ -159,15 +159,25 @@ describe("redrawScaleBar", () => {
   });
 });
 
-describe("isSketchDocument", () => {
-  it("keeps a PNG with native CAD rooms out of model sketch generation", () => {
-    expect(isSketchDocument("image", true)).toBe(false);
+describe("isSketchPage", () => {
+  it("follows the server's choice for the page (#138)", () => {
+    // A scanned printed plan uploaded as a PNG gets the page redraw.
+    expect(isSketchPage("plan", undefined, "image")).toBe(false);
+    expect(isSketchPage("sketch", undefined, "image")).toBe(true);
+    // The server's choice already counts a redraw that ran with ?mode= the other way.
+    expect(isSketchPage("plan", "sketch", "image")).toBe(false);
   });
-  it("is true for raster image uploads, which get the sketch redraw", () => {
-    expect(isSketchDocument("image")).toBe(true);
+  it("falls back to what the page's redraw was, then to the document kind", () => {
+    // Older servers send no redraw_mode.
+    expect(isSketchPage(undefined, "sketch", "pdf")).toBe(true);
+    expect(isSketchPage(undefined, "fill", "image")).toBe(false);
+    expect(isSketchPage(undefined, undefined, "image")).toBe(true);
     for (const kind of ["pdf", "svg", "dxf", "dwg", "ifc"] as const) {
-      expect(isSketchDocument(kind)).toBe(false);
+      expect(isSketchPage(undefined, undefined, kind)).toBe(false);
     }
+  });
+  it("keeps a PNG with native CAD rooms out of model sketch generation", () => {
+    expect(isSketchPage(undefined, undefined, "image", true)).toBe(false);
   });
 });
 
