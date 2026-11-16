@@ -58,6 +58,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-049 | 2026-11-16 | The redraw is scored against a hand-made truth of colorful-34, kept at its low resolution (#131) | Accepted |
 | D-050 | 2026-11-16 | Written-out Finnish room names, one-edit OCR matching, decimal-comma dimensions and ceiling heights (#36) | Accepted |
 | D-051 | 2026-11-16 | Raster pages are split by colour before thresholding: line work, fills, red annotations (#89) | Accepted |
+| D-052 | 2026-11-16 | OCR words that are line work are dropped before they become elements (#90) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -836,6 +837,23 @@ The CI floors for walls precision, rooms outlined, texts found, digits and kind 
 
 **Consequences:** Colour no longer decides what is a wall on a coloured scan, and OCR sees fills as paper. Red walls depend on a span rule, which can miss short stubs; pen markup in colours other than red is only partly separated. Both are left for later, as are room outlines from the fill colours themselves.
 
+
+## D-052: OCR words that are line work are dropped before they become elements (#90)
+
+**Date:** 2026-11-16 · **Status:** Accepted
+
+**Context:** OCR reads hatching, dashed lines, symbol frames and solid blocks on raster plans as words. With Tesseract, 638 words on 25 CubiCasa pages had no letter or digit and many more were line work read as "mm", "TT" or "o" (#90; first drafted in PR #91 as a D-024 that never merged). RapidOCR (now the default) reads far less of it, 227 words on the same pages, and already strips edge punctuation, but symbols still come through as text: on colorful-34 the kitchen stove is read as "1281" at 0.54 and drawn in the Redrawn view as a dimension. Confidence can't tell them apart: real room codes ("H", "K") and handwritten names come back at 0.5–0.9 too.
+
+**Decision:**
+- `app/ingest/ocr_filter.py: drop_line_work(gray, words)`, pure and tested on hand-built crops, drops a word when it has no letter or digit, or when the ink in its own box is line work:
+  - **thresholded on that crop alone** (Otsu), on the page OCR read: on a coloured scan the page with its fills divided out (D-051). The colour layers' ink mask was the alternative; the OCR page is the very pixels the word was read from, keeps red height labels as ink to judge, and exists for black and white scans and scanned PDF pages too, where a label on a grey hatch is still judged against its hatch. A box with a grey range under 32 is too flat to judge and is kept.
+  - **one mark holds 80 % of the ink** and is a line (5:1 wide or 8:1 tall; "I" and "1" are about 7:1), a solid block (90 % filled, spanning 90 % of the box both ways) or a closed frame (enclosing half its own box; an "O" encloses about 0.4);
+  - **or, in a word of two or more characters, one mark draws three straight sides of the box**: within the outer fifth of the box on that side, one row or column is at least 80 % ink. That is a symbol's frame round its contents (the stove's outline round four burners holds only 58 % of the ink, so the rule above misses it). No glyph spans a whole multi-letter box; a label in a room corner meets two sides; joined-up handwriting reaches the sides without running straight along them. Measured on the 25 pages: symbols read as words had a third side at 0.83 or more, real words at most 0.68 ("pesutone", handwritten). Reaching into the side bands without the straightness test also dropped "pesutone" and "PARVEKE" (on a noisy hatch).
+- **Where:** `ocr_client.page_words`, so it covers local and service OCR, raster images and scanned PDF pages. `ocr_words` and the OCR service still return the raw reading with each word's confidence (#133 flags uncertain readings from it), and the benchmark's recording stays that raw reading: `eval.redraw_bench` drops line work from it on replay, as ingest does.
+
+**Measured.** colorful-34 (`python -m eval.redraw_bench`, recorded OCR, vision off), main → this change: 1 of 39 words dropped ("1281", the stove; checked by eye). Texts drawn 30 → 29, precision 83.3 % → 86.2 %; found 25/35, exact 11, digits 13, kind 16, walls, openings, rooms and redraw unchanged. "Ink off walls" stays 32.2 %: it is measured on the colour layers' ink mask, which OCR doesn't touch. A CI floor for text precision (0.862) is added; none is lowered. On 25 CubiCasa pages (local RapidOCR on the OCR page): 3 of 227 words dropped, all line work: "1281" (stove), "Boo" (hob and cupboard symbols on high_quality-11384) and "smlis6mot2igtniix" (a mirrored estate-agent logo, white on a grey banner, on colorful-7513). No room code, height, decimal-comma dimension or handwritten name was dropped.
+
+**Consequences:** Symbol frames and line work no longer reach the redraw, the agent or the room flood fill as text. Letters read off furniture without a frame, dashed lines read as "LI", and misread handwriting ("yw" for "mh") remain. Thresholds were set on CubiCasa pages only, not the Swiss PDFs; a boxed label whose OCR box is its box would be dropped, which RapidOCR's tight boxes have not shown so far.
 
 ## D-054: Each raster page gets the page redraw or the sketch redraw from what it looks like (#138)
 
