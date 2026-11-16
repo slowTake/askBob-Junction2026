@@ -10,10 +10,12 @@ import numpy as np
 from PIL import Image, ImageSequence, UnidentifiedImageError
 
 from app.config import Settings
+from app.domain.redraw_mode import STATS_KEY, stats_meta
 from app.ingest.annotate import annotate_page
 from app.ingest.errors import ReaderError
 from app.ingest.ink import separate_colours
 from app.ingest.ocr_client import page_words
+from app.ingest.page_stats import page_stats
 from app.ingest.types import ExtractedDocument, ExtractedPage, Progress
 from app.ingest.vision_client import analyse_page
 
@@ -76,6 +78,9 @@ def _page(
     elements, scale_mm, meta = annotate_page(layers.ink_page, words, "ocr", dpi, vision=vision)
     progress("annotating", 1.0)
     meta["vision"] = status
+    # What the page looks like decides its redraw: a printed plan or a sketch (#138).
+    dimensions = sum(1 for e in elements if e.kind == "dimension")
+    meta[STATS_KEY] = stats_meta(page_stats(layers, dimensions))
     return ExtractedPage(
         index=index,
         image_png=png,
