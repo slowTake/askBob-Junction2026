@@ -63,7 +63,7 @@ def _page(
     if factor < 1.0:
         image = image.resize((round(image.width * factor), round(image.height * factor)))
         dpi = dpi * factor if dpi else None
-    # Fills and red labels are taken off the line work before anything thresholds it (D-050).
+    # Fills and red labels are taken off the line work before anything thresholds it (D-051).
     layers = separate_colours(np.asarray(image, dtype=np.uint8))
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")

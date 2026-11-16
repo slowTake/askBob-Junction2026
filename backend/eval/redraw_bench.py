@@ -5,7 +5,7 @@
     uv run python -m eval.redraw_bench --record   # read the page now and save the readings
 
 The page is annotated exactly as the app's image reader does it (`annotate_page` on the
-page's ink, with fills and red labels taken off, D-050), fed the recorded OCR words and
+page's ink, with fills and red labels taken off, D-051), fed the recorded OCR words and
 vision answer, and turned into what the Redrawn view draws (`redraw_elements.py`). A live
 reading runs the app's local OCR (RapidOCR) on the page with its fills divided out, and
 asks the vision service only when `VISION_URL` is set and answers. The upscale (vision
