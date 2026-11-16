@@ -40,6 +40,9 @@ OVERLAP = 0.1  # doors whose boxes overlap more than this (of the smaller) are o
 CARVE_PX = 1  # the leaf and arc are carved this much wider than drawn
 WORK_SIDE_PX = 700  # bigger pages are read at this size: 3 s on a 3,000 px page
 GAP_ON_WALL = 0.9  # at least this share of the gap lies within 1 px of a traced wall (D-057)
+LEAF_ON_WALL = 0.5  # a leaf more than this share on a traced wall (from SWING_MARGIN_PX out)
+RUNS_ON = 0.6  # whose wall goes on over this share of PAST_LEAF_PX past its end is a wall
+PAST_LEAF_PX = (3, 8)
 
 
 @dataclass(frozen=True)
@@ -68,7 +71,7 @@ def find_doors(
     found = [
         (score, door)
         for score, door in _candidates(arc, lines, walls, away, radii)
-        if _accepted(door, on_wall)
+        if _accepted(door, on_wall, away)
     ]
     kept = _suppressed(found)
     return [_scaled(d, 1 / scale) for d in kept] if scale < 1.0 else kept
@@ -86,10 +89,27 @@ def _candidates(
     return found
 
 
-def _accepted(door: Door, on_wall: Mask) -> bool:
-    """A candidate is a door only if its gap lies on a wall. The rules run before the
-    candidates compete, so a wrong reading of an arc frees the right one."""
-    return _share_on(on_wall, door.a, door.b) >= GAP_ON_WALL
+def _accepted(door: Door, on_wall: Mask, away: np.ndarray) -> bool:
+    """A candidate is a door only if its gap lies on a wall and its leaf is not a wall
+    that runs on past the leaf's end. The rules run before the candidates compete, so a
+    wrong reading of an arc frees the right one."""
+    if _share_on(on_wall, door.a, door.b) < GAP_ON_WALL:
+        return False
+    return not _leaf_runs_on(door, away)
+
+
+def _leaf_runs_on(d: Door, away: np.ndarray) -> bool:
+    """The leaf lies on a traced wall that goes on past the leaf's end: a wall corner
+    read as a leaf. A thin leaf traced as a short wall stops where the leaf does."""
+    ux, uy = (d.leaf[0] - d.a[0]) / d.radius_px, (d.leaf[1] - d.a[1]) / d.radius_px
+    m, r, near = SWING_MARGIN_PX, d.radius_px, away <= WALL_NEAR_PX
+
+    def at(k: float) -> Point:
+        return (d.a[0] + k * ux, d.a[1] + k * uy)
+
+    lo, hi = PAST_LEAF_PX
+    leaf = _share_on(near, at(m), d.leaf)
+    return leaf > LEAF_ON_WALL and _share_on(near, at(r + lo), at(r + hi)) >= RUNS_ON
 
 
 def _share_on(layer: Mask, p: Point, q: Point) -> float:
