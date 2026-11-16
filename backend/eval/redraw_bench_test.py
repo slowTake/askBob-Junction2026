@@ -171,14 +171,15 @@ def test_the_recorded_reading_loses_only_line_work() -> None:
 
 # The benchmark itself, offline: recorded OCR and vision answers, the hand-made truth.
 # These floors are the baseline recorded on 2026-11-16 (D-049), raised by the vocabulary
-# work (D-050), colour separation (D-051), dropping line work from OCR (D-052) and
-# traced walls (D-053) and doors and windows (D-055); they are recorded values, not worked
-# out by hand, and stop a
-# change from making the redraw of colorful-34 worse. A PR that improves a number raises
+# work (D-050), colour separation (D-051), dropping line work from OCR (D-052), traced
+# walls (D-053), doors and windows (D-055) and dropping false doors (D-057); they are
+# recorded values, not worked out by hand, and stop a change from making the redraw of
+# colorful-34 worse. A PR that improves a number raises
 # its floor; one that has to lower a floor says why in its decision.
 FLOORS = {
-    # Ratios are rounded down: 0.96488 recorded, 0.96464 with doors and windows (D-055).
-    "walls recall": 0.964,
+    # Ratios are rounded down: 0.96488 recorded, 0.96464 with doors and windows (D-055),
+    # 0.96669 with fewer false doors carving the walls (D-057).
+    "walls recall": 0.966,
     # D-053 lowered this from 0.969: 3 thick walls became the whole wall network, with
     # fixtures and handwriting that touch the walls (0.80495 recorded). D-055: window
     # frames and door leaves and arcs are no longer traced as wall (0.83554 recorded).
@@ -189,6 +190,7 @@ FLOORS = {
     "walls precision": 0.819,
     "openings found": 24,  # D-057: 12 windows and 12 doors of 34
     "openings swings": 11,  # D-057: 11 of the 12 doors the truth gives a swing for
+    "openings precision": 0.888,  # D-057: 24 of 27 drawn (0.88889 recorded)
     "rooms named": 3,
     "rooms outlined": 3,
     "texts found": 25,
@@ -202,7 +204,7 @@ FLOORS = {
     # arc is drawn round that hinge, 3-4 px off the arc the scan draws from a band's edge
     # (0.99724 recorded).
     "redraw on ink": 0.997,
-    "ink redrawn": 0.808,  # 0.80847 recorded: doors and windows are drawn (D-055)
+    "ink redrawn": 0.81,  # 0.80847 recorded with doors and windows (D-055), 0.81033 (D-057)
 }
 
 
@@ -218,6 +220,7 @@ def test_the_benchmark_does_not_get_worse() -> None:
         "walls precision": r.walls.precision,
         "openings found": r.openings.found.matched,
         "openings swings": r.openings.swings_ok,
+        "openings precision": r.openings.found.precision,
         "rooms named": r.rooms.named.matched,
         "rooms outlined": r.rooms.outlined,
         "texts found": r.texts.found.matched,
