@@ -12,6 +12,7 @@ from PIL import Image, ImageSequence, UnidentifiedImageError
 from app.config import Settings
 from app.ingest.annotate import annotate_page
 from app.ingest.errors import ReaderError
+from app.ingest.ink import separate_colours
 from app.ingest.ocr_client import page_words
 from app.ingest.types import ExtractedDocument, ExtractedPage, Progress
 from app.ingest.vision_client import analyse_page
@@ -62,16 +63,17 @@ def _page(
     if factor < 1.0:
         image = image.resize((round(image.width * factor), round(image.height * factor)))
         dpi = dpi * factor if dpi else None
-    gray = np.asarray(image.convert("L"), dtype=np.uint8)
+    # Fills and red labels are taken off the line work before anything thresholds it (D-050).
+    layers = separate_colours(np.asarray(image, dtype=np.uint8))
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
     png = buffer.getvalue()
     progress("ocr", 0.0)
-    words = page_words(gray, settings)
+    words = page_words(layers.ocr_page, settings)
     progress("vision", 0.3)
     vision, status = analyse_page(png, settings)
     progress("annotating", 0.8)
-    elements, scale_mm, meta = annotate_page(gray, words, "ocr", dpi, vision=vision)
+    elements, scale_mm, meta = annotate_page(layers.ink_page, words, "ocr", dpi, vision=vision)
     progress("annotating", 1.0)
     meta["vision"] = status
     return ExtractedPage(

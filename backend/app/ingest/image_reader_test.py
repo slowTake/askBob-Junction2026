@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -70,3 +71,53 @@ def test_invalid_image_has_a_safe_error_code(tmp_path: Path) -> None:
     with pytest.raises(ReaderError) as raised:
         image_reader.read_image(path, Settings.model_construct(), lambda *_: None)
     assert raised.value.code == "unreadable_file"
+
+
+def _read_capturing(path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, np.ndarray]:
+    """Read `path`, keeping the grey pages handed to OCR and to the annotator."""
+    seen: dict[str, np.ndarray] = {}
+
+    def ocr(gray: np.ndarray, *args: Any) -> list[Any]:
+        seen["ocr"] = gray
+        return []
+
+    def annotate(gray: np.ndarray, *args: Any, **kwargs: Any) -> tuple[list[Any], None, dict]:
+        seen["annotate"] = gray
+        return [], None, {}
+
+    monkeypatch.setattr(image_reader, "page_words", ocr)
+    monkeypatch.setattr(image_reader, "analyse_page", lambda *a: (None, "unavailable"))
+    monkeypatch.setattr(image_reader, "annotate_page", annotate)
+    image_reader.read_image(path, Settings.model_construct(), lambda *_: None)
+    return seen
+
+
+def test_a_black_and_white_scan_is_read_from_the_same_grey_as_before(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = Image.new("RGB", (12, 8), "white")
+    for x in range(12):
+        image.putpixel((x, 3), (0, 0, 0))
+        image.putpixel((x, 5), (150, 150, 150))
+    image.save(tmp_path / "plan.png")
+    seen = _read_capturing(tmp_path / "plan.png", monkeypatch)
+    before = np.asarray(image.convert("L"), dtype=np.uint8)  # what both were given until #89
+    assert np.array_equal(seen["ocr"], before)
+    assert np.array_equal(seen["annotate"], before)
+
+
+def test_a_coloured_scan_reads_its_line_work_and_its_labels_apart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = Image.new("RGB", (12, 8), (176, 208, 240))  # a blue zone, grey 202
+    for x in range(12):
+        image.putpixel((x, 3), (0, 0, 0))  # a wall line
+        image.putpixel((x, 6), (220, 40, 40))  # a red label
+    image.save(tmp_path / "plan.png")
+    seen = _read_capturing(tmp_path / "plan.png", monkeypatch)
+    # The annotator sees the wall line on paper: 12 black px, the other 84 white.
+    assert (seen["annotate"] == 0).sum() == 12 and (seen["annotate"] == 255).sum() == 84
+    # OCR sees the page divided by the zone colour: the zone turns white (72 px), the label
+    # (220, 40, 40) / (176, 208, 240) * 255 = (255 capped, 49.0, 42.5) -> (255, 49, 42),
+    # grey 0.299 * 255 + 0.587 * 49 + 0.114 * 42 = 110.
+    assert (seen["ocr"][6] == 110).all() and (seen["ocr"] == 255).sum() == 72

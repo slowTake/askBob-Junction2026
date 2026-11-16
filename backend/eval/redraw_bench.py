@@ -5,10 +5,11 @@
     uv run python -m eval.redraw_bench --record   # read the page now and save the readings
 
 The page is annotated exactly as the app's image reader does it (`annotate_page` on the
-page's grey image), fed the recorded OCR words and vision answer, and turned into what the
-Redrawn view draws (`redraw_elements.py`). A live reading runs the app's local OCR
-(RapidOCR) and asks the vision service only when `VISION_URL` is set and answers. The
-upscale (vision model) pass on top of ingest is not run here.
+page's ink, with fills and red labels taken off, D-050), fed the recorded OCR words and
+vision answer, and turned into what the Redrawn view draws (`redraw_elements.py`). A live
+reading runs the app's local OCR (RapidOCR) on the page with its fills divided out, and
+asks the vision service only when `VISION_URL` is set and answers. The upscale (vision
+model) pass on top of ingest is not run here.
 
 Recordings, next to the image:
   colorful-34.ocr.json     {"engine": "rapid", "words": [{"bbox", "text", "confidence"}]}
@@ -36,10 +37,9 @@ from app.domain.tokens import Word
 from app.domain.vision import Parsed, parse
 from app.ingest.annotate import annotate_page
 from app.ingest.image_reader import _on_white
+from app.ingest.ink import ColourLayers, separate_colours
 from app.ingest.ocr import ocr_words
-
-# The page ink is the ingest one (Otsu on grey); the colour-aware ink of #89 will replace it.
-from app.ingest.rooms import Gray, ink_mask
+from app.ingest.rooms import Gray
 from eval.redraw_elements import sheet_from_elements
 from eval.redraw_render import Mask, MaskScore, mask_scores, near_share, wall_mask
 from eval.redraw_score import (
@@ -143,8 +143,8 @@ def table(r: BenchReport) -> str:
     return "\n".join(rows)
 
 
-def page(path: Path) -> tuple[Gray, bytes]:
-    """The page's grey image and PNG, prepared as the image reader prepares them.
+def page(path: Path) -> tuple[ColourLayers, bytes]:
+    """The page's colour layers and PNG, prepared as the image reader prepares them.
 
     The benchmark image is far below the reader's size limit, so it is never resized.
     """
@@ -152,7 +152,7 @@ def page(path: Path) -> tuple[Gray, bytes]:
         image = _on_white(opened)
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
-    return np.asarray(image.convert("L"), dtype=np.uint8), buffer.getvalue()
+    return separate_colours(np.asarray(image, dtype=np.uint8)), buffer.getvalue()
 
 
 def redraw(gray: Gray, words: list[Word], vision: Parsed | None) -> Sheet:
@@ -226,11 +226,14 @@ def main() -> int:
     mode.add_argument("--record", action="store_true", help="read the page now and save it")
     args = parser.parse_args()
 
-    gray, png = page(IMAGE)
-    height, width = gray.shape
+    layers, png = page(IMAGE)
+    height, width = layers.ink_page.shape
     if args.live or args.record:
         settings = Settings.model_construct()  # defaults only: no database, OCR runs here
-        ocr = {"engine": "rapid", "words": words_to_json(ocr_words(gray, settings.ocr_langs))}
+        ocr = {
+            "engine": "rapid",
+            "words": words_to_json(ocr_words(layers.ocr_page, settings.ocr_langs)),
+        }
         vision = ask_vision(png, os.environ.get("VISION_URL"))
         if args.record:
             _write(OCR, ocr)
@@ -248,11 +251,11 @@ def main() -> int:
         print(f"no truth file ({TRUTH.name}): nothing to score against", file=sys.stderr)
         return 2
     truth = load_sheet(_read(TRUTH), width, height)
-    sheet = redraw(gray, recorded_words(ocr), recorded_vision(vision))
+    sheet = redraw(layers.ink_page, recorded_words(ocr), recorded_vision(vision))
     print(f"{IMAGE.name} {width}x{height}  words {len(ocr['words'])}  vision {vision['status']}")
     print(f"drawn      walls {len(sheet.walls)}  openings {len(sheet.openings)}"
           f"  rooms {len(sheet.rooms)}  texts {len(sheet.texts)}")  # fmt: skip
-    print(table(report(sheet, truth, ink_mask(gray), width, height)))
+    print(table(report(sheet, truth, layers.ink, width, height)))
     return 0
 
 

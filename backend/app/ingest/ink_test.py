@@ -62,15 +62,31 @@ def test_the_ink_page_keeps_only_the_line_work() -> None:
     assert (layers.ink_page[1, 1:3] == 115).all()  # the line keeps its grey
 
 
-def test_the_ocr_page_drops_fills_and_darkens_annotations() -> None:
+def test_the_ocr_page_reads_lines_and_labels_on_a_fill_as_on_paper() -> None:
     page = _page()
     page[0:4, 0:5] = YELLOW
+    page[1, 1:3] = INK_ON_YELLOW
     page[6:8, 0:3] = RED
     layers = separate_colours(page)
-    assert (layers.ocr_page[0:4, 0:5] == 255).all()
-    # A red label is read by its darkest channel: min(220, 40, 40) = 40, darker than its
-    # grey of 94, so it stands out from the paper as black text does.
-    assert (layers.ocr_page[6:8, 0:3] == 40).all()
+    # Each pixel is divided by the fill colour around it (the window covers this small page):
+    # yellow / yellow and paper / yellow are white.
+    assert (layers.ocr_page[0:4, 0:5][~layers.ink[0:4, 0:5]] == 255).all()
+    # The half-covering line: (120, 120, 72) / (240, 240, 144) * 255 = 127.5 each, rounded
+    # to 128: half grey, as it would be on paper.
+    assert (layers.ocr_page[1, 1:3] == 128).all()
+    # Red: (220, 40, 40) / (240, 240, 144) * 255 = (233.75, 42.5, 70.8) -> (234, 42, 71),
+    # grey 0.299 * 234 + 0.587 * 42 + 0.114 * 71 = 103: kept for OCR, unlike on the ink page.
+    assert (layers.ocr_page[6:8, 0:3] == 103).all()
+
+
+def test_the_ocr_page_is_untouched_away_from_fills() -> None:
+    page = _page(40, 10)
+    page[0:10, 0:4] = YELLOW  # a fill at the left edge
+    page[5, 30:40] = (
+        RED  # a label from x 30: 26 px past the fill, beyond the 15 px window's reach of 7
+    )
+    layers = separate_colours(page)
+    assert (layers.ocr_page[5, 30:40] == 94).all()  # its plain grey (hand: 94)
 
 
 def test_a_blue_zone_is_no_longer_dark_enough_to_be_a_line() -> None:
