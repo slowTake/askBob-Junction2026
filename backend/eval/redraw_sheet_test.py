@@ -49,6 +49,30 @@ def test_openings_rooms_and_texts_are_scaled_to_page_pixels() -> None:
     assert sheet.texts == (Text("5,341", "dimension", (25.0, 150.0), 90),)
 
 
+def test_uncertain_entries_and_other_readings_are_kept() -> None:
+    raw = {
+        "walls": [{"a": [0.1, 0.5], "b": [0.5, 0.5], "thickness": 0.02, "uncertain": True}],
+        "openings": [{"kind": "window", "a": [0.5, 0.0], "b": [0.6, 0.0], "uncertain": True}],
+        "rooms": [{"name": "varasto", "label": [0.5, 0.5], "alternatives": ["vaasto"]}],
+        "texts": [
+            {"text": "9,962", "kind": "dimension", "at": [0.5, 0.5], "alternatives": ["9,662"]},
+            {"text": "4,014", "kind": "dimension", "at": [0.2, 0.5], "uncertain": True},
+            {"text": "5,341", "kind": "dimension", "at": [0.1, 0.5]},
+        ],
+    }
+    sheet = load_sheet(raw, W, H)
+    assert sheet.walls[0].uncertain and sheet.openings[0].uncertain
+    # Other readings make an entry uncertain without saying so twice.
+    assert sheet.rooms[0] == Room(
+        "varasto", (50.0, 100.0), alternatives=("vaasto",), uncertain=True
+    )
+    assert [(t.alternatives, t.uncertain) for t in sheet.texts] == [
+        (("9,662",), True),
+        ((), True),
+        ((), False),
+    ]
+
+
 def test_an_empty_truth_is_an_empty_sheet() -> None:
     sheet = load_sheet({}, W, H)
     assert (sheet.walls, sheet.openings, sheet.rooms, sheet.texts) == ((), (), (), ())
@@ -69,6 +93,9 @@ def test_an_empty_truth_is_an_empty_sheet() -> None:
         {"texts": [{"text": "x", "kind": "other", "at": [1.5, 0.5]}]},  # off the page
         {"texts": [{"text": "x", "kind": "other", "at": [True, 0.5]}]},
         {"walls": "not a list"},
+        {"texts": [{"text": "x", "kind": "other", "at": [0.5, 0.5], "uncertain": "yes"}]},
+        {"texts": [{"text": "x", "kind": "other", "at": [0.5, 0.5], "alternatives": "y"}]},
+        {"rooms": [{"name": "x", "label": [0.5, 0.5], "alternatives": ["y", " "]}]},
     ],
 )
 def test_a_malformed_truth_is_refused_not_repaired(raw: object) -> None:

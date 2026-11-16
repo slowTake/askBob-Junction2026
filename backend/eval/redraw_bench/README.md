@@ -8,7 +8,7 @@ It stays at that size on purpose. The product has to read a floor plan of any qu
 
 ## Files
 
-- `colorful-34.truth.json`: the hand-made truth. **Draft**: its `notes` list every entry still to be checked by eye. Check it with an overlay: `uv run python -m eval.redraw_overlay eval/redraw_bench/colorful-34.truth.json /tmp/overlay.png --scale 3` (each element carries its index: w, o, r, t).
+- `colorful-34.truth.json`: the hand-made truth, drafted by an agent and reviewed by eye on 2026-11-16. Entries no one could read for certain are marked (see the format below); its `notes` say why. Check it with an overlay: `uv run python -m eval.redraw_overlay eval/redraw_bench/colorful-34.truth.json /tmp/overlay.png --scale 3` (each element carries its index: w, o, r, t).
 - `colorful-34.ocr.json`: the app's OCR words for the page, recorded so the benchmark runs offline.
 - `colorful-34.vision.json`: the vision service's answer, or `{"status": "unavailable"}` when none was running.
 
@@ -38,6 +38,7 @@ Run the benchmark with `uv run python -m eval.redraw_bench` (from `backend/`). `
 - A door's `hinge` names the end its leaf turns on; `toward` is any point in the room it opens into.
 - A room's `name` is as written; `polygon` may be left out.
 - A text's `kind` is `dimension`, `height` or `other` (room names go under rooms); `rotation` is 0 or 90.
+- Say what you could not be sure of. Any entry can carry `"uncertain": true`. A text or room name a person can't read for certain lists its other readings: `"alternatives": ["9,662"]`, which also makes it uncertain. A redraw giving any listed reading counts as right. Issue #133 will score whether the app flags the same entries.
 
 ## Source and licence
 

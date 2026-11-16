@@ -7,7 +7,9 @@ shapes, so both sides are scored by one set of functions (`redraw_score.py`).
 
 A wall is given as its centre line with a thickness (a share of the page width) or as
 its outline. A malformed entry is refused, never repaired: a truth file is checked by
-eye once and must say exactly what was meant.
+eye once and must say exactly what was meant. What its author could not be sure of is
+said too: `"uncertain": true` on any entry, and `"alternatives"` on a text or room name
+for the other readings a person could not rule out (which also makes it uncertain).
 """
 
 import math
@@ -24,6 +26,7 @@ ROTATIONS = (0, 90)
 @dataclass(frozen=True)
 class Wall:
     polygon: tuple[Point, ...]
+    uncertain: bool = False  # the truth's author could not be sure it is there
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,7 @@ class Opening:
     b: Point
     hinge: Point | None = None  # a door: the end its leaf turns on
     toward: Point | None = None  # a door: a point in the room it opens into
+    uncertain: bool = False
 
 
 @dataclass(frozen=True)
@@ -40,6 +44,8 @@ class Room:
     name: str  # as written on the drawing
     label: Point  # the middle of the written name
     polygon: tuple[Point, ...] | None = None
+    alternatives: tuple[str, ...] = ()  # other readings a person could not rule out
+    uncertain: bool = False
 
 
 @dataclass(frozen=True)
@@ -48,6 +54,8 @@ class Text:
     kind: str
     at: Point
     rotation: int = 0  # degrees: 0 reads left to right, 90 bottom to top
+    alternatives: tuple[str, ...] = ()
+    uncertain: bool = False
 
 
 @dataclass(frozen=True)
@@ -76,11 +84,11 @@ def load_sheet(raw: object, width: float, height: float) -> Sheet:
 
     def wall(e: Mapping[str, object]) -> Wall:
         if "polygon" in e:
-            return Wall(polygon(e["polygon"]))
+            return Wall(polygon(e["polygon"]), _flag(e))
         thickness = _share(e.get("thickness"))
         if thickness <= 0:
             raise ValueError("a wall needs a thickness")
-        return Wall(band(point(e.get("a")), point(e.get("b")), thickness * width))
+        return Wall(band(point(e.get("a")), point(e.get("b")), thickness * width), _flag(e))
 
     def opening(e: Mapping[str, object]) -> Opening:
         kind = e.get("kind")
@@ -92,11 +100,13 @@ def load_sheet(raw: object, width: float, height: float) -> Sheet:
             raise ValueError("a hinge is 'a' or 'b'")
         hinge = a if end == "a" else b if end == "b" else None
         toward = point(e["toward"]) if e.get("toward") is not None else None
-        return Opening(str(kind), a, b, hinge, toward)
+        return Opening(str(kind), a, b, hinge, toward, _flag(e))
 
     def room(e: Mapping[str, object]) -> Room:
         outline = polygon(e["polygon"]) if e.get("polygon") is not None else None
-        return Room(_text(e.get("name")), point(e.get("label")), outline)
+        others = _alternatives(e)
+        name, label = _text(e.get("name")), point(e.get("label"))
+        return Room(name, label, outline, others, bool(others) or _flag(e))
 
     def text(e: Mapping[str, object]) -> Text:
         kind, rotation = e.get("kind"), e.get("rotation", 0)
@@ -104,7 +114,15 @@ def load_sheet(raw: object, width: float, height: float) -> Sheet:
             raise ValueError(f"not a text kind: {kind!r}")
         if rotation not in ROTATIONS or isinstance(rotation, bool):
             raise ValueError(f"not a rotation: {rotation!r}")
-        return Text(_text(e.get("text")), str(kind), point(e.get("at")), int(str(rotation)))
+        others = _alternatives(e)
+        return Text(
+            _text(e.get("text")),
+            str(kind),
+            point(e.get("at")),
+            int(str(rotation)),
+            others,
+            bool(others) or _flag(e),
+        )
 
     return Sheet(
         tuple(wall(e) for e in _entries(raw, "walls")),
@@ -145,6 +163,21 @@ def _share(v: object) -> float:
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 <= v <= 1:
         raise ValueError(f"not a share of the page: {v!r}")
     return float(v)
+
+
+def _flag(e: Mapping[str, object]) -> bool:
+    v = e.get("uncertain", False)
+    if not isinstance(v, bool):
+        raise ValueError(f"uncertain is true or false: {v!r}")
+    return v
+
+
+def _alternatives(e: Mapping[str, object]) -> tuple[str, ...]:
+    """Other readings; giving any makes the entry uncertain."""
+    v = e.get("alternatives", [])
+    if not isinstance(v, list):
+        raise ValueError("alternatives is a list of texts")
+    return tuple(_text(a) for a in v)
 
 
 def _text(v: object) -> str:

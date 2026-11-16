@@ -59,7 +59,7 @@ class RoomScore:
 @dataclass(frozen=True)
 class TextScore:
     found: Counts  # by place alone
-    exact: int  # the same text, ignoring spaces and case
+    exact: int  # the same text (or another reading of it), ignoring spaces and case
     digits: int  # the same digits (counted only where the truth has digits)
     kind_ok: int
     rotation_ok: int
@@ -80,7 +80,7 @@ def match_openings(
 
 def match_rooms(redraw: Sequence[Room], truth: Sequence[Room], tolerance_px: float) -> RoomScore:
     def cost(p: Room, t: Room) -> float | None:
-        if fold(p.name) != fold(t.name):
+        if fold(p.name) not in {fold(n) for n in (t.name, *t.alternatives)}:
             return None
         gap = math.dist(p.label, t.label)
         inside = point_in_polygon(p.label, list(t.polygon)) if t.polygon else gap <= tolerance_px
@@ -101,13 +101,13 @@ def match_texts(redraw: Sequence[Text], truth: Sequence[Text], tolerance_px: flo
         if gap > tolerance_px:
             return None
         # A right reading wins over a nearer wrong one: wrong ones cost more than any gap.
-        return gap if _same(p.text, t.text) else gap + 2 * tolerance_px + 1
+        return gap if _reads(p, t) else gap + 2 * tolerance_px + 1
 
     found = [(redraw[i], truth[j]) for i, j in _pairs(redraw, truth, cost)]
     return TextScore(
         found=Counts(len(redraw), len(truth), len(found)),
-        exact=sum(_same(p.text, t.text) for p, t in found),
-        digits=sum(bool(_digits(t.text)) and _digits(p.text) == _digits(t.text) for p, t in found),
+        exact=sum(_reads(p, t) for p, t in found),
+        digits=sum(_same_digits(p, t) for p, t in found),
         kind_ok=sum(p.kind == t.kind for p, t in found),
         rotation_ok=sum(p.rotation == t.rotation for p, t in found),
     )
@@ -163,6 +163,16 @@ def _side(wall: Opening, p: Point) -> int:
 
 def _middle(a: Point, b: Point) -> Point:
     return ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+
+
+def _reads(redraw: Text, truth: Text) -> bool:
+    """The redraw gives the truth's text or one of its other readings."""
+    return any(_same(redraw.text, t) for t in (truth.text, *truth.alternatives))
+
+
+def _same_digits(redraw: Text, truth: Text) -> bool:
+    readings = [d for t in (truth.text, *truth.alternatives) if (d := _digits(t))]
+    return _digits(redraw.text) in readings
 
 
 def _same(a: str, b: str) -> bool:
