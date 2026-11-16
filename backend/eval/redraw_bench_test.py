@@ -8,6 +8,8 @@ from eval.redraw_bench import (
     IMAGE,
     OCR,
     VISION,
+    confidence,
+    confidence_table,
     page,
     read_words,
     recorded_vision,
@@ -15,6 +17,7 @@ from eval.redraw_bench import (
     redraw,
     report,
     table,
+    truth_shapes,
 )
 from eval.redraw_bench import TRUTH as TRUTH_FILE
 from eval.redraw_render import wall_mask
@@ -90,6 +93,24 @@ def test_positions_count_within_four_pixels() -> None:
 def test_the_table_shows_the_numbers() -> None:
     text = table(report(TRUTH, TRUTH, wall_mask(TRUTH.walls, W, H), W, H))
     assert "recall 100.0%" in text and "off walls   0.0%" in text and "on ink 100.0%" in text
+
+
+def test_the_truth_is_drawn_as_the_view_draws_for_its_ceiling_score() -> None:
+    shapes = truth_shapes(TRUTH, W)
+    assert [s.part for s in shapes] == ["walls", "rooms", "dimensions"]  # no opening
+    assert shapes[0].polygon == TRUTH.walls[0].polygon
+    # "mh" at (100, 150) in the room size 1.5 x 4.82 = 7.23 px: half width
+    # 0.6 x 7.23 x 2 / 2 = 4.338, half height 3.615 (as drawn_shape does it).
+    (x0, y0), _, (x1, y1), _ = shapes[1].polygon
+    assert (x0, y0, x1, y1) == pytest.approx((95.662, 146.385, 104.338, 153.615))
+
+
+def test_the_confidence_line_shows_the_score_and_its_parts() -> None:
+    layers, _ = page(IMAGE)
+    c = confidence(layers, [])  # nothing drawn on a page with ink: all of it missed
+    assert (c.covered, c.on_ink, c.score) == (0.0, 1.0, 0.0)
+    text = confidence_table("confidence", c)
+    assert "score 0.0%" in text and "covered 0.0%" in text and "walls 0 (100.0% on ink" in text
 
 
 def test_recorded_words_are_read_whole_or_refused() -> None:
