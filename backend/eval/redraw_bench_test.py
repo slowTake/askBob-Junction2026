@@ -187,8 +187,8 @@ FLOORS = {
     # are a separate issue). 0.82632 recorded with doors' gaps on a wall, 0.82144 with
     # wall corners no longer read as leaves, 0.81959 with circles no longer read as arcs.
     "walls precision": 0.819,
-    "openings found": 20,  # D-055: 12 windows and 8 doors of 34
-    "openings swings": 7,  # D-055: 7 of the 8 doors the truth gives a swing for
+    "openings found": 24,  # D-057: 12 windows and 12 doors of 34
+    "openings swings": 11,  # D-057: 11 of the 12 doors the truth gives a swing for
     "rooms named": 3,
     "rooms outlined": 3,
     "texts found": 25,
@@ -198,7 +198,10 @@ FLOORS = {
     "texts kind": 16,  # #36: decimal-comma dimensions and h-heights have their kind
     # D-055: read against the symbol layer, as the redraw now draws coloured door arcs
     # and window frames that are not ink (0.99940 recorded; 0.99822 on the ink, walls only).
-    "redraw on ink": 0.999,
+    # D-057 lowers it: a door is stored on its wall's centre line, as CAD draws it, and its
+    # arc is drawn round that hinge, 3-4 px off the arc the scan draws from a band's edge
+    # (0.99724 recorded).
+    "redraw on ink": 0.997,
     "ink redrawn": 0.808,  # 0.80847 recorded: doors and windows are drawn (D-055)
 }
 
