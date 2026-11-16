@@ -38,7 +38,7 @@ WALL_NEAR_PX = 2  # the hinge and the free end lie this close to a traced wall
 TIE_PER_PX = 0.1  # of equal arcs, the hinge nearer the wall wins (less than a sector)
 OVERLAP = 0.1  # doors whose boxes overlap more than this (of the smaller) are one
 CARVE_PX = 1  # the leaf and arc are carved this much wider than drawn
-WORK_SIDE_PX = 1000  # bigger pages are read at this size
+WORK_SIDE_PX = 700  # bigger pages are read at this size: 3 s on a 3,000 px page
 
 
 @dataclass(frozen=True)

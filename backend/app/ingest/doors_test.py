@@ -80,3 +80,20 @@ def test_the_carve_is_the_leaf_and_arc_but_not_the_gap() -> None:
     assert carve[60, 80] and carve[70, 80]  # the leaf
     assert carve[64, 94]  # the arc at 45 degrees: (80 + 14.1, 50 + 14.1)
     assert not carve[50, 90] and not carve[50, 70]  # the wall line through the gap stays
+
+
+def test_a_page_bigger_than_the_working_size_is_read_shrunk_and_scaled_back() -> None:
+    # The first test's door, four times as big (800 x 480 px, over WORK_SIDE_PX = 700):
+    # wall y = 200, hinge (320, 200), radius 80, lines 1 px wide.
+    symbols = np.zeros((4 * H, 4 * W), np.uint8)
+    cv2.line(symbols, (40, 200), (600, 200), 1, 1)
+    cv2.line(symbols, (320, 200), (320, 280), 1, 1)
+    cv2.ellipse(symbols, (320, 200), (80, 80), 0, 0, 90, 1, 1)
+    walls = np.zeros(symbols.shape, bool)
+    walls[200, 40:601] = True
+    ink = symbols.astype(bool)
+    (door,) = find_doors(ink, ink, walls, 28, 100)
+    # Read at 700 / 800 of the size, so a pixel there is 8/7 px here: within 4 px.
+    assert door.a == pytest.approx((320, 200), abs=4)
+    assert door.b == pytest.approx((400, 200), abs=4)
+    assert door.radius_px == pytest.approx(80, abs=4)
