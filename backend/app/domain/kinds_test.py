@@ -5,7 +5,7 @@ def test_drawing_kinds_include_the_vocabulary_kinds() -> None:
     # Issue #43: classify() in tokens.py (room, fixture from vocab codes, door, dimension,
     # scale, area, text; room_number and unit from Swiss labels such as "2.01" and
     # "Whg. A") plus the wall candidates from annotate.py; windows from the floor-plan
-    # model (D-022).
+    # model (D-022); ceiling heights "h1600" (#36).
     expected = {"room", "room_number", "unit", "fixture", "door", "window", "dimension",
-                "scale", "area", "text", "wall"}  # fmt: skip
+                "height", "scale", "area", "text", "wall"}  # fmt: skip
     assert expected == DRAWING_KINDS

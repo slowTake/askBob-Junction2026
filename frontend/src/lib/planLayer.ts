@@ -10,7 +10,11 @@ export const LAYERS: { key: LayerKey; label: string; kinds: string[] }[] = [
   { key: "openings", label: "Doors & windows", kinds: ["door", "window"] },
   { key: "fixtures", label: "Fixtures", kinds: ["fixture", "stair", "column"] },
   { key: "walls", label: "Walls", kinds: ["wall"] },
-  { key: "labels", label: "Text", kinds: ["text", "dimension", "area", "room_number", "scale"] },
+  {
+    key: "labels",
+    label: "Text",
+    kinds: ["text", "dimension", "height", "area", "room_number", "scale"],
+  },
 ];
 
 export function layerOf(kind: string): LayerKey | null {

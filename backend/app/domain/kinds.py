@@ -10,7 +10,17 @@ from typing import Literal, get_args
 
 CodeKind = Literal["room", "fixture"]  # what a vocabulary code names
 DrawingKind = Literal[
-    CodeKind, "room_number", "unit", "door", "window", "dimension", "scale", "area", "text", "wall"
+    CodeKind,
+    "room_number",
+    "unit",
+    "door",
+    "window",
+    "dimension",
+    "height",  # a printed ceiling height, "h1600" (value_mm)
+    "scale",
+    "area",
+    "text",
+    "wall",
 ]
 
 DRAWING_KINDS: frozenset[str] = frozenset(get_args(DrawingKind))

@@ -23,9 +23,9 @@ from app.qa.context import ToolContext, ToolInputError, parse_id
 from app.qa.plan_tools import PLAN_TOOL_NAMES, PLAN_TOOLS, run_plan_tool
 from app.storage import page_image_path
 
-KINDS = ["room", "room_number", "unit", "wall", "door", "window", "dimension", "scale", "area",
-         "fixture", "text", "slab", "roof", "column", "beam", "stair", "railing", "storey",
-         "element"]  # fmt: skip
+KINDS = ["room", "room_number", "unit", "wall", "door", "window", "dimension", "height",
+         "scale", "area", "fixture", "text", "slab", "roof", "column", "beam", "stair", "railing",
+         "storey", "element"]  # fmt: skip
 # IFC base quantities `sum_quantity` can total; units follow the name (domain/quantities.py).
 QUANTITIES = ["NetVolume", "GrossVolume", "NetSideArea", "GrossSideArea", "NetFloorArea",
               "GrossFloorArea", "NetArea", "GrossArea", "Length", "Perimeter"]  # fmt: skip

@@ -25,6 +25,7 @@ group("planLayer", () => {
   it("assigns kinds to layers", () => {
     expect(layerOf("door")).toBe("openings");
     expect(layerOf("room_number")).toBe("labels");
+    expect(layerOf("height")).toBe("labels"); // "h1600" ceiling heights (#36)
     expect(layerOf("storey")).toBeNull();
   });
 

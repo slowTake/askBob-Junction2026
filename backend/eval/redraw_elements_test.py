@@ -95,6 +95,19 @@ def test_classified_text_is_kept_whatever_its_confidence() -> None:
     )
 
 
+def test_text_kinds_map_to_the_benchmark_kinds() -> None:
+    # The app's dimension and height kinds are the truth's; every other kind is "other".
+    sheet = sheet_from_elements(
+        [
+            el("dimension", (0, 0, 20, 6), label="5,341"),
+            el("height", (40, 0, 60, 6), label="h1600"),
+            el("scale", (80, 0, 100, 6), label="1:50"),
+        ],
+        WIDTH,
+    )
+    assert [t.kind for t in sheet.texts] == ["dimension", "height", "other"]
+
+
 def test_blank_labels_are_skipped_and_an_empty_label_hides_the_text() -> None:
     sheet = sheet_from_elements(
         [

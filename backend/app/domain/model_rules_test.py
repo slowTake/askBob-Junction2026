@@ -26,6 +26,7 @@ def test_unknown_fixture_and_other_kinds_are_marked_proxies() -> None:
 def test_text_findings_are_annotations() -> None:
     assert ifc_target("dimension") == ("IfcAnnotation", None, "bob:dimension")
     assert ifc_target("room_number") == ("IfcAnnotation", None, "bob:room_number")
+    assert ifc_target("height") == ("IfcAnnotation", None, "bob:height")  # "h1600" (#36)
 
 
 def test_round_trip_of_marks_and_sanitary_types() -> None:
