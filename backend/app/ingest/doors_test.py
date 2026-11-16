@@ -127,11 +127,26 @@ def test_a_door_on_a_thin_line_is_not_moved() -> None:
 def test_a_gap_off_the_wall_is_not_a_door() -> None:
     # The wall breaks between x 85 and 95, and the door's gap is x 80..100 on y = 50:
     # within 1 px of the wall are x 80..85 and 95..100, 12 of its 21 px (0.57 < 0.9).
+    # Nor is it a break: the wall runs into the gap, 6 of its inside's 15 px (x 83..97).
     symbols, walls = _wall()
     symbols[50, 85:96] = 0
     walls[50, 85:96] = False
     _door(symbols, 20, 0, 90)
     assert _find(symbols, walls) == []
+
+
+def test_a_door_in_a_break_in_the_wall_is_a_door() -> None:
+    # The drawing leaves the doorway open: the wall stops at x 79 and starts again at 101.
+    # Only x 80 and 100 of the gap's 21 px are within 1 px of it (2/21 < 0.9), but the
+    # wall runs on past both ends (x 72..77 and 103..108, all wall) and none of the
+    # gap's inside (x 83..97) is wall: a break, and the door in it.
+    symbols, walls = _wall()
+    symbols[50, 80:101] = 0
+    walls[50, 80:101] = False
+    _door(symbols, 20, 0, 90)
+    (door,) = _find(symbols, walls)
+    assert door.a == pytest.approx((80, 50), abs=1.5)
+    assert door.b == pytest.approx((100, 50), abs=1.5)
 
 
 def _corner(wall_to_y: int) -> list[Door]:

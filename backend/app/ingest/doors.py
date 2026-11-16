@@ -103,11 +103,32 @@ def _accepted(door: Door, centred: Door, arc: np.ndarray, on_wall: Mask, away: n
     circle read from a hinge up to WALL_NEAR_PX off its centre drifts off the ring past
     its ends, and centring puts that hinge back on the centre. The rules run before the
     candidates compete, so a wrong reading of an arc frees the right one."""
-    if _share_on(on_wall, centred.a, centred.b) < GAP_ON_WALL:
+    if not _gap_on_wall(centred, on_wall):
         return False
     if _leaf_runs_on(door, away) or _arc_runs_on(door, arc):
         return False
     return centred == door or not _arc_runs_on(centred, arc)
+
+
+def _gap_on_wall(d: Door, on_wall: Mask) -> bool:
+    """The gap lies on a traced wall, or it is a break in one: the wall goes on in line
+    past both of its ends and stops at them, leaving the gap's inside (from 3 px in) open
+    (a drawing that leaves the doorway open)."""
+    if _share_on(on_wall, d.a, d.b) >= GAP_ON_WALL:
+        return True
+    length = math.dist(d.a, d.b) or 1.0
+    gx, gy = (d.b[0] - d.a[0]) / length, (d.b[1] - d.a[1]) / length
+    lo, hi = PAST_LEAF_PX
+
+    def at(p: Point, k: float) -> Point:
+        return (p[0] + k * gx, p[1] + k * gy)
+
+    past = min(
+        _share_on(on_wall, at(d.a, -lo), at(d.a, -hi)),
+        _share_on(on_wall, at(d.b, lo), at(d.b, hi)),
+    )
+    inside = _share_on(on_wall, at(d.a, lo), at(d.b, -lo)) if length > 2 * lo else 0.0
+    return past >= RUNS_ON and inside <= 1 - GAP_ON_WALL
 
 
 def _leaf_runs_on(d: Door, away: np.ndarray) -> bool:
