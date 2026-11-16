@@ -97,3 +97,13 @@ def test_a_page_bigger_than_the_working_size_is_read_shrunk_and_scaled_back() ->
     assert door.a == pytest.approx((320, 200), abs=4)
     assert door.b == pytest.approx((400, 200), abs=4)
     assert door.radius_px == pytest.approx(80, abs=4)
+
+
+def test_a_gap_off_the_wall_is_not_a_door() -> None:
+    # The wall breaks between x 85 and 95, and the door's gap is x 80..100 on y = 50:
+    # within 1 px of the wall are x 80..85 and 95..100, 12 of its 21 px (0.57 < 0.9).
+    symbols, walls = _wall()
+    symbols[50, 85:96] = 0
+    walls[50, 85:96] = False
+    _door(symbols, 20, 0, 90)
+    assert _find(symbols, walls) == []

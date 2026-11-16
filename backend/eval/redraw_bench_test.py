@@ -182,7 +182,10 @@ FLOORS = {
     # D-053 lowered this from 0.969: 3 thick walls became the whole wall network, with
     # fixtures and handwriting that touch the walls (0.80495 recorded). D-055: window
     # frames and door leaves and arcs are no longer traced as wall (0.83554 recorded).
-    "walls precision": 0.835,
+    # D-057 lowers it: the false doors on stools, a table and a threshold carved those
+    # fixtures' rings out of the walls; without them the rings are wall again (fixtures
+    # are a separate issue). 0.82632 recorded with doors' gaps on a wall.
+    "walls precision": 0.826,
     "openings found": 20,  # D-055: 12 windows and 8 doors of 34
     "openings swings": 7,  # D-055: 7 of the 8 doors the truth gives a swing for
     "rooms named": 3,
