@@ -24,7 +24,7 @@ _SANITARY = {
     "bathtub": "BATH",
 }
 # Text-like findings (labels, dimensions, scale notes) are 2D annotations.
-_ANNOTATION_KINDS = {"text", "dimension", "scale", "area", "room_number"}
+_ANNOTATION_KINDS = {"text", "dimension", "height", "scale", "area", "room_number"}
 
 BOB_MARK = "bob:"  # ObjectType prefix: "this kind was set by our pipeline"
 

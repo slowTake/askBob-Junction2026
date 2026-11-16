@@ -13,8 +13,8 @@ same fields). Elements without a box of positive area are not drawn. Then:
   inside the room's outline;
 - any other kind: its label (else text) at the box centre. Unclassified `text` is kept
   only from `MIN_TEXT_CONFIDENCE` and with a letter or digit.
-Text kinds: the app's `dimension` -> "dimension", everything else -> "other" (the app has
-no height kind yet). The view draws every label level, so rotation is always 0.
+Text kinds: the app's `dimension` and `height` keep their kind, everything else -> "other".
+The view draws every label level, so rotation is always 0.
 """
 
 import math
@@ -30,6 +30,7 @@ TEXT_SHARE = 1 / 100  # text size as a share of the page width (redraw.ts)
 ROOM_SIZE = 1.5  # room names relative to other text
 AREA_LINE = 1  # the area line sits one name-height below the name
 MIN_TEXT_CONFIDENCE = 0.6  # unclassified OCR text below this is not drawn
+_SCORED_KINDS = ("dimension", "height")  # app kinds the truth also has
 
 
 def sheet_from_elements(elements: Sequence[ExtractedElement], page_width: float) -> Sheet:
@@ -66,7 +67,7 @@ def sheet_from_elements(elements: Sequence[ExtractedElement], page_width: float)
             if area is not None:
                 texts.append(Text(area, "other", (cx, cy + AREA_LINE * room_size)))
             continue
-        texts.append(Text(text, "dimension" if e.kind == "dimension" else "other", (cx, cy)))
+        texts.append(Text(text, e.kind if e.kind in _SCORED_KINDS else "other", (cx, cy)))
     return Sheet(tuple(walls), tuple(openings), tuple(rooms), tuple(texts))
 
 

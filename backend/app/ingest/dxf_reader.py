@@ -228,7 +228,7 @@ def _text_bbox(t: Shape, frame: PageFrame) -> tuple[float, float, float, float]:
 def _text_element(t: Shape, frame: PageFrame) -> ExtractedElement:
     x0, y0, x1, y1 = _text_bbox(t, frame)
     c = classify(t.text or "")
-    kind = c.kind if c.kind in ("scale", "dimension") else "text"
+    kind = c.kind if c.kind in ("scale", "dimension", "height") else "text"
     return ExtractedElement(
         kind=kind, source="dxf", text=t.text, label=c.label, value_mm=c.value_mm,
         bbox=(x0, y0, x1, y1), properties={"layer": t.layer},

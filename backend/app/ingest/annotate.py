@@ -21,7 +21,7 @@ from app.domain.labels import (
 )
 from app.domain.polygons import polygon_bbox
 from app.domain.room_boundaries import holds_one_room
-from app.domain.tokens import Word, classify, merge_split_numbers
+from app.domain.tokens import Word, classify, merge_split_numbers, room_candidates
 from app.domain.vision import (
     Parsed,
     object_findings,
@@ -62,8 +62,11 @@ def annotate_page(
     words = merge_split_numbers(words)
     elements: list[ExtractedElement] = []
     scales: list[int] = []
+    repeated = room_candidates([w.text for w in words])
     for word in words:
-        c = classify(word.text)
+        c = classify(word.text, fuzzy=source == "ocr")  # one misread letter in a name
+        if c.kind == "text" and " ".join(word.text.split()).lower() in repeated:
+            c.properties["room_candidate"] = True  # kept as text: not traced as a room
         if c.kind == "scale":
             scales.append(int(c.properties["denominator"]))
         elements.append(

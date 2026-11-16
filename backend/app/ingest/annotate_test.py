@@ -209,3 +209,25 @@ def test_unlinked_room_number_also_rejects_a_merged_model_fallback() -> None:
     assert "polygon_px" not in kitchen.properties
     assert kitchen.properties["region"] == "not_closed"
     assert not [e for e in elements if e.source == "vision" and e.kind == "room"]
+
+
+# --- vocabulary on OCR pages (#36) ------------------------------------------------------
+
+
+def test_ocr_room_names_match_with_one_misread_letter() -> None:
+    words = [Word((10.0, 10.0, 40.0, 20.0), "keitlio"), Word((60.0, 10.0, 90.0, 20.0), "h1600")]
+    ocr, _, _ = annotate_page(_blank(), words, "ocr", dpi=None)
+    exact, _, _ = annotate_page(_blank(), words, "pdf_text", dpi=None)
+    assert [(e.kind, e.label) for e in ocr[:2]] == [("room", "keitlio"), ("height", "h1600")]
+    assert ocr[0].properties["fuzzy_match"] is True
+    assert exact[0].kind == "text"  # a text layer is exact: no guessing
+
+
+def test_repeated_unknown_words_stay_text_marked_as_room_candidates() -> None:
+    words = [
+        Word((10.0, 10.0, 40.0, 20.0), "Slaapkamer"),
+        Word((60.0, 60.0, 90.0, 70.0), "Slaapkamer"),
+    ]
+    elements, _, _ = annotate_page(_blank(), words, "ocr", dpi=None)
+    assert [e.kind for e in elements[:2]] == ["text", "text"]
+    assert all(e.properties.get("room_candidate") is True for e in elements[:2])

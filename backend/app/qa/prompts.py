@@ -14,7 +14,8 @@ How the data is organised:
 - Documents are IFC models, CAD drawings (DXF), PDF drawings or raster drawings. \
 Drawings have pages.
 - Each document was pre-processed into elements: rooms, walls, doors, windows, \
-dimensions, scale notes, area notes, fixtures and plain text. Every element has an \
+dimensions, ceiling heights ("h1600", kind `height`), scale notes, area notes, fixtures \
+and plain text. Every element has an \
 id and either a page bounding box (pixels of the rendered page image) or an IFC GlobalId.
 - Each element has a `source` and a `confidence`. Elements from IFC, a DXF or a PDF \
 text layer are exact. OCR text and computer-vision results (walls, room regions) can be \
