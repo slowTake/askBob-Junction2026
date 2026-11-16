@@ -914,3 +914,40 @@ Room outlines do not read walls (they come from the line network, D-024), so the
 - **The frontend** follows `page.redraw_mode` per page (`isSketchPage`): the button (**Upscale** or **Redraw**), the card's text and status line, and which elements Redrawn draws. Older servers without the field fall back to the page's redraw, then to the document kind.
 
 **Consequences:** A scanned printed plan uploaded as PNG or JPG now gets the measurable page redraw, with its dimensions and scale, in one Haiku call instead of minutes of Opus. A photographed printed plan with no fills and fewer than three dimensions read counts as a sketch, and a hand drawing made with a ruler, scanned flat, counts as a plan; `?mode=` corrects both, though the UI has no control for it yet. Scanned PDF pages are not measured and keep the page redraw. The cuts come from one real plan and one synthetic sketch; a real photo of a hand drawing should be measured and added as a test when one is available.
+
+## D-056: A redraw confidence from the page's own ink, per part, with the missed and added patches (#132)
+
+**Date:** 2026-11-16 · **Status:** Accepted
+
+**Context:** The benchmark (D-049) scores the Redrawn view against a hand-made truth, which a real upload does not have. A user cannot tell how far to trust a redraw. The runner already printed two truth-free numbers for walls ("ink redrawn" and "on ink"); #132 asks for a score the app computes for every page, broken down per part, with the missed and added pixels shown on the plan.
+
+**Decision:**
+- `app/domain/redraw_confidence.py` (rules, pure) and `app/ingest/confidence.py` (pixels, pure) score what the view draws against the page's ink: the colour layers' line work plus the red annotations (D-051), fills excluded.
+  - **covered**: the share of the ink within the tolerance (2/482 of the page width, as the benchmark's walls) of something drawn; what is left is **missed**.
+  - **on ink**: the share of what is drawn within the tolerance of ink; what is left is **added** (drawn on blank paper).
+  - **score** = the harmonic mean of the two: painting the page black or drawing nothing both score low. A blank page with nothing drawn scores 1.
+  - The redraw is drawn as pixels by the view's own rules (`drawn_shape` mirrors `redraw.ts`): walls as their outlines, doors and windows as their boxes, room names and texts as a box of the rendered text's size at the element's centre. Six parts: walls, openings, rooms, dimensions, heights, other text; each gets its count, its share on ink and the share of the page's ink it covers.
+  - Missed and added pixels are grouped into patches (grown by the tolerance), the 40 largest kept as outlines in page pixels.
+- Stored as `page.meta["redraw_confidence"]` by the image reader, scored again after a plan upscale (the view then draws the additions), served as `PageOut.redraw_confidence`, and null for a sketch page (the sketch redraw measures nothing, D-028), a PDF or CAD page (not scored yet) or an entry in an older format.
+- The Redrawn view shows "Redraw confidence 86%" at the top left. Clicking it opens a breakdown per part with a one-line caveat, and lights the missed patches (red) and the added patches (the upscale's purple) on the plan, in the citation highlight style. The marks are not in the exported SVG.
+- `python -m eval.redraw_bench` prints the score next to the true scores, and the same score of the truth itself drawn the view's way (its ceiling on the page).
+
+**Compared with the truth on colorful-34** (recorded OCR, vision off, main after D-053):
+
+| redraw | true scores | confidence (covered / on ink) |
+| --- | --- | --- |
+| the app's page redraw | walls R 96.5 % P 80.5 % F1 87.8 %; rooms 3/16; texts 25/35 | **86.2 %** (76.0 / 99.7) |
+| its walls only | walls as above | 80.1 % (66.9 / 99.8) |
+| its labels only, no walls | | 16.7 % (9.1 / 98.4) |
+| the truth, drawn the view's way | 100 % by definition | **83.2 %** (72.9 / 97.0) |
+| the truth's walls only | | 73.6 % (58.5 / 99.2) |
+| the app's walls with the truth's labels | | 88.0 % (79.8 / 98.0) |
+| the morning's three wall boxes (D-051: 14.0 % of the line work) | walls F1 27.2 % | about 21 % by the same arithmetic, walls only |
+
+What this says:
+- Large changes track. Three boxes to the traced wall network moved walls F1 27 → 88 and the walls-only confidence about 21 → 80. The score is a fair reading of how much of the page the redraw accounts for.
+- Precision does not. The truth itself scores *lower* than the app's redraw (83.2 against 86.2): the app's false walls (fixtures, the "10,196" dimension line, D-053) are ink, so covering them scores as well as covering a wall, and the truth's hand-drawn walls are thinner than the scanned bands, so they cover less (58.5 % against 66.9 %). Fable's wall variants on ten CubiCasa pages moved this score by under a point each way while trading true wall for false one to one (handoff notes, 2026-11-16): the score cannot rank them.
+- Readings do not. A label drawn at a word box always lies on ink; "yw" for "mh" scores the same as "mh". Room names in the view's size (7.2 px) sit partly on paper where the handwriting is smaller (the truth's 16 names: 76 % on ink).
+- Missed is real. The 24 % of colorful-34's ink the redraw misses is the door arcs and leaves (openings 0/34), the stairs, the fixtures and the labels OCR did not read; the patches on the plan show exactly where.
+
+**Consequences:** Every scanned plan gets a number and a map of what the redraw left out and made up, with no answer key. The number means "how much of the page's line work is accounted for", not "how much is right": it is blind to a fixture traced as a wall and to a misread label, and the badge's caveat says so. Later signals (#132's "later"): a pixel check of each model addition, and OCR's own confidence for the labels it kept. PDF and CAD pages are not scored; scanned PDF pages could be with the same code once their colour layers are kept. The patches are capped at 40 each, so a page with more small misses shows the largest.
