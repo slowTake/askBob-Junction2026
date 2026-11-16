@@ -122,3 +122,32 @@ def test_a_page_without_its_document_is_a_plan() -> None:
             "mm_per_px": None, "meta": {}}  # fmt: skip
     assert PageOut.model_validate(page).redraw_mode == "plan"
     assert PageOut.model_validate({**page, "document_kind": "image"}).redraw_mode == "sketch"
+
+
+SCORED = {"format": 1, "score": 0.889, "covered": 0.8, "on_ink": 1.0, "ink_px": 3481,
+          "parts": {"walls": {"count": 2, "drawn_px": 3381, "on_ink": 1.0, "ink_covered": 0.971}},
+          "missed": [{"polygon": [[298, 298], [311, 298], [311, 311], [298, 311]], "px": 100}],
+          "added": []}  # fmt: skip
+PRINTED = {"straight_share": 0.472, "fill_share": 0.574, "dimension_words": 9, "paper_spread": 0.0}
+
+
+def test_a_page_serves_its_redraw_confidence_without_the_format() -> None:
+    page = _page_of("image", {"page_stats": PRINTED, "redraw_confidence": SCORED})
+    served = PageOut.model_validate(page).model_dump()["redraw_confidence"]
+    assert served == {k: v for k, v in SCORED.items() if k != "format"}
+    # Never scored (older pages, PDFs), or scored under older rules: nothing is shown.
+    assert PageOut.model_validate(_page_of("pdf", {})).redraw_confidence is None
+    older = {**SCORED, "format": 0}
+    assert (
+        PageOut.model_validate(_page_of("pdf", {"redraw_confidence": older})).redraw_confidence
+        is None
+    )
+
+
+def test_a_sketch_page_has_no_redraw_confidence() -> None:
+    # The sketch redraw is the model's own plan, measured against nothing (D-028); the
+    # score ingest stored was for the page redraw it did not get.
+    napkin = {**PRINTED, "fill_share": 0.0, "dimension_words": 0, "straight_share": 0.1,
+              "paper_spread": 40.0}  # fmt: skip
+    page = _page_of("image", {"page_stats": napkin, "redraw_confidence": SCORED})
+    assert PageOut.model_validate(page).redraw_confidence is None

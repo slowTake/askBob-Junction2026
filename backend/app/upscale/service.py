@@ -7,14 +7,17 @@ image, the model and Postgres.
 
 import io
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
+import numpy as np
 from PIL import Image
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.domain.extent import element_extent
+from app.domain.redraw_confidence import CONFIDENCE_KEY, confidence_meta, shapes_of
 from app.domain.sketch import SKETCH_SOURCE
 from app.domain.text import clip
 from app.domain.upscale import (
@@ -30,6 +33,8 @@ from app.domain.upscale import (
     parse_candidates,
 )
 from app.envelope import AppError
+from app.ingest.confidence import score_redraw
+from app.ingest.ink import separate_colours
 from app.models import LABEL_MAX, NAME_MAX, Document, Element, Page
 from app.storage import page_image_path
 from app.upscale.vision import Look, VisionError
@@ -84,7 +89,20 @@ def upscale_page(
     # Answers cached before now did not know these elements (see qa/service.py).
     doc.meta = {**doc.meta, "upscales": int(doc.meta.get("upscales", 0)) + 1}
     db.flush()
+    if CONFIDENCE_KEY in page.meta:
+        # The Redrawn view now draws the additions too: score it again (#132). Pages
+        # ingest never scored (PDF, CAD) stay unscored.
+        page.meta = {**page.meta, CONFIDENCE_KEY: _rescore(db, page, path)}
     return {"added": len(added), "cached": False}
+
+
+def _rescore(db: Session, page: Page, path: Path) -> dict[str, Any]:
+    with Image.open(path) as image:
+        layers = separate_colours(np.asarray(image.convert("RGB"), dtype=np.uint8))
+    rows = db.scalars(
+        select(Element).where(Element.page_id == page.id, Element.source != SKETCH_SOURCE)
+    ).all()
+    return confidence_meta(score_redraw(layers, shapes_of(rows, page.width_px)))
 
 
 def _known(db: Session, page: Page) -> list[Known]:

@@ -151,3 +151,40 @@ def test_each_page_stores_what_it_looks_like_for_its_redraw(
     assert stats["straight_share"] == 1.0
     assert stats["dimension_words"] == 2
     assert isinstance(stats["paper_spread"], float)
+
+
+def test_each_page_scores_its_redraw_against_its_own_ink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = Image.new("RGB", (12, 8), "white")
+    for x in range(12):
+        image.putpixel((x, 3), (0, 0, 0))  # a wall two rows thick: 24 px of ink
+        image.putpixel((x, 4), (0, 0, 0))
+    image.save(tmp_path / "plan.png")
+    outline = {"polygon_px": [[0, 3], [11, 3], [11, 4], [0, 4]]}
+    wall = ExtractedElement(kind="wall", source="derived", bbox=(0, 3, 11, 4), properties=outline)
+
+    def annotate(*args: Any, **kwargs: Any) -> tuple[list[Any], None, dict[str, Any]]:
+        return [wall], None, {}
+
+    monkeypatch.setattr(image_reader, "page_words", lambda *a: [])
+    monkeypatch.setattr(image_reader, "analyse_page", lambda *a: (None, "unavailable"))
+    monkeypatch.setattr(image_reader, "annotate_page", annotate)
+    result = image_reader.read_image(tmp_path / "plan.png", Settings.model_construct(),
+                                     lambda *_: None)  # fmt: skip
+    entry = result.pages[0].meta["redraw_confidence"]
+    # The wall is drawn exactly over the ink: 12 x 2 = 24 px, all of it, nothing else.
+    assert (entry["score"], entry["covered"], entry["on_ink"], entry["ink_px"]) == (
+        1.0,
+        1.0,
+        1.0,
+        24,
+    )
+    assert entry["parts"]["walls"] == {
+        "count": 1,
+        "drawn_px": 24,
+        "on_ink": 1.0,
+        "ink_covered": 1.0,
+    }
+    assert entry["parts"]["rooms"]["count"] == 0
+    assert entry["missed"] == [] and entry["added"] == []

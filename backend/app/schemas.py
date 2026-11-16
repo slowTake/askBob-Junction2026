@@ -7,7 +7,9 @@ from typing import Any
 from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.ingest_errors import error_message
+from app.domain.redraw_confidence import CONFIDENCE_KEY, confidence_from_meta
 from app.domain.redraw_mode import page_redraw_mode
+from app.domain.sketch import SKETCH_MODE
 from app.domain.upscale import FILL_MODE, UPSCALE_FORMAT
 
 
@@ -64,6 +66,16 @@ class PageOut(BaseModel):
         changes it to the mode that ran.
         """
         return page_redraw_mode(self.document_kind or "", self.meta)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def redraw_confidence(self) -> dict[str, Any] | None:
+        """How much of the page's own ink the page redraw accounts for (#132), with its
+        parts and the missed and added patches; None when the page was never scored
+        (PDF, CAD, older pages) or gets the sketch redraw, which measures nothing."""
+        if self.redraw_mode == SKETCH_MODE:
+            return None
+        return confidence_from_meta(self.meta.get(CONFIDENCE_KEY))
 
 
 class DocumentOut(BaseModel):

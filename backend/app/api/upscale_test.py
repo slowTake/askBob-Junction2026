@@ -237,3 +237,36 @@ def test_a_document_still_being_read_cannot_be_upscaled(harness: Harness) -> Non
     body = harness.post()
     assert body["status"] == 409 and body["error"]["code"] == "not_ready"
     assert harness.calls == []
+
+
+def test_a_scored_page_is_scored_again_with_what_the_model_added(harness: Harness) -> None:
+    harness.seed()
+    stale = {"format": 1, "score": 0.5, "covered": 0.5, "on_ink": 0.5, "ink_px": 9,
+             "parts": {}, "missed": [], "added": []}  # fmt: skip
+    with harness.sessions() as db:
+        page = db.scalars(select(Page)).one()
+        page.meta = {**page.meta, "redraw_confidence": stale}
+        db.commit()
+    harness.answer = {"elements": [_found("wall", (100, 400, 600, 410))]}
+    body = harness.post()
+
+    entry = body["data"]["page"]["redraw_confidence"]
+    # The page image is blank paper: nothing to cover, and the door ingest found and
+    # the wall the model added both lie on paper.
+    assert (entry["ink_px"], entry["covered"], entry["on_ink"], entry["score"]) == (
+        0,
+        1.0,
+        0.0,
+        0.0,
+    )
+    assert entry["parts"]["walls"]["count"] == 1 and entry["parts"]["openings"]["count"] == 1
+    # The door's box: (180 - 100 + 1) x (180 - 100 + 1) = 81 x 81 = 6561 px, all added.
+    assert entry["parts"]["openings"]["drawn_px"] == 6561
+    assert sum(m["px"] for m in entry["added"]) == 6561 + 1001 * 21  # the wall: 1001 x 21
+
+
+def test_a_page_never_scored_stays_unscored(harness: Harness) -> None:
+    harness.seed()  # a PDF page: ingest scores raster images only
+    harness.answer = {"elements": [_found("wall", (100, 400, 600, 410))]}
+    body = harness.post()
+    assert body["data"]["page"]["redraw_confidence"] is None
