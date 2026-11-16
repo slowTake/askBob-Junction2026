@@ -133,3 +133,27 @@ def test_a_leaf_traced_as_a_short_wall_is_still_a_leaf() -> None:
     (door,) = _corner(70)
     assert door.a == pytest.approx((80, 50), abs=1.5)
     assert door.b == pytest.approx((100, 50), abs=1.5)
+
+
+def test_a_circle_whose_quarter_sits_like_a_door_is_not_a_door() -> None:
+    # A circle of radius 20 round (80, 50) on the wall, and a radial line down to
+    # (80, 70): each quarter below the wall is a leaf and an arc, but the ring goes on
+    # past both ends of it, in all 3 sectors past the leaf and past the free end. Read
+    # from a hinge 1 px off the centre, at radius 21, the circle lies up to 1 px off
+    # that ring past the free end (20 + sin of the angle): within 2 px, not within 1.5.
+    symbols, walls = _wall()
+    cv2.circle(symbols, (80, 50), 20, 1, 1)
+    cv2.line(symbols, (80, 50), (80, 70), 1, 1)
+    assert _find(symbols, walls) == []
+
+
+def test_two_candidates_4_px_apart_are_one_door() -> None:
+    # The standard door and a second reading 4 px along the wall: hinge (84, 50), leaf
+    # to (84, 70), its arc from (104, 50). Their boxes, x 80..100 and 84..104 over
+    # y 50..70, overlap by 16 x 20 of 20 x 20 = 0.8 > OVERLAP: one door, either hinge.
+    symbols, walls = _wall()
+    _door(symbols, 20, 0, 90)
+    cv2.line(symbols, (84, 50), (84, 70), 1, 1)
+    cv2.ellipse(symbols, (84, 50), (20, 20), 0, 0, 90, 1, 1)
+    (door,) = _find(symbols, walls)
+    assert min(math.dist(door.a, (80, 50)), math.dist(door.a, (84, 50))) <= 1.5
