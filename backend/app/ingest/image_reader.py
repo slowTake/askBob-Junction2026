@@ -77,7 +77,9 @@ def _page(
     progress("vision", 0.3)
     vision, status = analyse_page(png, settings)
     progress("annotating", 0.8)
-    elements, scale_mm, meta = annotate_page(layers.ink_page, words, "ocr", dpi, vision=vision)
+    elements, scale_mm, meta = annotate_page(
+        layers.ink_page, words, "ocr", dpi, vision=vision, colours=layers
+    )
     progress("annotating", 1.0)
     meta["vision"] = status
     # What the page looks like decides its redraw: a printed plan or a sketch (#138).

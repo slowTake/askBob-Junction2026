@@ -3,6 +3,8 @@
 from collections import Counter
 from typing import Any
 
+import numpy as np
+
 from app.domain.areas import outline_agrees
 from app.domain.dimensions import mm_per_px
 from app.domain.geometry import (
@@ -27,12 +29,14 @@ from app.domain.vision import (
     wall_findings,
 )
 from app.ingest.dimension_lines import fit_dimension_scale
+from app.ingest.ink import ColourLayers
 from app.ingest.line_trace import looks_like_text
+from app.ingest.page_symbols import symbol_elements, trace_with_symbols
 from app.ingest.rooms import Gray, Mask, ink_mask, room_region
 from app.ingest.traced_rooms import traced_outlines
 from app.ingest.types import ExtractedElement
 from app.ingest.vision_elements import to_element
-from app.ingest.wall_trace import model_walls_beyond, trace_walls
+from app.ingest.wall_trace import model_walls_beyond
 
 WALL_CONFIDENCE = 0.3  # walls traced from pixels: the agent must verify visually
 # The shortest wall run, as a share of the page's longest side: longer than the dashes
@@ -52,6 +56,7 @@ def annotate_page(
     known_mm_per_px: float | None = None,
     vision: Parsed | None = None,
     vision_objects_only: bool = False,
+    colours: ColourLayers | None = None,
 ) -> tuple[list[ExtractedElement], float | None, dict[str, Any]]:
     """Return the page's elements, its mm-per-pixel scale (if known) and page metadata.
 
@@ -64,6 +69,9 @@ def annotate_page(
     doors, windows and fixtures; unless `vision_objects_only`, its walls join the traced
     ones, and the ink's outline wins where both have a wall. Room highlights always use
     the drawing's traced boundaries; segmentation fragments are not room boundaries.
+    `colours` are a raster page's colour layers (D-051): doors and windows are read from
+    their symbol layer and carved out of the traced walls (D-055). Without them the ink
+    is the symbol layer and nothing is fill.
     """
     words = merge_split_numbers(words)
     elements: list[ExtractedElement] = []
@@ -177,7 +185,7 @@ def annotate_page(
             elements.append(wall)
     else:
         elements += _traced_walls(ink, words, elements, vision if model_rooms else None,
-                                  scale_mm, height)  # fmt: skip
+                                  scale_mm, height, colours)  # fmt: skip
 
     if vision is not None:
         elements += [to_element(o, scale_mm, height) for o in object_findings(vision)]
@@ -199,12 +207,17 @@ def _traced_walls(
     vision: Parsed | None,
     scale_mm: float | None,
     height: float,
+    colours: ColourLayers | None,
 ) -> list[ExtractedElement]:
-    """Walls traced from the ink (D-053), and the model's walls the trace did not find."""
+    """Walls traced from the ink (D-053) with the doors and windows on them (D-055), and
+    the model's walls the trace did not find."""
     min_run = max(MIN_RUN_PX, round(MIN_RUN_SHARE * max(ink.shape)))
     text = [w.bbox for w in words if looks_like_text(w.text)]
     dimensions = [e.bbox for e in elements if e.kind == "dimension" and e.bbox is not None]
-    traced = trace_walls(ink, min_run, text_boxes=text, dimension_boxes=dimensions)
+    symbols = colours.symbols if colours is not None else ink
+    fills = colours.fills if colours is not None else np.zeros(ink.shape, dtype=bool)
+    found = trace_with_symbols(ink, symbols, fills, min_run, text, dimensions)
+    traced = found.walls
     walls = []
     for t in traced:
         wall = ExtractedElement(
@@ -219,7 +232,7 @@ def _traced_walls(
         model = wall_findings(vision)
         beyond = model_walls_beyond(traced, [f.polygon for f in model], ink.shape)
         walls += [to_element(f, scale_mm, height) for f in model if f.polygon in beyond]
-    return walls
+    return walls + symbol_elements(found, scale_mm, height)
 
 
 def _first_agreeing(

@@ -54,11 +54,16 @@ def trace_walls(
     min_run_px: int,
     text_boxes: Sequence[BBox] = (),
     dimension_boxes: Sequence[BBox] = (),
+    carve: Mask | None = None,
 ) -> list[TracedWall]:
     """The page's walls: bands first, then the thin lines that are not part of a band.
 
     `text_boxes` are words that read as text; `dimension_boxes` the printed dimensions.
+    `carve` is ink drawn as something else (window frames, door leaves and arcs, D-055):
+    it is taken off before tracing, so it is neither a wall nor closed into one.
     """
+    if carve is not None:
+        ink = ink & ~carve
     text = _box_mask(ink.shape, text_boxes)
     bands = _band_mask(ink, min_run_px, text)
     straight = _straight_strokes(ink)

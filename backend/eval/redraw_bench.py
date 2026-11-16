@@ -55,7 +55,7 @@ from app.ingest.ocr_filter import drop_line_work
 from app.ingest.rooms import Gray
 from app.ingest.types import ExtractedElement
 from eval.redraw_elements import sheet_from_elements
-from eval.redraw_render import Mask, MaskScore, mask_scores, near_share, wall_mask
+from eval.redraw_render import Mask, MaskScore, mask_scores, near_share, opening_mask, wall_mask
 from eval.redraw_score import (
     OpeningScore,
     RoomScore,
@@ -92,27 +92,35 @@ class BenchReport:
     # The page's ink against the truth: how good the ink the redraw is built from is.
     ink_finds_walls: float  # share of truth wall pixels the page's ink mask finds
     ink_off_walls: float  # share of ink pixels away from any truth wall (fills, text, noise)
-    # The redraw against the page's ink, no truth needed (#132). Walls only for now.
-    ink_redrawn: float  # share of the page's ink the redraw's walls lie on ("missed": 1 - it)
-    redraw_on_ink: float  # share of the redraw's walls on ink ("added": 1 - it)
+    # The redraw against the page's ink, no truth needed (#132): its walls and, since
+    # D-055, its doors and windows as the view draws them.
+    ink_redrawn: float  # share of the page's ink the redraw lies on ("missed": 1 - it)
+    redraw_on_ink: float  # share of the redraw on the page's lines ("added": 1 - it)
     wall_tolerance_px: float
     position_tolerance_px: float
 
 
-def report(sheet: Sheet, truth: Sheet, ink: Mask, width: int, height: int) -> BenchReport:
+def report(
+    sheet: Sheet, truth: Sheet, ink: Mask, width: int, height: int, lines: Mask | None = None
+) -> BenchReport:
     """Every number of the benchmark, for the redraw `sheet` on a `width` x `height` page.
 
     `ink` is the page's ink mask. It is scored against the truth walls on its own: the
     redraw's walls are built from it, so a better ink mask should lift the wall scores.
     Ink off walls also counts text and fixtures, which are real ink but not walls, so it
     never reaches 0; it is read as a change between runs. The redraw is also scored
-    against the ink with no truth, the score the app can show on any page (#132); only
-    its walls are drawn as pixels so far, so "ink redrawn" stays low until openings and
-    text are too.
+    against the ink with no truth, the score the app can show on any page (#132): its
+    walls, doors and windows are drawn as pixels (D-055), text not yet, so "ink redrawn"
+    stays low until it is. "On ink" asks whether what is drawn is drawn on the page at
+    all, so it is read against `lines`, the page's symbol layer (D-055): coloured door
+    arcs and window frames are drawn on the page though they are not ink. Without
+    `lines`, the ink.
     """
+    lines = ink if lines is None else lines
     wall_px = WALL_TOLERANCE * width
     position_px = POSITION_TOLERANCE * width
     redrawn = wall_mask(sheet.walls, width, height)
+    drawn = redrawn | opening_mask(sheet.openings, width, height)
     truth_walls = wall_mask(truth.walls, width, height)
     return BenchReport(
         walls=mask_scores(redrawn, truth_walls, wall_px),
@@ -121,8 +129,8 @@ def report(sheet: Sheet, truth: Sheet, ink: Mask, width: int, height: int) -> Be
         texts=match_texts(sheet.texts, truth.texts, position_px),
         ink_finds_walls=near_share(truth_walls, ink, wall_px),
         ink_off_walls=1 - near_share(ink, truth_walls, wall_px) if ink.any() else 0.0,
-        ink_redrawn=near_share(ink, redrawn, wall_px),
-        redraw_on_ink=near_share(redrawn, ink, wall_px),
+        ink_redrawn=near_share(ink, drawn, wall_px),
+        redraw_on_ink=near_share(drawn, lines, wall_px),
         wall_tolerance_px=wall_px,
         position_tolerance_px=position_px,
     )
@@ -169,15 +177,20 @@ def page(path: Path) -> tuple[ColourLayers, bytes]:
     return separate_colours(np.asarray(image, dtype=np.uint8)), buffer.getvalue()
 
 
-def page_elements(gray: Gray, words: list[Word], vision: Parsed | None) -> list[ExtractedElement]:
-    """The page's elements after ingest (no upscale pass)."""
-    elements, _, _ = annotate_page(gray, words, "ocr", None, vision=vision)
+def page_elements(
+    gray: Gray, words: list[Word], vision: Parsed | None, colours: ColourLayers | None = None
+) -> list[ExtractedElement]:
+    """The page's elements after ingest (no upscale pass); `colours` are the page's colour
+    layers, as the image reader passes them."""
+    elements, _, _ = annotate_page(gray, words, "ocr", None, vision=vision, colours=colours)
     return elements
 
 
-def redraw(gray: Gray, words: list[Word], vision: Parsed | None) -> Sheet:
+def redraw(
+    gray: Gray, words: list[Word], vision: Parsed | None, colours: ColourLayers | None = None
+) -> Sheet:
     """What the Redrawn view shows for the page after ingest (no upscale pass)."""
-    return sheet_from_elements(page_elements(gray, words, vision), gray.shape[1])
+    return sheet_from_elements(page_elements(gray, words, vision, colours), gray.shape[1])
 
 
 def confidence(layers: ColourLayers, elements: list[ExtractedElement]) -> RedrawConfidence:
@@ -322,13 +335,13 @@ def main() -> int:
         return 2
     truth = load_sheet(_read(TRUTH), width, height)
     words = read_words(layers, ocr)
-    elements = page_elements(layers.ink_page, words, recorded_vision(vision))
+    elements = page_elements(layers.ink_page, words, recorded_vision(vision), layers)
     sheet = sheet_from_elements(elements, width)
     print(f"{IMAGE.name} {width}x{height}  words {len(ocr['words'])} (kept {len(words)})"
           f"  vision {vision['status']}")  # fmt: skip
     print(f"drawn      walls {len(sheet.walls)}  openings {len(sheet.openings)}"
           f"  rooms {len(sheet.rooms)}  texts {len(sheet.texts)}")  # fmt: skip
-    print(table(report(sheet, truth, layers.ink, width, height)))
+    print(table(report(sheet, truth, layers.ink, width, height, layers.symbols)))
     # The truth-free score the app shows (#132), and the same score of the truth itself:
     # the ceiling on this page, since fixtures and lines the truth leaves out stay missed.
     print(confidence_table("confidence", confidence(layers, elements)))

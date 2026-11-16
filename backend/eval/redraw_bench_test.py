@@ -20,7 +20,7 @@ from eval.redraw_bench import (
     truth_shapes,
 )
 from eval.redraw_bench import TRUTH as TRUTH_FILE
-from eval.redraw_render import wall_mask
+from eval.redraw_render import opening_mask, wall_mask
 from eval.redraw_sheet import Opening, Room, Sheet, Text, Wall, load_sheet
 
 W, H = 482, 507  # the benchmark page: tolerances are 2 px (walls, ink) and 4 px (positions)
@@ -34,7 +34,8 @@ TRUTH = Sheet(
 
 
 def test_a_redraw_equal_to_the_truth_scores_everything() -> None:
-    ink = wall_mask(TRUTH.walls, W, H)
+    # The ink is what the redraw draws: the wall and the door's line (it has no swing).
+    ink = wall_mask(TRUTH.walls, W, H) | opening_mask(TRUTH.openings, W, H)
     r = report(TRUTH, TRUTH, ink, W, H)
     assert r.wall_tolerance_px == pytest.approx(2.0)  # 2/482 of a 482 px page
     assert r.position_tolerance_px == pytest.approx(4.0)
@@ -44,8 +45,10 @@ def test_a_redraw_equal_to_the_truth_scores_everything() -> None:
     assert r.rooms.named.matched == 1 and r.rooms.outlined == 0  # no outlines to compare
     t = r.texts
     assert (t.found.matched, t.exact, t.digits, t.kind_ok, t.rotation_ok) == (1, 1, 1, 1, 1)
-    # The ink is exactly the truth walls: all of them found, none of it elsewhere.
-    assert (r.ink_finds_walls, r.ink_off_walls) == (1.0, 0.0)
+    # The ink is the truth walls and the door line 40 px away: all walls found, the
+    # door's 41 px (x 50..90) are off them.
+    assert r.ink_finds_walls == 1.0
+    assert r.ink_off_walls == pytest.approx(41 / (3381 + 41))
     # The redraw is that same ink: all of the ink redrawn, all of the redraw on ink.
     assert (r.ink_redrawn, r.redraw_on_ink) == (1.0, 1.0)
 
@@ -61,9 +64,10 @@ def test_an_empty_redraw_on_blank_paper() -> None:
 
 
 def test_ink_away_from_the_walls_is_off_walls_and_not_redrawn() -> None:
+    walls = Sheet(walls=TRUTH.walls)
     ink = wall_mask(TRUTH.walls, W, H)
     ink[300:310, 300:310] = True  # 100 px, far from the wall
-    r = report(TRUTH, TRUTH, ink, W, H)
+    r = report(walls, walls, ink, W, H)
     assert r.ink_finds_walls == 1.0
     # The filled band is 161 x 21 px (x 20..180, y 90..110, edges included) = 3381 px.
     assert r.ink_off_walls == pytest.approx(100 / (3381 + 100))
@@ -82,6 +86,17 @@ def test_redraw_on_blank_paper_is_not_on_ink() -> None:
     assert r.redraw_on_ink == pytest.approx(3381 / (3381 + 100))
 
 
+def test_a_redraw_on_a_coloured_symbol_is_on_the_page() -> None:
+    # The page's lines are the band and a 10 x 10 door arc drawn in colour: not ink.
+    ink = wall_mask(TRUTH.walls, W, H)
+    lines = ink.copy()
+    lines[300:310, 300:310] = True
+    extra = Wall(((300, 300), (309, 300), (309, 309), (300, 309)))
+    r = report(Sheet(walls=(*TRUTH.walls, extra)), TRUTH, ink, W, H, lines)
+    assert r.redraw_on_ink == 1.0  # all of it on the page's lines
+    assert r.ink_redrawn == 1.0  # and the ink is all redrawn
+
+
 def test_positions_count_within_four_pixels() -> None:
     near = Sheet(texts=(Text("5,341", "dimension", (103, 30)),))  # 3 px off
     far = Sheet(texts=(Text("5,341", "dimension", (105, 30)),))  # 5 px off
@@ -91,7 +106,8 @@ def test_positions_count_within_four_pixels() -> None:
 
 
 def test_the_table_shows_the_numbers() -> None:
-    text = table(report(TRUTH, TRUTH, wall_mask(TRUTH.walls, W, H), W, H))
+    walls = Sheet(walls=TRUTH.walls)
+    text = table(report(walls, walls, wall_mask(TRUTH.walls, W, H), W, H))
     assert "recall 100.0%" in text and "off walls   0.0%" in text and "on ink 100.0%" in text
 
 
@@ -182,8 +198,8 @@ def test_the_benchmark_does_not_get_worse() -> None:
     height, width = layers.ink_page.shape
     ocr, vision = (json.loads(p.read_text(encoding="utf-8")) for p in (OCR, VISION))
     truth = load_sheet(json.loads(TRUTH_FILE.read_text(encoding="utf-8")), width, height)
-    sheet = redraw(layers.ink_page, read_words(layers, ocr), recorded_vision(vision))
-    r = report(sheet, truth, layers.ink, width, height)
+    sheet = redraw(layers.ink_page, read_words(layers, ocr), recorded_vision(vision), layers)
+    r = report(sheet, truth, layers.ink, width, height, layers.symbols)
     now = {
         "walls recall": r.walls.recall,
         "walls precision": r.walls.precision,

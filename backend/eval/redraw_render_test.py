@@ -1,7 +1,7 @@
 import numpy as np
 
-from eval.redraw_render import MaskScore, mask_scores, near_share, wall_mask
-from eval.redraw_sheet import Wall
+from eval.redraw_render import MaskScore, mask_scores, near_share, opening_mask, wall_mask
+from eval.redraw_sheet import Opening, Wall
 
 
 def _mask(width: int, height: int, *pixels: tuple[int, int]) -> np.ndarray:
@@ -81,3 +81,36 @@ def test_extra_redraw_lowers_precision_and_missing_redraw_lowers_recall() -> Non
 
 def test_f1_of_nothing_right_is_zero() -> None:
     assert MaskScore(recall=0.0, precision=0.0).f1 == 0.0
+
+
+def test_a_window_is_drawn_as_its_line_on_the_wall() -> None:
+    window = Opening("window", (10.0, 20.0), (40.0, 20.0))
+    mask = opening_mask([window], 60, 40)
+    assert mask[20, 10] and mask[20, 25] and mask[20, 40]  # the line, ends included
+    assert mask.sum() == 31  # x 10..40 on row 20, 1 px wide
+
+
+def test_a_window_with_a_frame_is_drawn_as_the_frame() -> None:
+    frame = ((10.0, 16.0), (40.0, 16.0), (40.0, 20.0), (10.0, 20.0))
+    mask = opening_mask([Opening("window", (10.0, 20.0), (40.0, 20.0), frame=frame)], 60, 40)
+    assert mask[16, 25] and mask[20, 25] and mask[18, 10] and mask[18, 40]  # its four sides
+    assert not mask[18, 25]  # not the glass
+    assert mask.sum() == 2 * 31 + 2 * 3  # rows 16 and 20 (x 10..40), columns 10 and 40 between
+
+
+def test_a_door_is_drawn_as_its_leaf_and_swing() -> None:
+    # Gap (10, 20)..(30, 20), hinge at (10, 20), opening downwards (y > 20): the leaf goes
+    # from the hinge 20 px down to (10, 40); the arc, radius 20 round the hinge, from there
+    # to the gap's free end (30, 20).
+    door = Opening("door", (10.0, 20.0), (30.0, 20.0), hinge=(10.0, 20.0), toward=(20.0, 30.0))
+    mask = opening_mask([door], 60, 60)
+    assert mask[30, 10] and mask[40, 10]  # on the leaf
+    # 45 degrees on the arc: (10 + 20 cos 45, 20 + 20 sin 45) = (24.1, 34.1)
+    assert mask[34, 24]
+    assert not mask[20, 20]  # the gap itself is not drawn
+    assert not mask[10, 10] and not mask[30, 20]  # not above the wall, not inside the swing
+
+
+def test_a_door_without_a_swing_is_drawn_as_its_line() -> None:
+    door = Opening("door", (10.0, 20.0), (30.0, 20.0))
+    assert opening_mask([door], 60, 40).sum() == 21  # x 10..30 on row 20
