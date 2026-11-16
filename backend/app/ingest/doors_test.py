@@ -107,3 +107,29 @@ def test_a_gap_off_the_wall_is_not_a_door() -> None:
     walls[50, 85:96] = False
     _door(symbols, 20, 0, 90)
     assert _find(symbols, walls) == []
+
+
+def _corner(wall_to_y: int) -> list[Door]:
+    """The wall y = 50 and a wall down x = 80 from it to `wall_to_y`, both drawn and
+    traced, and the quarter arc of radius 20 round (80, 50) from (100, 50) to (80, 70)
+    with no leaf of its own: the wall down x = 80 is where the leaf would be."""
+    symbols, walls = _wall()
+    symbols[50 : wall_to_y + 1, 80] = 1
+    walls[50 : wall_to_y + 1, 80] = True
+    cv2.ellipse(symbols, (80, 50), (20, 20), 0, 0, 90, 1, 1)
+    return _find(symbols, walls)
+
+
+def test_a_wall_corner_is_not_a_leaf() -> None:
+    # The wall goes on to y = 110: all of the 3..8 px past the leaf's end (y 73..78) is
+    # wall, and so is the other reading's (x 103..108 on the wall y = 50).
+    assert _corner(110) == []
+
+
+def test_a_leaf_traced_as_a_short_wall_is_still_a_leaf() -> None:
+    # The wall down x = 80 stops at y = 70, the leaf's end: y 73..78 are 3..8 px from any
+    # wall (over WALL_NEAR_PX), so the leaf does not run on. The other reading, its leaf
+    # on the wall y = 50, runs on past x = 100 and is not a door.
+    (door,) = _corner(70)
+    assert door.a == pytest.approx((80, 50), abs=1.5)
+    assert door.b == pytest.approx((100, 50), abs=1.5)
