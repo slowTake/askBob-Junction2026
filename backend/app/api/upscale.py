@@ -1,21 +1,24 @@
 """Upscale a plan page on demand (#82).
 
-Raster image pages get the sketch redraw: a strong model authors the whole plan and
-checks it in a draw, compare, correct loop (`app/upscale/sketch_service.py`). Every
-other format gets one vision pass that adds what ingest missed.
+Photos of hand drawings get the sketch redraw: a strong model authors the whole plan and
+checks it in a draw, compare, correct loop (`app/upscale/sketch_service.py`). Every other
+page, a scanned printed plan included, gets one vision pass that adds what ingest missed.
+Which one a page gets is decided from what it looks like (`app/domain/redraw_mode.py`,
+#138); `?mode=plan` or `?mode=sketch` overrides that.
 """
 
 import time
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.domain.sketch import is_sketch_page
+from app.domain.redraw_mode import page_redraw_mode
+from app.domain.sketch import SKETCH_MODE
 from app.envelope import AppError, ok
 from app.models import Document, Page
 from app.schemas import PageOut
@@ -45,12 +48,20 @@ clock = time.time  # replaced in tests
 
 
 @router.post("/{document_id}/pages/{index}/upscale")
-def upscale(document_id: uuid.UUID, index: int, db: DB) -> dict[str, Any]:
+def upscale(
+    document_id: uuid.UUID,
+    index: int,
+    db: DB,
+    mode: Annotated[Literal["plan", "sketch"] | None, Query()] = None,
+) -> dict[str, Any]:
     """Synchronous. The gap-filling pass is one bounded model request, and the page row
     is locked for its duration, so a second click waits and gets the cached result.
 
     The sketch redraw takes minutes: it claims the page under the lock and runs without
     it; a second click meanwhile gets `redraw_running` at once (sketch_service.py).
+
+    Without `mode` the page gets the redraw it already had, else the one it looks like
+    it needs (`PageOut.redraw_mode`). Running one mode replaces the other's elements.
     """
     doc = db.get(Document, document_id)
     if doc is None:
@@ -76,7 +87,7 @@ def upscale(document_id: uuid.UUID, index: int, db: DB) -> dict[str, Any]:
             }
         )
     try:
-        if is_sketch_page(doc.kind):
+        if (mode or page_redraw_mode(doc.kind, page.meta)) == SKETCH_MODE:
             result, page = redraw_sketch(db, doc, page, get_settings(), ask_sketch, clock)
         else:
             result = upscale_page(db, doc, page, get_settings(), find_missing)
