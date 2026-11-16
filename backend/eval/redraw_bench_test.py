@@ -185,8 +185,8 @@ FLOORS = {
     # D-057 lowers it: the false doors on stools, a table and a threshold carved those
     # fixtures' rings out of the walls; without them the rings are wall again (fixtures
     # are a separate issue). 0.82632 recorded with doors' gaps on a wall, 0.82144 with
-    # wall corners no longer read as leaves.
-    "walls precision": 0.821,
+    # wall corners no longer read as leaves, 0.81959 with circles no longer read as arcs.
+    "walls precision": 0.819,
     "openings found": 20,  # D-055: 12 windows and 8 doors of 34
     "openings swings": 7,  # D-055: 7 of the 8 doors the truth gives a swing for
     "rooms named": 3,

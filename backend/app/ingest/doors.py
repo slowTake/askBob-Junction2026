@@ -43,6 +43,8 @@ GAP_ON_WALL = 0.9  # at least this share of the gap lies within 1 px of a traced
 LEAF_ON_WALL = 0.5  # a leaf more than this share on a traced wall (from SWING_MARGIN_PX out)
 RUNS_ON = 0.6  # whose wall goes on over this share of PAST_LEAF_PX past its end is a wall
 PAST_LEAF_PX = (3, 8)
+BEYOND_HITS = 1  # an arc inked in more of the 3 sectors past each end than this is a circle
+BEYOND_BAND_PX = 2  # read 0.5 px wider than BAND_PX: a circle read 1 px off its centre drifts
 
 
 @dataclass(frozen=True)
@@ -71,7 +73,7 @@ def find_doors(
     found = [
         (score, door)
         for score, door in _candidates(arc, lines, walls, away, radii)
-        if _accepted(door, on_wall, away)
+        if _accepted(door, arc, on_wall, away)
     ]
     kept = _suppressed(found)
     return [_scaled(d, 1 / scale) for d in kept] if scale < 1.0 else kept
@@ -89,13 +91,13 @@ def _candidates(
     return found
 
 
-def _accepted(door: Door, on_wall: Mask, away: np.ndarray) -> bool:
-    """A candidate is a door only if its gap lies on a wall and its leaf is not a wall
-    that runs on past the leaf's end. The rules run before the candidates compete, so a
-    wrong reading of an arc frees the right one."""
+def _accepted(door: Door, arc: np.ndarray, on_wall: Mask, away: np.ndarray) -> bool:
+    """A candidate is a door only if its gap lies on a wall, its leaf is not a wall that
+    runs on past the leaf's end, and its arc stops at its ends. The rules run before the
+    candidates compete, so a wrong reading of an arc frees the right one."""
     if _share_on(on_wall, door.a, door.b) < GAP_ON_WALL:
         return False
-    return not _leaf_runs_on(door, away)
+    return not _leaf_runs_on(door, away) and not _arc_runs_on(door, arc)
 
 
 def _leaf_runs_on(d: Door, away: np.ndarray) -> bool:
@@ -110,6 +112,39 @@ def _leaf_runs_on(d: Door, away: np.ndarray) -> bool:
     lo, hi = PAST_LEAF_PX
     leaf = _share_on(near, at(m), d.leaf)
     return leaf > LEAF_ON_WALL and _share_on(near, at(r + lo), at(r + hi)) >= RUNS_ON
+
+
+def _arc_runs_on(d: Door, arc: np.ndarray) -> bool:
+    """The ring goes on past both ends of the quarter arc: a circle or a rounded corner.
+    Past the leaf's end from 5 degrees; past the free end from 15 degrees, beyond the
+    wall the gap lies on. One end alone is not enough: a band's halo or the next door's
+    arc can run on past one end of a real door."""
+    leaf = math.degrees(math.atan2(d.leaf[1] - d.a[1], d.leaf[0] - d.a[0]))
+    free = math.degrees(math.atan2(d.b[1] - d.a[1], d.b[0] - d.a[0]))
+    sense = 1 if ((free - leaf + 180) % 360) - 180 > 0 else -1  # from the leaf to b
+    return (
+        _ring_hits(d, arc, leaf, -sense, 5) > BEYOND_HITS
+        and _ring_hits(d, arc, free, sense, 15) > BEYOND_HITS
+    )
+
+
+def _ring_hits(d: Door, arc: np.ndarray, start: float, sense: int, first: float) -> int:
+    """Of the 3 ten-degree sectors of the door's ring from `first` degrees past the
+    angle `start` (turning by `sense`), how many hold arc ink. Read in a window round
+    the hinge; a window cut by the page's edge reads none."""
+    r, (ax, ay) = d.radius_px, d.a
+    size, x0, y0 = int(r + 4), round(ax), round(ay)
+    window = arc[max(0, y0 - size) : y0 + size + 1, max(0, x0 - size) : x0 + size + 1]
+    if window.shape != (2 * size + 1, 2 * size + 1):
+        return 0
+    ys, xs = np.mgrid[-size : size + 1, -size : size + 1]
+    dx, dy = xs + (x0 - ax), ys + (y0 - ay)
+    turned = ((np.degrees(np.arctan2(dy, dx)) - start) * sense) % 360
+    ring = np.abs(np.hypot(dx, dy) - r) <= BEYOND_BAND_PX
+    return sum(
+        bool(window[ring & (turned >= first + 10 * k) & (turned < first + 10 * (k + 1))].any())
+        for k in range(3)
+    )
 
 
 def _share_on(layer: Mask, p: Point, q: Point) -> float:
