@@ -5,14 +5,16 @@
     uv run python -m eval.redraw_bench --record   # read the page now and save the readings
 
 The page is annotated exactly as the app's image reader does it (`annotate_page` on the
-page's ink, with fills and red labels taken off, D-051), fed the recorded OCR words and
-vision answer, and turned into what the Redrawn view draws (`redraw_elements.py`). A live
-reading runs the app's local OCR (RapidOCR) on the page with its fills divided out, and
-asks the vision service only when `VISION_URL` is set and answers. The upscale (vision
-model) pass on top of ingest is not run here.
+page's ink, with fills and red labels taken off, D-051), fed the recorded OCR words less
+the line work ingest drops from them (D-052) and the recorded vision answer, and turned
+into what the Redrawn view draws (`redraw_elements.py`). A live reading runs the app's
+local OCR (RapidOCR) on the page with its fills divided out, and asks the vision service
+only when `VISION_URL` is set and answers. The upscale (vision model) pass on top of
+ingest is not run here.
 
 Recordings, next to the image:
-  colorful-34.ocr.json     {"engine": "rapid", "words": [{"bbox", "text", "confidence"}]}
+  colorful-34.ocr.json     {"engine": "rapid", "words": [{"bbox", "text", "confidence"}]},
+                           RapidOCR's raw reading, before line work is dropped
   colorful-34.vision.json  {"status": "used", "data": <the service's answer>}, or just
                            {"status": "unavailable" | "failed" | "skipped"}
 """
@@ -39,6 +41,7 @@ from app.ingest.annotate import annotate_page
 from app.ingest.image_reader import _on_white
 from app.ingest.ink import ColourLayers, separate_colours
 from app.ingest.ocr import ocr_words
+from app.ingest.ocr_filter import drop_line_work
 from app.ingest.rooms import Gray
 from eval.redraw_elements import sheet_from_elements
 from eval.redraw_render import Mask, MaskScore, mask_scores, near_share, wall_mask
@@ -168,6 +171,11 @@ def recorded_words(raw: Any) -> list[Word]:
     return words
 
 
+def read_words(layers: ColourLayers, raw: Any) -> list[Word]:
+    """The recorded words ingest keeps: line work is dropped, judged on the OCR page."""
+    return drop_line_work(layers.ocr_page, recorded_words(raw))
+
+
 def recorded_vision(raw: Any) -> Parsed | None:
     """The parsed answer the reader would have had: None unless the service answered."""
     if not isinstance(raw, dict) or not isinstance(raw.get("status"), str):
@@ -251,8 +259,10 @@ def main() -> int:
         print(f"no truth file ({TRUTH.name}): nothing to score against", file=sys.stderr)
         return 2
     truth = load_sheet(_read(TRUTH), width, height)
-    sheet = redraw(layers.ink_page, recorded_words(ocr), recorded_vision(vision))
-    print(f"{IMAGE.name} {width}x{height}  words {len(ocr['words'])}  vision {vision['status']}")
+    words = read_words(layers, ocr)
+    sheet = redraw(layers.ink_page, words, recorded_vision(vision))
+    print(f"{IMAGE.name} {width}x{height}  words {len(ocr['words'])} (kept {len(words)})"
+          f"  vision {vision['status']}")  # fmt: skip
     print(f"drawn      walls {len(sheet.walls)}  openings {len(sheet.openings)}"
           f"  rooms {len(sheet.rooms)}  texts {len(sheet.texts)}")  # fmt: skip
     print(table(report(sheet, truth, layers.ink, width, height)))
