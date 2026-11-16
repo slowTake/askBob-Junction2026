@@ -134,13 +134,15 @@ def test_the_recorded_reading_loses_only_line_work() -> None:
 
 # The benchmark itself, offline: recorded OCR and vision answers, the hand-made truth.
 # These floors are the baseline recorded on 2026-11-16 (D-049), raised by the vocabulary
-# work (D-050), colour separation (D-051) and dropping line work from OCR (D-052); they
-# are recorded values, not worked out by hand, and stop a change from making the redraw
-# of colorful-34 worse. A PR that improves a number raises its floor; one that has to
-# lower a floor says why in its decision.
+# work (D-050), colour separation (D-051), dropping line work from OCR (D-052) and
+# traced walls (D-053); they are recorded values, not worked out by hand, and stop a
+# change from making the redraw of colorful-34 worse. A PR that improves a number raises
+# its floor; one that has to lower a floor says why in its decision.
 FLOORS = {
-    "walls recall": 0.158,
-    "walls precision": 0.969,  # ratios are rounded down: 0.96978 recorded
+    "walls recall": 0.964,  # ratios are rounded down: 0.96488 recorded
+    # D-053 lowered this from 0.969: 3 thick walls became the whole wall network, with
+    # fixtures and handwriting that touch the walls (0.80495 recorded).
+    "walls precision": 0.804,
     "openings found": 0,
     "rooms named": 3,
     "rooms outlined": 3,
@@ -149,7 +151,8 @@ FLOORS = {
     "texts exact": 11,
     "texts digits": 13,
     "texts kind": 16,  # #36: decimal-comma dimensions and h-heights have their kind
-    "redraw on ink": 0.990,
+    "redraw on ink": 0.998,  # 0.99822 recorded
+    "ink redrawn": 0.795,  # 0.79521 recorded (D-053)
 }
 
 
@@ -172,6 +175,7 @@ def test_the_benchmark_does_not_get_worse() -> None:
         "texts digits": r.texts.digits,
         "texts kind": r.texts.kind_ok,
         "redraw on ink": r.redraw_on_ink,
+        "ink redrawn": r.ink_redrawn,
     }
     worse = {k: (round(now[k], 3), floor) for k, floor in FLOORS.items() if now[k] < floor}
     assert not worse, f"benchmark got worse (now, floor): {worse}"

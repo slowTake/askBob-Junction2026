@@ -1,4 +1,4 @@
-"""Computer-vision helpers on a rendered page: ink mask, room regions, wall candidates.
+"""Computer-vision helpers on a rendered page: ink mask and room regions.
 
 Baseline heuristics, deliberately simple. Each result carries a low confidence so
 the agent knows to double-check it visually (`view_region`).
@@ -59,26 +59,3 @@ def room_region(
     approx = cv2.approxPolyDP(outline, 2.0, True)
     polygon = [(float(p[0][0]), float(p[0][1])) for p in approx]
     return polygon, int(area)
-
-
-def wall_boxes(ink: Mask, min_thickness_px: int = 6, min_length_px: int = 60) -> list[BBox]:
-    """Thick, straight, axis-aligned strokes are wall candidates.
-
-    Walls that touch form one blob, so horizontal and vertical runs are extracted
-    separately; otherwise a closed room would come out as one solid box.
-    Odd kernels throughout: an even kernel shifts boxes by a pixel.
-    TODO(walls): diagonal walls; for vector PDFs use `page.get_drawings()` instead.
-    """
-    binary: Gray = ink.astype(np.uint8) * 255
-    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
-    size = min_thickness_px | 1
-    thick: Gray = cv2.morphologyEx(binary, cv2.MORPH_OPEN, np.ones((size, size), np.uint8))
-    run = min_length_px | 1
-    boxes: list[BBox] = []
-    for kernel in (np.ones((1, run), np.uint8), np.ones((run, 1), np.uint8)):
-        straight = cv2.morphologyEx(thick, cv2.MORPH_OPEN, kernel)
-        count, _, stats, _ = cv2.connectedComponentsWithStats(straight)
-        for i in range(1, count):
-            x, y, bw, bh = (int(v) for v in stats[i][:4])
-            boxes.append((float(x), float(y), float(x + bw), float(y + bh)))
-    return boxes

@@ -90,11 +90,34 @@ def test_model_objects_are_kept_without_adding_unlabelled_room_fragments() -> No
     assert ("room", "kitchen") not in from_model  # the printed label already names it
 
 
-def test_model_walls_replace_the_pixel_heuristic() -> None:
+def test_model_walls_count_where_the_drawing_has_none() -> None:
     elements, _, _ = annotate_page(_blank(), [], "ocr", None, vision=VISION)
     walls = [e for e in elements if e.kind == "wall"]
     assert [w.source for w in walls] == ["vision"]
     assert walls[0].bbox == (0, 150, 10, 160)
+
+
+def test_the_drawing_wins_over_a_model_wall_on_its_ink() -> None:
+    page = _blank()
+    page[150:161, 0:100] = 0  # the drawing's wall under the model's (0..10, 150..160)
+    elements, _, _ = annotate_page(page, [], "ocr", None, vision=VISION)
+    walls = [e for e in elements if e.kind == "wall"]
+    assert [w.source for w in walls] == ["derived"]
+    # Traced as an 11 px band: its outline, not a box, and its measured thickness.
+    assert walls[0].properties["drawn"] == "band"
+    assert walls[0].properties["thickness_px"] == pytest.approx(11, abs=1)
+    assert len(walls[0].properties["polygon_px"]) >= 3
+    assert walls[0].confidence == 0.3  # traced from pixels: to be checked by eye
+
+
+def test_a_thin_wall_line_on_a_scan_is_a_wall() -> None:
+    page = _blank()
+    page[100, 20:280] = 0  # a 1 px wall line, 260 px long
+    elements, _, _ = annotate_page(page, [], "ocr", None)
+    (wall,) = [e for e in elements if e.kind == "wall"]
+    assert wall.properties["drawn"] == "line"
+    # Columns 20..279 and row 100, to the pixels' outer edges.
+    assert wall.bbox == (19.5, 99.5, 279.5, 100.5)
 
 
 def test_objects_only_keeps_rooms_and_walls_from_the_drawing() -> None:

@@ -8,7 +8,6 @@ from app.domain.dimensions import mm_per_px
 from app.domain.geometry import (
     Point,
     bbox_center,
-    bbox_to_plan_polygon,
     footprint_mm,
     polygon_area,
 )
@@ -28,12 +27,18 @@ from app.domain.vision import (
     wall_findings,
 )
 from app.ingest.dimension_lines import fit_dimension_scale
-from app.ingest.rooms import Gray, ink_mask, room_region, wall_boxes
+from app.ingest.line_trace import looks_like_text
+from app.ingest.rooms import Gray, Mask, ink_mask, room_region
 from app.ingest.traced_rooms import traced_outlines
 from app.ingest.types import ExtractedElement
 from app.ingest.vision_elements import to_element
+from app.ingest.wall_trace import model_walls_beyond, trace_walls
 
-WALL_CONFIDENCE = 0.3  # heuristic wall detection: the agent must verify visually
+WALL_CONFIDENCE = 0.3  # walls traced from pixels: the agent must verify visually
+# The shortest wall run, as a share of the page's longest side: longer than the dashes
+# and letters of colorful-34 (D-053).
+MIN_RUN_SHARE = 0.04
+MIN_RUN_PX = 12
 VECTOR_WALL_CONFIDENCE = 0.95  # hatched regions from the PDF's vector layer
 WALL: DrawingKind = "wall"
 
@@ -51,13 +56,14 @@ def annotate_page(
     """Return the page's elements, its mm-per-pixel scale (if known) and page metadata.
 
     `vector_walls` are exact wall outlines in page pixels (from a PDF's vector
-    layer); when given, they replace the pixel-based wall heuristic.
+    layer); when given, they are the page's walls. Otherwise walls are traced from the
+    ink (D-053).
     `known_mm_per_px` is an exact scale (e.g. a rendered CAD drawing), which wins
     over a printed scale note.
     `vision` is the floor-plan model's reading of the page (D-022). It always adds
-    doors, windows and fixtures; unless `vision_objects_only`, its walls replace
-    the pixel heuristic. Room highlights always use the drawing's
-    traced boundaries; segmentation fragments are not room boundaries.
+    doors, windows and fixtures; unless `vision_objects_only`, its walls join the traced
+    ones, and the ink's outline wins where both have a wall. Room highlights always use
+    the drawing's traced boundaries; segmentation fragments are not room boundaries.
     """
     words = merge_split_numbers(words)
     elements: list[ExtractedElement] = []
@@ -169,16 +175,9 @@ def annotate_page(
             if scale_mm:
                 wall.footprint_mm = footprint_mm(outline, scale_mm, height)
             elements.append(wall)
-    elif model_rooms and vision is not None:
-        elements += [to_element(w, scale_mm, height) for w in wall_findings(vision)]
     else:
-        for box in wall_boxes(ink):
-            wall = ExtractedElement(
-                kind=WALL, source="derived", bbox=box, confidence=WALL_CONFIDENCE
-            )
-            if scale_mm:
-                wall.footprint_mm = bbox_to_plan_polygon(box, scale_mm, height)
-            elements.append(wall)
+        elements += _traced_walls(ink, words, elements, vision if model_rooms else None,
+                                  scale_mm, height)  # fmt: skip
 
     if vision is not None:
         elements += [to_element(o, scale_mm, height) for o in object_findings(vision)]
@@ -191,6 +190,36 @@ def annotate_page(
         "room_outlines": dict(sources),
     }
     return elements, scale_mm, meta
+
+
+def _traced_walls(
+    ink: Mask,
+    words: list[Word],
+    elements: list[ExtractedElement],
+    vision: Parsed | None,
+    scale_mm: float | None,
+    height: float,
+) -> list[ExtractedElement]:
+    """Walls traced from the ink (D-053), and the model's walls the trace did not find."""
+    min_run = max(MIN_RUN_PX, round(MIN_RUN_SHARE * max(ink.shape)))
+    text = [w.bbox for w in words if looks_like_text(w.text)]
+    dimensions = [e.bbox for e in elements if e.kind == "dimension" and e.bbox is not None]
+    traced = trace_walls(ink, min_run, text_boxes=text, dimension_boxes=dimensions)
+    walls = []
+    for t in traced:
+        wall = ExtractedElement(
+            kind=WALL, source="derived", bbox=polygon_bbox(t.polygon), confidence=WALL_CONFIDENCE,
+            properties={"polygon_px": [list(p) for p in t.polygon],
+                        "thickness_px": t.thickness_px, "drawn": t.drawn},
+        )  # fmt: skip
+        if scale_mm:
+            wall.footprint_mm = footprint_mm(t.polygon, scale_mm, height)
+        walls.append(wall)
+    if vision is not None:
+        model = wall_findings(vision)
+        beyond = model_walls_beyond(traced, [f.polygon for f in model], ink.shape)
+        walls += [to_element(f, scale_mm, height) for f in model if f.polygon in beyond]
+    return walls
 
 
 def _first_agreeing(
