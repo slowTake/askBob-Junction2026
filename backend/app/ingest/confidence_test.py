@@ -96,6 +96,16 @@ def test_each_part_is_scored_on_its_own() -> None:
     assert c.parts["walls"] == PartScore(1, 3381, 1.0, pytest.approx(3381 / 3461))  # type: ignore[arg-type]
 
 
+def test_a_stroked_shape_is_drawn_as_a_line_not_filled() -> None:
+    # A door's gap line along the band's top edge, x 50..90 on row 90: 41 px, all on ink.
+    # Filled, its two points would give no area; stroked, the line itself.
+    gap = Shape("openings", ((50, 90), (90, 90)), stroke=True)
+    c = redraw_confidence(band_ink(), [WALL, gap], TOL)
+    # Ink within 2 px of it: rows 90..92 over x 50..90 (123), at x 49 and 91 rows 90..91
+    # (dy <= sqrt(3): 4), at x 48 and 92 row 90 only (2): 129 of the band's 3381.
+    assert c.parts["openings"] == PartScore(1, 41, 1.0, pytest.approx(129 / 3381))  # type: ignore[arg-type]
+
+
 def test_marks_are_the_largest_patches_first_and_capped() -> None:
     ink = blank()
     ink[10:12, 10:12] = True  # 4 px

@@ -200,8 +200,8 @@ def confidence(layers: ColourLayers, elements: list[ExtractedElement]) -> Redraw
 
 def truth_shapes(truth: Sheet, width: float) -> list[Shape]:
     """The truth drawn as the view draws (`drawn_shape`): walls as their outlines, room
-    names and texts as boxes of the rendered size. Openings are left out: the view draws
-    a box there, the drawing a gap with a leaf and an arc, and the truth only the gap.
+    names and texts as boxes of the rendered size. Openings are left out: the truth gives
+    only the gap (and a door's hinge end), not the leaf, arc and frame the view draws.
     This is the ceiling of the truth-free score on the page, not a redraw the app makes.
     """
     size = width * TEXT_SHARE

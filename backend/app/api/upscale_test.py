@@ -241,7 +241,7 @@ def test_a_document_still_being_read_cannot_be_upscaled(harness: Harness) -> Non
 
 def test_a_scored_page_is_scored_again_with_what_the_model_added(harness: Harness) -> None:
     harness.seed()
-    stale = {"format": 1, "score": 0.5, "covered": 0.5, "on_ink": 0.5, "ink_px": 9,
+    stale = {"format": 2, "score": 0.5, "covered": 0.5, "on_ink": 0.5, "ink_px": 9,
              "parts": {}, "missed": [], "added": []}  # fmt: skip
     with harness.sessions() as db:
         page = db.scalars(select(Page)).one()

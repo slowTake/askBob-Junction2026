@@ -77,10 +77,15 @@ def redraw_confidence(
 
 
 def _mask(shapes: Sequence[Shape], width: int, height: int) -> Mask:
-    """The shapes filled in; one call per outline, so overlaps stay filled (not even-odd)."""
+    """The shapes filled in, or drawn as 1 px lines when stroked; one call per outline,
+    so overlaps stay filled (not even-odd)."""
     canvas = np.zeros((height, width), dtype=np.uint8)
     for s in shapes:
-        cv2.fillPoly(canvas, [np.round(np.array(s.polygon)).astype(np.int32)], 1)
+        points = [np.round(np.array(s.polygon)).astype(np.int32)]
+        if s.stroke:
+            cv2.polylines(canvas, points, isClosed=False, color=1, thickness=1)
+        else:
+            cv2.fillPoly(canvas, points, 1)
     return canvas.astype(bool)
 
 

@@ -124,7 +124,7 @@ def test_a_page_without_its_document_is_a_plan() -> None:
     assert PageOut.model_validate({**page, "document_kind": "image"}).redraw_mode == "sketch"
 
 
-SCORED = {"format": 1, "score": 0.889, "covered": 0.8, "on_ink": 1.0, "ink_px": 3481,
+SCORED = {"format": 2, "score": 0.889, "covered": 0.8, "on_ink": 1.0, "ink_px": 3481,
           "parts": {"walls": {"count": 2, "drawn_px": 3381, "on_ink": 1.0, "ink_covered": 0.971}},
           "missed": [{"polygon": [[298, 298], [311, 298], [311, 311], [298, 311]], "px": 100}],
           "added": []}  # fmt: skip

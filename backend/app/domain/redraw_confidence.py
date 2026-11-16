@@ -11,9 +11,11 @@ the Redrawn view draws with the page's line work, so it needs no truth:
   the page black, or precision by drawing nothing.
 
 The redraw is drawn as pixels the way the view draws it (`drawn_shape`, mirroring
-`frontend/src/lib/redraw.ts`): walls as their outlines, doors and windows as their
-boxes, and labels as a box of the rendered text's size at the element's centre: the
-view uses one font size per page, never the OCR box, so a misread box does not score.
+`frontend/src/lib/redraw.ts`): walls as their outlines; doors and windows from their
+stored gap (D-055): a door with a swing as its leaf and arc, a window as its frame, any
+other gap as its line, all drawn as 1 px lines, and as their box without a gap; labels
+as a box of the rendered text's size at the element's centre: the view uses one font
+size per page, never the OCR box, so a misread box does not score.
 The breakdown is per part. The pixel work is in `app/ingest/confidence.py`; this module
 is the rules and the stored shape, pure.
 """
@@ -26,7 +28,7 @@ from typing import Any, Protocol, TypeGuard
 from app.domain.geometry import BBox, Point
 
 CONFIDENCE_KEY = "redraw_confidence"  # page.meta key
-CONFIDENCE_FORMAT = 1  # bumped when the rules change, so an older entry is not served
+CONFIDENCE_FORMAT = 2  # bumped when the rules change, so an older entry is not served
 # Share of the page width within which a drawn pixel is on the ink: 2 px on the
 # benchmark's 482 px page, the same as its wall and ink tolerance (D-049).
 INK_TOLERANCE = 2 / 482
@@ -38,12 +40,14 @@ TEXT_SHARE = 1 / 100
 ROOM_SIZE = 1.5
 MIN_TEXT_CONFIDENCE = 0.6
 GLYPH_WIDTH = 0.6  # em: the average advance of the view's font
+ARC_STEP_DEG = 5  # a door's arc is drawn as a line through a point every 5 degrees
 
 
 @dataclass(frozen=True)
 class Shape:
     part: str
     polygon: tuple[Point, ...]
+    stroke: bool = False  # drawn as a 1 px line through its points, not filled
 
 
 @dataclass(frozen=True)
@@ -125,7 +129,8 @@ def drawn_shape(
     if kind == "wall":
         return Shape("walls", _polygon(properties.get("polygon_px")) or box)
     if kind in ("door", "window"):
-        return Shape("openings", box)
+        line = _stored_opening(kind, properties)
+        return Shape("openings", line, stroke=True) if line else Shape("openings", box)
     # JS `label ?? text ?? ""`: an empty label does not fall back to the text.
     raw = label if label is not None else text if text is not None else ""
     shown = raw.strip()
@@ -147,6 +152,53 @@ def drawn_shape(
         ((cx - half_w, cy - half_h), (cx + half_w, cy - half_h),
          (cx + half_w, cy + half_h), (cx - half_w, cy + half_h)),
     )  # fmt: skip
+
+
+def _stored_opening(kind: str, properties: Mapping[str, object]) -> tuple[Point, ...] | None:
+    """redraw.ts `storedOpening`, as one line: a door's leaf then its arc, a window's
+    frame closed, or the gap; None without a gap of two points."""
+    raw = properties.get("opening")
+    if not isinstance(raw, Mapping):
+        return None
+    a, b = _point(raw.get("a")), _point(raw.get("b"))
+    if a is None or b is None:
+        return None
+    hinge = {"a": a, "b": b}.get(str(properties.get("hinge")))
+    toward = _point(properties.get("toward"))
+    if kind == "door" and hinge is not None and toward is not None:
+        swing = _swing(hinge, b if hinge is a else a, toward)
+        if swing:
+            return swing
+    frame = _polygon(properties.get("polygon_px")) if kind == "window" else None
+    if frame:
+        return (*frame, frame[0])
+    return (a, b)
+
+
+def _swing(hinge: Point, free: Point, toward: Point) -> tuple[Point, ...] | None:
+    """The hinge, the leaf's end turned open toward `toward`, and the arc back to `free`."""
+    r = math.dist(hinge, free)
+    if r == 0:
+        return None
+    ux, uy = (free[0] - hinge[0]) / r, (free[1] - hinge[1]) / r
+    nx, ny = -uy, ux
+    if nx * (toward[0] - hinge[0]) + ny * (toward[1] - hinge[1]) < 0:
+        nx, ny = -nx, -ny
+    start = math.atan2(ny, nx)
+    turn = math.atan2(nx * uy - ny * ux, nx * ux + ny * uy)  # +-90 degrees, leaf to gap
+    steps = round(abs(math.degrees(turn)) / ARC_STEP_DEG)
+    arc = tuple(
+        (hinge[0] + r * math.cos(start + turn * i / steps),
+         hinge[1] + r * math.sin(start + turn * i / steps))
+        for i in range(1, steps + 1)
+    )  # fmt: skip
+    return (hinge, (hinge[0] + r * nx, hinge[1] + r * ny), *arc[:-1], free)
+
+
+def _point(raw: object) -> Point | None:
+    if isinstance(raw, list | tuple) and len(raw) == 2 and all(_finite(v) for v in raw):
+        return (float(raw[0]), float(raw[1]))
+    return None
 
 
 def _box(raw: object) -> BBox | None:
