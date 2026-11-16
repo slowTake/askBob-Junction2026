@@ -39,6 +39,7 @@ TIE_PER_PX = 0.1  # of equal arcs, the hinge nearer the wall wins (less than a s
 OVERLAP = 0.1  # doors whose boxes overlap more than this (of the smaller) are one
 CARVE_PX = 1  # the leaf and arc are carved this much wider than drawn
 WORK_SIDE_PX = 700  # bigger pages are read at this size: 3 s on a 3,000 px page
+GAP_ON_WALL = 0.9  # at least this share of the gap lies within 1 px of a traced wall (D-057)
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,13 @@ def find_doors(
     lines = symbols.astype(np.uint8)
     away = cv2.distanceTransform((~walls).astype(np.uint8), cv2.DIST_L2, 3)
     radii = _radii(max(3, round(min_radius_px * scale)), round(max_radius_px * scale))
-    kept = _suppressed(_candidates(arc, lines, walls, away, radii))
+    on_wall = cv2.dilate(walls.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+    found = [
+        (score, door)
+        for score, door in _candidates(arc, lines, walls, away, radii)
+        if _accepted(door, on_wall)
+    ]
+    kept = _suppressed(found)
     return [_scaled(d, 1 / scale) for d in kept] if scale < 1.0 else kept
 
 
@@ -77,6 +84,21 @@ def _candidates(
             for sy in (1, -1):
                 found += _quadrant(arc, lines, walls, away, r, sx, sy)
     return found
+
+
+def _accepted(door: Door, on_wall: Mask) -> bool:
+    """A candidate is a door only if its gap lies on a wall. The rules run before the
+    candidates compete, so a wrong reading of an arc frees the right one."""
+    return _share_on(on_wall, door.a, door.b) >= GAP_ON_WALL
+
+
+def _share_on(layer: Mask, p: Point, q: Point) -> float:
+    """Share of the pixels of the segment p..q (clipped to the page) set in `layer`."""
+    n = int(math.dist(p, q)) + 1
+    height, width = layer.shape
+    xs = np.round(np.linspace(p[0], q[0], n)).astype(int).clip(0, width - 1)
+    ys = np.round(np.linspace(p[1], q[1], n)).astype(int).clip(0, height - 1)
+    return float(layer[ys, xs].mean())
 
 
 def _suppressed(found: list[tuple[float, Door]]) -> list[Door]:
