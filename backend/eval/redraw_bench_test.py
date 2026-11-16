@@ -9,6 +9,7 @@ from eval.redraw_bench import (
     OCR,
     VISION,
     page,
+    read_words,
     recorded_vision,
     recorded_words,
     redraw,
@@ -119,11 +120,24 @@ def test_redraw_runs_ingest_on_the_recorded_reading() -> None:
     )
 
 
+def test_the_recorded_reading_loses_only_line_work() -> None:
+    # The recording is RapidOCR's raw reading; ingest drops line work from it (D-052).
+    # Of colorful-34's 39 recorded words only "1281" goes: looked at by eye, its box is
+    # the stove in the kitchen (a frame open at the top round four burners). The red
+    # heights, decimal-comma dimensions and handwritten names ("mh", "Keittiö") stay.
+    layers, _ = page(IMAGE)
+    raw = json.loads(OCR.read_text(encoding="utf-8"))
+    kept = read_words(layers, raw)
+    dropped = [w.text for w in recorded_words(raw) if w not in kept]
+    assert (len(raw["words"]), dropped) == (39, ["1281"])
+
+
 # The benchmark itself, offline: recorded OCR and vision answers, the hand-made truth.
 # These floors are the baseline recorded on 2026-11-16 (D-049), raised by the vocabulary
-# work (D-050) and colour separation (D-051); they are recorded values, not worked out by
-# hand, and stop a change from making the redraw of colorful-34 worse. A PR that improves
-# a number raises its floor; one that has to lower a floor says why in its decision.
+# work (D-050), colour separation (D-051) and dropping line work from OCR (D-052); they
+# are recorded values, not worked out by hand, and stop a change from making the redraw
+# of colorful-34 worse. A PR that improves a number raises its floor; one that has to
+# lower a floor says why in its decision.
 FLOORS = {
     "walls recall": 0.158,
     "walls precision": 0.969,  # ratios are rounded down: 0.96978 recorded
@@ -131,6 +145,7 @@ FLOORS = {
     "rooms named": 3,
     "rooms outlined": 3,
     "texts found": 25,
+    "texts precision": 0.862,  # D-052: the stove is no longer drawn as "1281"; 25/29
     "texts exact": 11,
     "texts digits": 13,
     "texts kind": 16,  # #36: decimal-comma dimensions and h-heights have their kind
@@ -143,7 +158,7 @@ def test_the_benchmark_does_not_get_worse() -> None:
     height, width = layers.ink_page.shape
     ocr, vision = (json.loads(p.read_text(encoding="utf-8")) for p in (OCR, VISION))
     truth = load_sheet(json.loads(TRUTH_FILE.read_text(encoding="utf-8")), width, height)
-    sheet = redraw(layers.ink_page, recorded_words(ocr), recorded_vision(vision))
+    sheet = redraw(layers.ink_page, read_words(layers, ocr), recorded_vision(vision))
     r = report(sheet, truth, layers.ink, width, height)
     now = {
         "walls recall": r.walls.recall,
@@ -152,6 +167,7 @@ def test_the_benchmark_does_not_get_worse() -> None:
         "rooms named": r.rooms.named.matched,
         "rooms outlined": r.rooms.outlined,
         "texts found": r.texts.found.matched,
+        "texts precision": r.texts.found.precision,
         "texts exact": r.texts.exact,
         "texts digits": r.texts.digits,
         "texts kind": r.texts.kind_ok,
