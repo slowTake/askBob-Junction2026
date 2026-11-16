@@ -56,6 +56,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-046 | 2026-11-15 | Plan answers draw what they say: a distance line alone, area labels, walking routes | Accepted |
 | D-048 | 2026-11-15 | A shared password in front of /api, checked by the server (#129) | Accepted |
 | D-049 | 2026-11-16 | The redraw is scored against a hand-made truth of colorful-34, kept at its low resolution (#131) | Accepted |
+| D-050 | 2026-11-16 | Written-out Finnish room names, one-edit OCR matching, decimal-comma dimensions and ceiling heights (#36) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -786,3 +787,20 @@ When any API call answers `unauthorized` mid-use (cookie expired, password chang
 - Baseline on 2026-11-16, reviewed truth, vision service off: walls recall 15.8 % and precision 96.9 %; openings 0 of 34; rooms named 3 of 16, none outlined; texts found 20 of 35, 10 exact, 12 with the right digits, none of the right kind (decimal-comma dimensions and `h1600` heights are plain text to the app); ink redrawn 10.9 %, on ink 98.9 %.
 
 **Consequences:** "Accurate" becomes a set of numbers per component instead of a judgement, and CI keeps it from slipping. A truth drawn by hand is only as good as its author's reading of a 482 px image; the uncertain marks say where that reading stops, and alternatives keep a right reading of an ambiguous label from counting as wrong. Doors and windows can only be straight gaps with a hinge, and text only level or upright, so arcs, double leaves and slanted handwriting are described approximately.
+
+## D-050: Written-out Finnish room names, one-edit OCR matching, decimal-comma dimensions and ceiling heights (#36)
+
+**Date:** 2026-11-16 · **Status:** Accepted · **Refines:** D-049 (floors)
+
+**Context:** On the colorful-34 benchmark (D-049) the app named 3 of 16 rooms and gave none of the 20 texts it found the right kind: Finnish room names written out ("keittiö", "aula", "työh.") were unknown, "5,341" (metres with a decimal comma) was rejected as a dimension and "h1600" ceiling heights were plain text. The Swiss German, French, Italian and English names in issue #36 were already in `domain/vocab.py`.
+
+**Decision:**
+- **Finnish names** written out map to room categories (`vocab.py` `_FINNISH_NAMES`): keittiö, aula, eteinen, työhuone/työh., kuisti (porch, outdoor), vaatehuone, varasto, pukuhuone/pukuh., makuuhuone, olohuone, kylpyhuone, sauna, parveke (outdoor), terassi and a few more. `KPH` is a bathroom code. "Bad" was already a German bathroom: names are looked up before codes, so it never falls to the Swedish code BAD.
+- **Numbered codes.** "MH1" is the code MH with `code_number` "1" and keeps "MH1" as its label. It is not the room's `number`, which is a plan-wide room number and decides which rooms make up net area (`domain/areas.py`). Only codes of two or more letters take a number: "S1" or "K2" are more often section or grid marks.
+- **One-edit matching, for OCR only.** On a page read by OCR, a word one substitution, insertion or deletion away from exactly one Finnish name of 6+ letters is that room, marked `fuzzy_match` so #133 can flag it. Only Finnish names, and only 6+ letters, because shorter or other-language names have real words one edit away: "sauma" (a seam) from sauna, "Kuchen" (cake) from Küche, "Balken" (a beam) from Balkon. A PDF text layer or DXF is matched exactly. On colorful-34 this catches nothing: OCR read keittiö as "Veitlio" (two edits), aula as "auta" (4 letters) and kuisti as "kuith" (two edits). We did not loosen it further to win those, as it would start inventing rooms.
+- **Repeated unknown words** (3–20 letters, printed at least twice on a page, not otherwise classified) stay `text` with `room_candidate: true`. They are kept for the agent, not traced as rooms, because a repeated note or legend word would otherwise become a room.
+- **Decimal-comma dimensions.** "d,ddd" with exactly three decimals is metres to the millimetre: "5,341" → 5341 mm, "0,450" → 450 mm. The value is the same if the comma is a thousands mark, so it is unambiguous. "2,40" or "0,5" could be metres, an area without its unit or a height in metres, and are not dimensions. "12,5 m2" is still an area.
+- **Ceiling heights** are their own kind, `height`, with `value_mm`: "h" or "H" followed by 3–4 digits, no leading zero ("h1600" → 1600). A dash at either end is a leader stroke read as text and is dropped from the label ("h746-" → "h746"). Other letters ("M1986", "N2189") are not guessed to be an h. The kind is in the agent's `find_elements` filter and prompt, the IFC export (an `IfcAnnotation`), DXF text, the frontend's Text layer, and the benchmark's text kinds.
+- Benchmark, before → after (recorded OCR, vision off): texts exact 10 → 11, of the right kind 0 → 15 of 20 found; rooms named 3 → 3; every other number unchanged. Floors raised to match. The page's scale is now fitted from the decimal-comma dimensions (5,341 and 10,747 agree on 61.2 mm/px), so the wc gets a computed area and the redraw draws one more text that the truth doesn't have (text precision 80.0 % → 76.9 %, not floored).
+
+**Consequences:** Finnish plans that write names out get rooms, and their dimensions can set the scale. Room naming on colorful-34 does not improve until OCR reads the handwriting better (#89 works on its input); the fuzzy rule is deliberately too strict to rescue two-letter misreads. Ambiguous decimal-comma numbers stay text until a page-wide unit is known.

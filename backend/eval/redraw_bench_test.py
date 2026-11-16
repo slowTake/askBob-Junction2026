@@ -123,7 +123,8 @@ def test_redraw_runs_ingest_on_the_recorded_reading() -> None:
 # The benchmark itself, offline: recorded OCR and vision answers, the hand-made truth.
 # These floors are the baseline recorded on 2026-11-16 (D-049), not values worked out by
 # hand: they stop a change from making the redraw of colorful-34 worse. A PR that
-# improves a number raises its floor; one that has to lower a floor says why in D-049.
+# improves a number raises its floor (#36: D-050); one that has to lower a floor says why
+# in D-049.
 FLOORS = {
     "walls recall": 0.158,
     "walls precision": 0.968,  # ratios are rounded down: 0.96889 recorded
@@ -131,9 +132,9 @@ FLOORS = {
     "rooms named": 3,
     "rooms outlined": 0,
     "texts found": 20,
-    "texts exact": 10,
+    "texts exact": 11,  # 2026-11-16 #36: "h746-" is read as the height h746
     "texts digits": 12,
-    "texts kind": 0,
+    "texts kind": 15,  # #36: decimal-comma dimensions and h-heights have their kind
     "redraw on ink": 0.989,
 }
 
