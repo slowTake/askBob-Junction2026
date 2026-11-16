@@ -14,7 +14,6 @@ from app.domain.sketch import (
     Wall,
     Window,
     claim_is_live,
-    is_sketch_page,
     parse_plan,
     plan_json,
     says_matches,
@@ -37,13 +36,7 @@ def _answer(**lists: object) -> dict[str, object]:
     return {**base, **lists}
 
 
-# --- which pages ----------------------------------------------------------------
-
-
-def test_only_raster_image_documents_are_sketch_pages() -> None:
-    assert is_sketch_page("image") is True
-    for kind in ("pdf", "svg", "dxf", "dwg", "ifc"):
-        assert is_sketch_page(kind) is False
+# Which pages get the sketch redraw: redraw_mode_test.py (#138).
 
 
 # --- reading the answer ---------------------------------------------------------

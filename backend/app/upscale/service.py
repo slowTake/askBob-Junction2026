@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.domain.extent import element_extent
+from app.domain.sketch import SKETCH_SOURCE
 from app.domain.text import clip
 from app.domain.upscale import (
     ADDABLE_KINDS,
@@ -33,6 +34,7 @@ from app.models import LABEL_MAX, NAME_MAX, Document, Element, Page
 from app.storage import page_image_path
 from app.upscale.vision import Look, VisionError
 
+_REDRAW_SOURCES = (UPSCALE_SOURCE, SKETCH_SOURCE)  # what a redraw made, not ingest
 Looker = Callable[[bytes, int, int, list[dict[str, object]], int, Settings], Look]
 
 
@@ -67,8 +69,11 @@ def upscale_page(
         raise VisionError("upscale_failed") from None
     added = merge_candidates(known, candidates)
 
-    # A page that ran before (older document version or format) starts over.
-    db.execute(delete(Element).where(Element.page_id == page.id, Element.source == UPSCALE_SOURCE))
+    # A page that ran before (older document version or format) starts over, and a
+    # sketch redraw of it is replaced: the Redrawn view shows one redraw (#138).
+    db.execute(
+        delete(Element).where(Element.page_id == page.id, Element.source.in_(_REDRAW_SOURCES))
+    )
     db.add_all([_row(doc, page, c) for c in added])
     page.meta = {
         **page.meta,
@@ -84,7 +89,7 @@ def upscale_page(
 
 def _known(db: Session, page: Page) -> list[Known]:
     rows = db.scalars(
-        select(Element).where(Element.page_id == page.id, Element.source != UPSCALE_SOURCE)
+        select(Element).where(Element.page_id == page.id, Element.source.not_in(_REDRAW_SOURCES))
     ).all()
     known: list[Known] = []
     for el in rows:

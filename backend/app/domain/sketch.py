@@ -21,7 +21,7 @@ from app.domain.upscale import UPSCALE_FORMAT
 SKETCH_SOURCE = "sketch"  # Element.source of everything the redraw stores
 SKETCH_MODE = "sketch"  # page.meta["upscale"]["mode"]
 SKETCH_CONFIDENCE = 0.8  # read from a hand drawing by a model: never exact
-SKETCH_KINDS = frozenset({"image"})  # Document.kind of raster uploads
+SKETCH_KINDS = frozenset({"image"})  # Document.kind that can be a sketch (redraw_mode.py)
 MIN_LENGTH_PX = 1.0
 MAX_ENTRIES = 400  # per list; a floor plan has far fewer
 
@@ -71,11 +71,6 @@ class Plan:
     windows: tuple[Window, ...] = ()
     rooms: tuple[Room, ...] = ()
     notes: tuple[Note, ...] = ()
-
-
-def is_sketch_page(document_kind: str) -> bool:
-    """Pages that get the full redraw: those of raster image uploads."""
-    return document_kind in SKETCH_KINDS
 
 
 def says_matches(raw: object) -> bool:
