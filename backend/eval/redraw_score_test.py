@@ -126,6 +126,20 @@ def test_a_right_reading_wins_over_a_nearer_wrong_one() -> None:
     assert match_texts(redraw, truth, TOL).exact == 1
 
 
+def test_any_reading_a_person_could_not_rule_out_counts_as_right() -> None:
+    truth = [Text("9,962", "dimension", (10.0, 10.0), alternatives=("9,662",))]
+    # "9,662" is the other reading: exact and same digits. "9,162" is neither.
+    other = match_texts([Text("9,662", "dimension", (10.0, 10.0))], truth, TOL)
+    wrong = match_texts([Text("9,162", "dimension", (10.0, 10.0))], truth, TOL)
+    assert (other.exact, other.digits) == (1, 1)
+    assert (wrong.exact, wrong.digits) == (0, 0)
+
+
+def test_a_room_named_by_its_other_reading_is_named() -> None:
+    truth = Room("varasto", (25.0, 25.0), _square(0, 0, 50, 50), alternatives=("vaasto",))
+    assert match_rooms([Room("Vaasto", (25.0, 25.0))], [truth], TOL).named == Counts(1, 1, 1)
+
+
 def test_digits_are_only_counted_for_texts_that_have_digits() -> None:
     # A north arrow's "N": exact, but there are no digits to agree on.
     score = match_texts([Text("n", "other", (0.0, 0.0))], [Text("N", "other", (0.0, 0.0))], TOL)
