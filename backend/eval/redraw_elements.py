@@ -6,8 +6,10 @@ scores exactly what the Redrawn view draws. Keep the two in step.
 Takes the app's `ExtractedElement`s (what ingest returns; the stored `ElementInfo` has the
 same fields). Elements without a box of positive area are not drawn. Then:
 - a wall: its `properties.polygon_px` when that is a polygon of finite numbers, else its box;
-- a door or window: its box, read as the centre line along the box's long side (a square
-  box counts as horizontal). The view draws a box, so there is no hinge or swing;
+- a door or window: its stored gap `properties.opening` ({a, b}, two finite points) when
+  it has one (D-055); a door with `hinge` "a" or "b" and a finite `toward` point also has
+  its swing, and a window with `polygon_px` its frame. Otherwise its box, read as the
+  centre line along the box's long side (a square box counts as horizontal), no swing;
 - a room: its label (else its text), trimmed, at the box centre, with `polygon_px` as its
   outline. A computed `area_m2` is drawn under the name unless the drawing prints an area
   inside the room's outline;
@@ -50,7 +52,7 @@ def sheet_from_elements(elements: Sequence[ExtractedElement], page_width: float)
             walls.append(Wall(_polygon(e.properties.get("polygon_px")) or box))
             continue
         if e.kind in ("door", "window"):
-            openings.append(_opening(e.kind, e.bbox))
+            openings.append(_stored_opening(e.kind, e.properties) or _opening(e.kind, e.bbox))
             continue
         # JS `label ?? text ?? ""`: an empty label does not fall back to the text.
         raw = e.label if e.label is not None else e.text if e.text is not None else ""
@@ -77,6 +79,29 @@ def _opening(kind: str, b: BBox) -> Opening:
     if x1 - x0 >= y1 - y0:
         return Opening(kind, (x0, cy), (x1, cy))
     return Opening(kind, (cx, y0), (cx, y1))
+
+
+def _stored_opening(kind: str, properties: dict[str, object]) -> Opening | None:
+    """redraw.ts `storedOpening`: the gap and, for a door, its swing."""
+    raw = properties.get("opening")
+    if not isinstance(raw, dict):
+        return None
+    a, b = _point(raw.get("a")), _point(raw.get("b"))
+    if a is None or b is None:
+        return None
+    hinge = {"a": a, "b": b}.get(str(properties.get("hinge")))
+    toward = _point(properties.get("toward"))
+    if kind == "window":
+        return Opening(kind, a, b, frame=_polygon(properties.get("polygon_px")))
+    if hinge is None or toward is None:
+        return Opening(kind, a, b)
+    return Opening(kind, a, b, hinge, toward)
+
+
+def _point(raw: object) -> Point | None:
+    if isinstance(raw, list | tuple) and len(raw) == 2 and all(_finite(v) for v in raw):
+        return (float(raw[0]), float(raw[1]))
+    return None
 
 
 def _polygon(raw: object) -> tuple[Point, ...] | None:

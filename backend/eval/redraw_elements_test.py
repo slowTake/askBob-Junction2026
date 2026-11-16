@@ -68,6 +68,40 @@ def test_a_square_opening_is_read_as_horizontal() -> None:
     assert sheet.openings == (Opening("door", (0, 2), (4, 2)),)
 
 
+def test_a_stored_opening_is_drawn_from_its_shape() -> None:
+    door = {"opening": {"a": [10, 20], "b": [30, 20]}, "hinge": "b", "toward": [20, 30]}
+    frame = [[3, 50], [9, 50], [9, 80], [3, 80]]
+    window = {"opening": {"a": [5, 50], "b": [5, 80]}, "polygon_px": frame}
+    sheet = sheet_from_elements(
+        [
+            el("door", (8, 18, 32, 42), properties=door),
+            el("window", (3, 50, 9, 80), properties=window),
+        ],
+        WIDTH,
+    )
+    assert sheet.openings == (
+        Opening("door", (10, 20), (30, 20), hinge=(30, 20), toward=(20, 30)),  # hinge "b"
+        # A window has no swing; its frame is drawn.
+        Opening("window", (5, 50), (5, 80), frame=((3, 50), (9, 50), (9, 80), (3, 80))),
+    )
+
+
+def test_a_malformed_stored_opening_falls_back_to_the_box() -> None:
+    bad = {"opening": {"a": [10, 20], "b": [30]}, "hinge": "a", "toward": [20, 30]}
+    no_toward = {"opening": {"a": [10, 20], "b": [30, 20]}, "hinge": "a"}
+    sheet = sheet_from_elements(
+        [
+            el("door", (10, 20, 30, 24), properties=bad),
+            el("door", (10, 20, 30, 24), properties=no_toward),
+        ],
+        WIDTH,
+    )
+    assert sheet.openings == (
+        Opening("door", (10, 22), (30, 22)),  # the box's centre line
+        Opening("door", (10, 20), (30, 20)),  # the gap, but no swing without a side
+    )
+
+
 def test_unclassified_text_needs_confidence_and_a_letter_or_digit() -> None:
     sheet = sheet_from_elements(
         [

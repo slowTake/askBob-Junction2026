@@ -176,6 +176,21 @@ def test_blank_paper_has_no_walls() -> None:
     assert _walls(_page()) == []
 
 
+def test_a_carved_symbol_is_not_traced_into_the_wall_beside_it() -> None:
+    ink = _page()
+    ink[50:56, 10:150] = True  # a band 6 px thick, rows 50..55
+    ink[44, 40:70] = ink[47, 40:70] = True  # a window frame 2 px above it, rows 44..47
+    ink[44:48, 40] = ink[44:48, 69] = True
+    merged = _walls(ink)  # closing joins the frame into the band (gap of 2 rows)
+    assert any(_covers(w, 55, 45.5) for w in merged)
+    carve = _page()
+    carve[44:48, 40:70] = True  # the frame's box
+    (wall,) = _walls(ink, carve=carve)
+    assert not _covers(wall, 55, 45.5)  # the frame is gone
+    assert wall.thickness_px == pytest.approx(6, abs=0.5)  # and the band is as it was
+    assert _covers(wall, 55, 52.5)  # it runs on past the window: no gap is cut
+
+
 # --- the floor-plan model's walls join the traced ones -----------------------------
 
 

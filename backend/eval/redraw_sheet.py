@@ -37,6 +37,7 @@ class Opening:
     hinge: Point | None = None  # a door: the end its leaf turns on
     toward: Point | None = None  # a door: a point in the room it opens into
     uncertain: bool = False
+    frame: tuple[Point, ...] | None = None  # a window's frame as drawn (redraw only, D-055)
 
 
 @dataclass(frozen=True)

@@ -6,13 +6,15 @@ tolerance of the other, so a line one or two pixels beside its truth still count
 the truth is drawn by hand, and a scan's lines are a few pixels wide.
 """
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 
 import cv2
 import numpy as np
 
-from eval.redraw_sheet import Wall
+from app.domain.geometry import Point
+from eval.redraw_sheet import Opening, Wall
 
 Mask = np.ndarray  # bool, shape (height, width)
 
@@ -36,6 +38,47 @@ def wall_mask(walls: Iterable[Wall], width: int, height: int) -> Mask:
         # empty (even-odd), which would cut a hole at every junction.
         cv2.fillPoly(canvas, [np.round(np.array(w.polygon)).astype(np.int32)], 1)
     return canvas.astype(bool)
+
+
+def opening_mask(openings: Iterable[Opening], width: int, height: int) -> Mask:
+    """Doors and windows as the Redrawn view draws them, 1 px lines (D-055): a door with a
+    swing is its leaf (from the hinge, as long as the gap, into the room it opens into)
+    and the quarter arc back to the gap's free end; a window with a frame is the frame's
+    outline; anything else is its gap's line."""
+    canvas = np.zeros((height, width), dtype=np.uint8)
+    for o in openings:
+        if o.kind == "door" and o.hinge is not None and o.toward is not None:
+            _door(canvas, o.a, o.b, o.hinge, o.toward)
+        elif o.frame:
+            outline = np.round(np.array(o.frame)).astype(np.int32)
+            cv2.polylines(canvas, [outline], isClosed=True, color=1, thickness=1)
+        else:
+            cv2.line(canvas, _px(o.a), _px(o.b), 1, 1)
+    return canvas.astype(bool)
+
+
+def _door(canvas: np.ndarray, a: Point, b: Point, hinge: Point, toward: Point) -> None:
+    free = b if math.dist(hinge, a) <= math.dist(hinge, b) else a
+    radius = math.dist(hinge, free)
+    if radius == 0:
+        return
+    ux, uy = (free[0] - hinge[0]) / radius, (free[1] - hinge[1]) / radius
+    nx, ny = -uy, ux  # across the wall; flipped to the side the door opens into
+    if nx * (toward[0] - hinge[0]) + ny * (toward[1] - hinge[1]) < 0:
+        nx, ny = -nx, -ny
+    leaf = (hinge[0] + radius * nx, hinge[1] + radius * ny)
+    cv2.line(canvas, _px(hinge), _px(leaf), 1, 1)
+    start = math.degrees(math.atan2(ny, nx))
+    end = math.degrees(math.atan2(uy, ux))
+    if (end - start) % 360 > 180:  # always the quarter between the two, in either order
+        start, end = end, start
+    sweep = (end - start) % 360
+    r = round(radius)
+    cv2.ellipse(canvas, _px(hinge), (r, r), 0, start, start + sweep, 1, 1)
+
+
+def _px(p: Point) -> tuple[int, int]:
+    return round(p[0]), round(p[1])
 
 
 def near_share(source: Mask, target: Mask, tolerance_px: float) -> float:
