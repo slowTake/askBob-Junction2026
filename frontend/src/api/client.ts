@@ -1,6 +1,11 @@
-/** Every call to the backend goes through here. Responses use one envelope shape. */
+/**
+ * Every call to the backend goes through here. Responses use one envelope shape.
+ * A demo build (`VITE_DEMO=1`) swaps in the recorded snapshot instead (D-059).
+ */
 
+import { createDemoApi } from "../demo/demoApi";
 import { signalLoggedOut } from "../lib/login";
+import { ApiError } from "./errors";
 import { readSSE } from "./sse";
 import type {
   Answer,
@@ -18,14 +23,7 @@ import type {
   UpscaleResult,
 } from "./types";
 
-export class ApiError extends Error {
-  readonly code: string;
-
-  constructor(code: string, message: string) {
-    super(message);
-    this.code = code;
-  }
-}
+export { ApiError };
 
 async function request<T>(
   path: string,
@@ -71,7 +69,7 @@ export interface AskHandlers {
   onView: (view: PlanView) => void;
 }
 
-export const api = {
+const liveApi = {
   health: () => request<HealthInfo>("/api/health"),
   session: () => request<SessionInfo>("/api/session"),
   login: (password: string) =>
@@ -145,3 +143,10 @@ export const api = {
     });
   },
 };
+
+export type Api = typeof liveApi;
+
+/** True in the static demo build: no backend, answers replayed from a recording. */
+export const isDemo = import.meta.env.VITE_DEMO === "1";
+
+export const api: Api = isDemo ? createDemoApi(import.meta.env.BASE_URL) : liveApi;

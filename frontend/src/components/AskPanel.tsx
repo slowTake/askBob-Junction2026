@@ -2,16 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import type { Citation, PlanView } from "../api/types";
 import type { Turn } from "../hooks/useAsk";
 import { chatMilestone } from "../lib/conversations";
+import examples from "../lib/examples.json";
 import { AnswerCard } from "./AnswerCard";
 
-// Questions that work on any plan and show what the assistant can do with it.
-const EXAMPLES = [
-  "How many rooms are on this plan? Show them.",
-  "Show all the doors and windows.",
-  "What is the total area of each apartment?",
-  "How far is the kitchen from the bathroom?",
-  "What is the way from apartment A to the stairs?",
-];
+// Questions that work on any plan and show what the assistant can do with it. The demo
+// recorder asks the same ones, so they replay in the demo build (D-059).
+const EXAMPLES: readonly string[] = examples;
 
 interface Props {
   turns: readonly Turn[];
