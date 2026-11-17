@@ -2,7 +2,7 @@ from typing import Any
 
 from app.ingest.types import ExtractedElement
 from eval.redraw_elements import sheet_from_elements
-from eval.redraw_sheet import Opening, Room, Text, Wall
+from eval.redraw_sheet import Fixture, Opening, Room, Text, Wall
 
 WIDTH = 500  # page width: text size 5 px, room names 7.5 px (1/100 of the width, x1.5)
 
@@ -204,3 +204,12 @@ def test_a_room_without_an_outline_still_gets_its_area() -> None:
     room = el("room", (10, 10, 20, 14), label="mh", properties={"area_m2": 9.04})
     sheet = sheet_from_elements([room], WIDTH)
     assert sheet.texts == (Text("9.0 m²", "other", (15, 19.5)),)
+
+
+def test_a_traced_fixture_is_its_outline_and_a_coded_one_its_label() -> None:
+    ring = [[10, 10], [20, 10], [20, 20], [10, 20]]
+    traced = el("fixture", (10, 10, 20, 20), properties={"polygon_px": ring, "drawn": "ring"})
+    coded = el("fixture", (30, 10, 40, 20), label="WC")  # a vocabulary code: no outline
+    sheet = sheet_from_elements([traced, coded], WIDTH)
+    assert sheet.fixtures == (Fixture(((10, 10), (20, 10), (20, 20), (10, 20))),)
+    assert sheet.texts == (Text("WC", "other", (35, 15)),)

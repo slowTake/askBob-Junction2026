@@ -10,6 +10,8 @@ same fields). Elements without a box of positive area are not drawn. Then:
   it has one (D-055); a door with `hinge` "a" or "b" and a finite `toward` point also has
   its swing, and a window with `polygon_px` its frame. Otherwise its box, read as the
   centre line along the box's long side (a square box counts as horizontal), no swing;
+- a fixture with `properties.polygon_px` (traced from the ink, #146): that outline. A
+  fixture without one (a vocabulary code) is a label, as any other kind;
 - a room: its label (else its text), trimmed, at the box centre, with `polygon_px` as its
   outline. A computed `area_m2` is drawn under the name unless the drawing prints an area
   inside the room's outline;
@@ -26,7 +28,7 @@ from typing import TypeGuard
 
 from app.domain.geometry import BBox, Point
 from app.ingest.types import ExtractedElement
-from eval.redraw_sheet import Opening, Room, Sheet, Text, Wall
+from eval.redraw_sheet import Fixture, Opening, Room, Sheet, Text, Wall
 
 TEXT_SHARE = 1 / 100  # text size as a share of the page width (redraw.ts)
 ROOM_SIZE = 1.5  # room names relative to other text
@@ -43,6 +45,7 @@ def sheet_from_elements(elements: Sequence[ExtractedElement], page_width: float)
     openings: list[Opening] = []
     rooms: list[Room] = []
     texts: list[Text] = []
+    fixtures: list[Fixture] = []
     for e in elements:
         if e.bbox is None or not _has_area(e.bbox):
             continue
@@ -53,6 +56,10 @@ def sheet_from_elements(elements: Sequence[ExtractedElement], page_width: float)
             continue
         if e.kind in ("door", "window"):
             openings.append(_stored_opening(e.kind, e.properties) or _opening(e.kind, e.bbox))
+            continue
+        outline = _polygon(e.properties.get("polygon_px")) if e.kind == "fixture" else None
+        if outline:
+            fixtures.append(Fixture(outline))
             continue
         # JS `label ?? text ?? ""`: an empty label does not fall back to the text.
         raw = e.label if e.label is not None else e.text if e.text is not None else ""
@@ -70,7 +77,7 @@ def sheet_from_elements(elements: Sequence[ExtractedElement], page_width: float)
                 texts.append(Text(area, "other", (cx, cy + AREA_LINE * room_size)))
             continue
         texts.append(Text(text, e.kind if e.kind in _SCORED_KINDS else "other", (cx, cy)))
-    return Sheet(tuple(walls), tuple(openings), tuple(rooms), tuple(texts))
+    return Sheet(tuple(walls), tuple(openings), tuple(rooms), tuple(texts), tuple(fixtures))
 
 
 def _opening(kind: str, b: BBox) -> Opening:

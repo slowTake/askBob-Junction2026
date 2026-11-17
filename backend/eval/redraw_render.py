@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 
 from app.domain.geometry import Point
-from eval.redraw_sheet import Opening, Wall
+from eval.redraw_sheet import Fixture, Opening, Wall
 
 Mask = np.ndarray  # bool, shape (height, width)
 
@@ -54,6 +54,15 @@ def opening_mask(openings: Iterable[Opening], width: int, height: int) -> Mask:
             cv2.polylines(canvas, [outline], isClosed=True, color=1, thickness=1)
         else:
             cv2.line(canvas, _px(o.a), _px(o.b), 1, 1)
+    return canvas.astype(bool)
+
+
+def fixture_mask(fixtures: Iterable[Fixture], width: int, height: int) -> Mask:
+    """Fixtures as the Redrawn view draws them (#146): their closed outline, 1 px."""
+    canvas = np.zeros((height, width), dtype=np.uint8)
+    for f in fixtures:
+        outline = np.round(np.array(f.polygon)).astype(np.int32)
+        cv2.polylines(canvas, [outline], isClosed=True, color=1, thickness=1)
     return canvas.astype(bool)
 
 

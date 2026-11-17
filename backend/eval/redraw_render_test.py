@@ -1,7 +1,14 @@
 import numpy as np
 
-from eval.redraw_render import MaskScore, mask_scores, near_share, opening_mask, wall_mask
-from eval.redraw_sheet import Opening, Wall
+from eval.redraw_render import (
+    MaskScore,
+    fixture_mask,
+    mask_scores,
+    near_share,
+    opening_mask,
+    wall_mask,
+)
+from eval.redraw_sheet import Fixture, Opening, Wall
 
 
 def _mask(width: int, height: int, *pixels: tuple[int, int]) -> np.ndarray:
@@ -114,3 +121,11 @@ def test_a_door_is_drawn_as_its_leaf_and_swing() -> None:
 def test_a_door_without_a_swing_is_drawn_as_its_line() -> None:
     door = Opening("door", (10.0, 20.0), (30.0, 20.0))
     assert opening_mask([door], 60, 40).sum() == 21  # x 10..30 on row 20
+
+
+def test_a_fixture_is_drawn_as_its_closed_outline() -> None:
+    square = Fixture(((10.0, 10.0), (19.0, 10.0), (19.0, 19.0), (10.0, 19.0)))
+    mask = fixture_mask([square], 40, 40)
+    assert mask[10, 15] and mask[15, 10] and mask[19, 15] and mask[15, 19]  # its four sides
+    assert not mask[15, 15]  # not filled
+    assert mask.sum() == 36  # a 10 x 10 outline, 1 px: 4 x 10 - 4 corners

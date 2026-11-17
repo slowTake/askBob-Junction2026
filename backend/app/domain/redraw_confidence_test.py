@@ -96,6 +96,15 @@ def test_dimensions_heights_and_other_labels_are_drawn_in_the_text_size() -> Non
     assert a is not None and a.part == "text"
 
 
+def test_a_traced_fixture_is_its_closed_outline_and_a_coded_one_its_label() -> None:
+    ring = {"polygon_px": [[10, 10], [20, 10], [20, 20], [10, 20]], "drawn": "ring"}
+    assert shape("fixture", (10, 10, 20, 20), properties=ring) == Shape(
+        "fixtures", ((10, 10), (20, 10), (20, 20), (10, 20), (10, 10)), stroke=True
+    )
+    coded = shape("fixture", (0, 0, 20, 10), label="WC")
+    assert coded is not None and coded.part == "text"
+
+
 def test_what_the_view_leaves_out_is_not_drawn() -> None:
     assert shape("wall", None) is None
     assert shape("wall", (10, 10, 10, 20)) is None  # no area
