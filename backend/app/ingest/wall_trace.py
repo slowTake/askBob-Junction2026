@@ -64,8 +64,8 @@ def trace_walls(
     """
     if carve is not None:
         ink = ink & ~carve
-    text = _box_mask(ink.shape, text_boxes)
-    bands = _band_mask(ink, min_run_px, text)
+    text = box_mask(ink.shape, text_boxes)
+    bands = band_mask(ink, min_run_px, text)
     straight = _straight_strokes(ink)
     walls = [
         wall
@@ -81,14 +81,14 @@ def trace_walls(
     return walls
 
 
-def _box_mask(shape: tuple[int, ...], boxes: Sequence[BBox]) -> Mask:
+def box_mask(shape: tuple[int, ...], boxes: Sequence[BBox]) -> Mask:
     mask = np.zeros(shape[:2], dtype=bool)
     for x0, y0, x1, y1 in boxes:
         mask[max(0, int(y0)) : int(np.ceil(y1)) + 1, max(0, int(x0)) : int(np.ceil(x1)) + 1] = True
     return mask
 
 
-def _band_mask(ink: Mask, min_run_px: int, text: Mask) -> Mask:
+def band_mask(ink: Mask, min_run_px: int, text: Mask) -> Mask:
     """Ink at least `BAND_MIN_PX` thick once hatching and double lines are closed, in
     components that span a wall run and are not mostly lettering."""
     closed = cv2.morphologyEx(

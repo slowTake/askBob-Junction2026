@@ -240,7 +240,7 @@ def door_carve(doors: list[Door], symbols: Mask, ink: Mask) -> Mask:
         r = round(d.radius_px)
         width = 2 * CARVE_PX + 1
         cv2.line(drawn, _px(d.a), _px(d.leaf), 1, width)
-        start, sweep = _arc_angles(d)
+        start, sweep = arc_angles(d)
         cv2.ellipse(drawn, _px(d.a), (r, r), 0, start, start + sweep, 1, width)
     thick = cv2.morphologyEx(ink.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
     carve = drawn.astype(bool) & symbols & ~thick.astype(bool)
@@ -342,7 +342,7 @@ def _overlap(d: Door, e: Door) -> float:
     return inter / smaller if smaller > 0 else 0.0
 
 
-def _arc_angles(d: Door) -> tuple[float, float]:
+def arc_angles(d: Door) -> tuple[float, float]:
     """The arc from the leaf's end to the free end: its start angle and its 90-degree
     sweep, in OpenCV's degrees (y down)."""
     start = math.degrees(math.atan2(d.leaf[1] - d.a[1], d.leaf[0] - d.a[0]))
