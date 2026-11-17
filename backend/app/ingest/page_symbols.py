@@ -15,7 +15,7 @@ import numpy as np
 
 from app.domain.geometry import BBox, Point, footprint_mm
 from app.ingest.doors import Door, door_carve, find_doors
-from app.ingest.fixtures import Fixture, find_fixtures, without_swings
+from app.ingest.fixtures import Fixture, Fixtures, find_fixtures, without_swings
 from app.ingest.rooms import Mask
 from app.ingest.symbols import Window, find_windows, window_carve
 from app.ingest.types import ExtractedElement
@@ -58,7 +58,7 @@ def trace_with_symbols(
     windows = find_windows(symbols, fills, walls, min_window)
     fixtures = find_fixtures(ink, walls, lines, min_run_px, text_boxes)
     smallest, largest = (max(MIN_DOOR_PX, round(s * longest)) for s in DOOR_SHARES)
-    doors = find_doors(symbols, ink, walls, smallest, largest)
+    doors = find_doors(door_layer(symbols, fixtures), ink, walls, smallest, largest)
     fixtures = without_swings(fixtures, doors)
     if not windows and not doors and not fixtures.fixtures:
         return PageSymbols(first, [], [])
@@ -69,6 +69,13 @@ def trace_with_symbols(
     )
     traced = trace_walls(ink, min_run_px, text_boxes, dimension_boxes, carve)
     return PageSymbols(traced, windows, doors, fixtures.fixtures)
+
+
+def door_layer(symbols: Mask, fixtures: Fixtures) -> Mask:
+    """The symbols the door scan reads: less the fixtures closed by themselves, whose
+    rings (a burner, a basin in a counter) would otherwise read as a door's arc (#146).
+    A fixture against a wall stays: a found door's swing is closed by its wall too."""
+    return symbols & ~fixtures.self_closed
 
 
 def wall_raster(walls: Sequence[TracedWall], shape: tuple[int, ...]) -> Mask:
