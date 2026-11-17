@@ -7,7 +7,7 @@ LOCAL_ENV = DATABASE_URL=postgresql://bob:bob@postgres:5432/bob VALKEY_URL=redis
 UP_FLAGS = --build --detach
 SMOKE_TIMEOUT ?= 180
 
-.PHONY: help up up-aiven up-local up-verda up-claude smoke down logs check backend-check vision-check frontend-check size-check scripts-check frontend-image-check runtime-image-check fmt dev-api dev-worker dev-web
+.PHONY: help up up-aiven up-local up-verda up-claude smoke demo-snapshot demo-build down logs check backend-check vision-check frontend-check size-check scripts-check frontend-image-check runtime-image-check fmt dev-api dev-worker dev-web
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -40,6 +40,12 @@ up-claude: ## Run locally with Claude: key from environment, keyring, or a hidde
 smoke: ## Check the running stack: API healthy, worker listening, nginx proxies /api, UI served
 	SMOKE_TIMEOUT=$(SMOKE_TIMEOUT) scripts/smoke.sh
 
+demo-snapshot: ## Record the running stack's ready documents and answers into frontend/demo (D-059)
+	python3 scripts/demo_snapshot.py
+
+demo-build: ## Build the static demo from frontend/demo into frontend/dist-demo
+	cd frontend && npm run build:demo
+
 down: ## Stop all containers
 	docker compose --profile local down
 
@@ -65,6 +71,7 @@ scripts-check: ## Tests for the helper scripts
 	scripts/aiven-env-test.sh
 	bash scripts/claude-env-test.sh
 	scripts/smoke-test.sh
+	python3 scripts/demo_snapshot_test.py
 
 frontend-image-check: ## Frontend image starts without a backend and follows BACKEND_URL (needs Docker; CI runs it)
 	scripts/frontend-image-test.sh
