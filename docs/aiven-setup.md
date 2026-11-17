@@ -81,7 +81,7 @@ Then start everything against Aiven:
 make up-aiven      # docker compose up --build, against Aiven
 ```
 
-`make up-aiven` sources `scripts/aiven-env.sh` in a subshell, which builds `DATABASE_URL` and `VALKEY_URL` from the host and port `avn` reports (with your own token) and the passwords from your keyring. They exist only for that one `docker compose` process; nothing is written to disk. The script defaults to the team's project and services; override `AIVEN_PROJECT`, `AIVEN_PG_SERVICE`, `AIVEN_VALKEY_SERVICE` or `AIVEN_PG_USER` (keyring entry `aiven-pg-<user>`) if you need others. To get the variables in your own shell instead, `source scripts/aiven-env.sh`, then `make up`.
+`make up-aiven` sources `scripts/aiven-env.sh` in a subshell, which builds `DATABASE_URL` and `VALKEY_URL` from the host and port `avn` reports (with your own token) and the passwords from your keyring. They exist only for that one `docker compose` process; nothing is written to disk. The script defaults to the team's project and services; override `AIVEN_PROJECT`, `AIVEN_PG_SERVICE`, `AIVEN_VALKEY_SERVICE` or `AIVEN_PG_USER` (keyring entry `aiven-pg-<user>`) if you need others. To get the variables in your own shell instead, `source scripts/aiven-env.sh`, then `docker compose up --build --detach` (`make up` is the local stack since D-059).
 
 If you also keep an Anthropic API key in the keyring (`secret-tool store --label="Anthropic API key" service anthropic`), the script exports it as `ANTHROPIC_API_KEY` too.
 
