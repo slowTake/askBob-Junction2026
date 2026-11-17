@@ -191,8 +191,9 @@ def test_the_recorded_reading_loses_only_line_work() -> None:
 # its floor; one that has to lower a floor says why in its decision.
 FLOORS = {
     # Ratios are rounded down: 0.96488 recorded, 0.96464 with doors and windows (D-055),
-    # 0.96669 with fewer false doors carving the walls (D-057).
-    "walls recall": 0.966,
+    # 0.96669 with fewer false doors carving the walls (D-057), 0.96763 with fixtures
+    # carved out of them (D-058).
+    "walls recall": 0.967,
     # D-053 lowered this from 0.969: 3 thick walls became the whole wall network, with
     # fixtures and handwriting that touch the walls (0.80495 recorded). D-055: window
     # frames and door leaves and arcs are no longer traced as wall (0.83554 recorded).
@@ -200,7 +201,8 @@ FLOORS = {
     # fixtures' rings out of the walls; without them the rings are wall again (fixtures
     # are a separate issue). 0.82632 recorded with doors' gaps on a wall, 0.82144 with
     # wall corners no longer read as leaves, 0.81959 with circles no longer read as arcs.
-    "walls precision": 0.819,
+    # D-058: fixture rings are found and carved out of the walls (0.84930 recorded).
+    "walls precision": 0.849,
     "openings found": 24,  # D-057: 12 windows and 12 doors of 34
     "openings swings": 11,  # D-057: 11 of the 12 doors the truth gives a swing for
     "openings precision": 0.888,  # D-057: 24 of 27 drawn (0.88889 recorded)
@@ -217,7 +219,9 @@ FLOORS = {
     # arc is drawn round that hinge, 3-4 px off the arc the scan draws from a band's edge
     # (0.99724 recorded).
     "redraw on ink": 0.997,
-    "ink redrawn": 0.81,  # 0.80847 recorded with doors and windows (D-055), 0.81033 (D-057)
+    # 0.80847 recorded with doors and windows (D-055), 0.81033 (D-057), 0.81458 with
+    # fixtures drawn as their outlines (D-058).
+    "ink redrawn": 0.814,
 }
 
 

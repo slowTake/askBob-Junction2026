@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 import pytest
 
@@ -73,3 +74,36 @@ def test_the_models_doors_and_windows_give_way_to_the_drawn_ones() -> None:
     far = ExtractedElement(kind="window", source="vision", bbox=(10, 10, 30, 14))
     fixture = ExtractedElement(kind="fixture", source="vision", bbox=(80, 50, 100, 70))
     assert beyond_symbols([near, far, fixture], drawn, reach_px=4) == [far, fixture]
+
+
+def test_a_fixture_s_ring_is_carved_out_of_the_walls_and_stored_as_its_outline() -> None:
+    ink = np.zeros((H, W), np.uint8)
+    ink[50:56, 10:190] = 1  # a band 6 px thick, rows 50..55
+    # A chair on it: a 14 x 14 outline (x 80..93, y 56..69) and its inner square 2 px in.
+    # The page's longest side is 200: a fixture's hole is at most 0.045 x 200 = 9 px across;
+    # the inner square's hole is x 83..90 (8 px).
+    cv2.rectangle(ink, (80, 56), (93, 69), 1, 1)
+    cv2.rectangle(ink, (82, 58), (91, 67), 1, 1)
+    mask = ink.astype(bool)
+    # No symbol layer: a door could read in the square (a leaf and its quarter) and take
+    # the hole for its swing.
+    found = trace_with_symbols(mask, np.zeros_like(mask), np.zeros_like(mask), RUN)
+    assert len(found.fixtures) == 1
+    assert not any(point_in_polygon((80, 62), w.polygon) for w in found.walls)  # not wall
+    assert any(point_in_polygon((150, 52.5), w.polygon) for w in found.walls)  # the band is
+    (el,) = [e for e in symbol_elements(found, scale_mm=10.0, page_height=H) if e.kind == "fixture"]
+    assert el.source == "derived" and el.label is None
+    assert el.properties["drawn"] == "ring"
+    xs = [p[0] for p in el.properties["polygon_px"]]
+    ys = [p[1] for p in el.properties["polygon_px"]]
+    # The outline is the chair's outer square, x 80..93, y 56..69 (1 px simplification).
+    assert (min(xs), min(ys), max(xs), max(ys)) == pytest.approx((80, 56, 93, 69), abs=1)
+    assert el.bbox == (min(xs), min(ys), max(xs), max(ys))
+    assert el.footprint_mm is not None  # the scale is known
+
+
+def test_the_models_fixtures_give_way_to_the_drawn_ones() -> None:
+    drawn = [ExtractedElement(kind="fixture", source="derived", bbox=(80, 50, 100, 70))]
+    near = ExtractedElement(kind="fixture", source="vision", bbox=(82, 52, 100, 72))  # 2.8 px
+    door = ExtractedElement(kind="door", source="vision", bbox=(80, 50, 100, 70))
+    assert beyond_symbols([near, door], drawn, reach_px=4) == [door]
