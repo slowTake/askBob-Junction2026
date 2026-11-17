@@ -60,11 +60,17 @@ class Text:
 
 
 @dataclass(frozen=True)
+class Fixture:
+    polygon: tuple[Point, ...]  # the outline drawn (redraw only, #146: the truth has none)
+
+
+@dataclass(frozen=True)
 class Sheet:
     walls: tuple[Wall, ...] = ()
     openings: tuple[Opening, ...] = ()
     rooms: tuple[Room, ...] = ()
     texts: tuple[Text, ...] = ()
+    fixtures: tuple[Fixture, ...] = ()
 
 
 def load_sheet(raw: object, width: float, height: float) -> Sheet:

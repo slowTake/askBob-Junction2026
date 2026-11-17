@@ -13,7 +13,9 @@ the Redrawn view draws with the page's line work, so it needs no truth:
 The redraw is drawn as pixels the way the view draws it (`drawn_shape`, mirroring
 `frontend/src/lib/redraw.ts`): walls as their outlines; doors and windows from their
 stored gap (D-055): a door with a swing as its leaf and arc, a window as its frame, any
-other gap as its line, all drawn as 1 px lines, and as their box without a gap; labels
+other gap as its line, all drawn as 1 px lines, and as their box without a gap; a
+fixture traced from the ink (#146) as its closed outline, 1 px (a coded one is a label);
+labels
 as a box of the rendered text's size at the element's centre: the view uses one font
 size per page, never the OCR box, so a misread box does not score.
 The breakdown is per part. The pixel work is in `app/ingest/confidence.py`; this module
@@ -32,7 +34,7 @@ CONFIDENCE_FORMAT = 2  # bumped when the rules change, so an older entry is not 
 # Share of the page width within which a drawn pixel is on the ink: 2 px on the
 # benchmark's 482 px page, the same as its wall and ink tolerance (D-049).
 INK_TOLERANCE = 2 / 482
-PARTS = ("walls", "openings", "rooms", "dimensions", "heights", "text")
+PARTS = ("walls", "openings", "fixtures", "rooms", "dimensions", "heights", "text")
 MARK_CAP = 40  # patches of missed or added pixels kept, the largest first
 
 # redraw.ts: one text size per page, room names 1.5x, unsure free text not drawn.
@@ -131,6 +133,9 @@ def drawn_shape(
     if kind in ("door", "window"):
         line = _stored_opening(kind, properties)
         return Shape("openings", line, stroke=True) if line else Shape("openings", box)
+    outline = _polygon(properties.get("polygon_px")) if kind == "fixture" else None
+    if outline:
+        return Shape("fixtures", (*outline, outline[0]), stroke=True)
     # JS `label ?? text ?? ""`: an empty label does not fall back to the text.
     raw = label if label is not None else text if text is not None else ""
     shown = raw.strip()

@@ -21,7 +21,7 @@ from eval.redraw_bench import (
 )
 from eval.redraw_bench import TRUTH as TRUTH_FILE
 from eval.redraw_render import opening_mask, wall_mask
-from eval.redraw_sheet import Opening, Room, Sheet, Text, Wall, load_sheet
+from eval.redraw_sheet import Fixture, Opening, Room, Sheet, Text, Wall, load_sheet
 
 W, H = 482, 507  # the benchmark page: tolerances are 2 px (walls, ink) and 4 px (positions)
 
@@ -95,6 +95,19 @@ def test_a_redraw_on_a_coloured_symbol_is_on_the_page() -> None:
     r = report(Sheet(walls=(*TRUTH.walls, extra)), TRUTH, ink, W, H, lines)
     assert r.redraw_on_ink == 1.0  # all of it on the page's lines
     assert r.ink_redrawn == 1.0  # and the ink is all redrawn
+
+
+def test_a_fixture_s_outline_redraws_its_ink_and_is_not_a_wall() -> None:
+    walls = Sheet(walls=TRUTH.walls)
+    ink = wall_mask(TRUTH.walls, W, H)
+    ink[300, 300:310] = ink[309, 300:310] = True  # a 10 x 10 outline far from the wall:
+    ink[300:310, 300] = ink[300:310, 309] = True  # 4 x 10 - 4 corners = 36 px
+    square = Fixture(((300, 300), (309, 300), (309, 309), (300, 309)))
+    r = report(Sheet(walls=TRUTH.walls, fixtures=(square,)), walls, ink, W, H)
+    assert r.ink_redrawn == 1.0 and r.redraw_on_ink == 1.0  # its ink is redrawn, on ink
+    assert (r.walls.recall, r.walls.precision) == (1.0, 1.0)  # and it is not scored as wall
+    without = report(walls, walls, ink, W, H)
+    assert without.ink_redrawn == pytest.approx(3381 / (3381 + 36))
 
 
 def test_positions_count_within_four_pixels() -> None:
