@@ -12,12 +12,9 @@ SMOKE_TIMEOUT ?= 180
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
 
-up: ## Run everything against Aiven (run `source scripts/aiven-env.sh` first)
-	@test -n "$$DATABASE_URL" -a -n "$$VALKEY_URL" || { echo "Run: source scripts/aiven-env.sh"; exit 1; }
-	docker compose up $(UP_FLAGS)
-	@$(MAKE) --no-print-directory smoke
+up: up-local ## Run everything locally (the default, D-059); same as up-local
 
-up-aiven: ## Run everything against Aiven: URLs from avn, passwords from your keyring
+up-aiven: ## Optional: run against Aiven Postgres + Valkey (URLs from avn, passwords from your keyring)
 	bash -c 'source scripts/aiven-env.sh && exec docker compose up $(UP_FLAGS)'
 	@$(MAKE) --no-print-directory smoke
 

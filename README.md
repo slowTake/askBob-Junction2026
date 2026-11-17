@@ -46,11 +46,11 @@ Every format goes through the same pipeline and ends up as an IFC model plus the
 
 ### Aiven, Verda and the Claude API
 
-**Aiven** runs our data services ([D-005](docs/decisions.md), setup in [docs/aiven-setup.md](docs/aiven-setup.md)):
+**Aiven** can host the data services instead of the local containers ([D-005](docs/decisions.md); local is the default since [D-059](docs/decisions.md), setup in [docs/aiven-setup.md](docs/aiven-setup.md)):
 - **Aiven for PostgreSQL** holds the building model (documents, pages, elements with provenance) and `qa_log`: every question and answer with whether it verified, the model, latency and tokens. `pg_trgm` powers fuzzy label search; `pgvector` is enabled for embeddings.
 - **Aiven for Valkey** is the ingest job queue (RQ), the pub/sub channel for live progress that the browser gets over SSE, and the answer cache, keyed by question and document version.
-- **Aiven Runtime** hosts the demo: one app, `askBob`, runs the UI's nginx, the API and the ingest worker in one container built from the root `Dockerfile` ([D-034](docs/decisions.md)). See [Deploy on Aiven Runtime](#deploy-on-aiven-runtime).
-- Connection details come from `avn` and your OS keyring at start-up (`make up-aiven`) and are never written to a file. `make up-local` runs the same app against local containers when offline.
+- **Aiven Runtime** hosted the hackathon demo: one app, `askBob`, runs the UI's nginx, the API and the ingest worker in one container built from the root `Dockerfile` ([D-034](docs/decisions.md)). See [Deploy on Aiven Runtime](#deploy-on-aiven-runtime-hackathon-setup).
+- Connection details come from `avn` and your OS keyring at start-up (`make up-aiven`) and are never written to a file. `make up` runs the same app against local containers.
 
 **The Claude API** does the reasoning:
 - **The Q&A agent** (`claude-haiku-5-5``, effort `high`) answers only through read-only tools over the extracted elements, can look at regions of a drawing as images, and returns structured JSON with citations that the server checks before marking an answer verified ([D-006](docs/decisions.md), [D-031](docs/decisions.md)).
@@ -61,14 +61,13 @@ Every format goes through the same pipeline and ends up as an IFC model plus the
 
 ## Run it
 
-**With Aiven** (shared setup; first follow [docs/aiven-setup.md](docs/aiven-setup.md)):
+Locally, with everything in Docker (the default, [D-059](docs/decisions.md)):
 
 ```bash
-make up-aiven      # UI on http://localhost:8080, API on :8000
-                   # URLs from avn + your keyring (aiven-pg-app, aiven-valkey); see aiven-setup.md step 5
+make up            # UI on http://localhost:8080, API on :8000; same as make up-local
 ```
 
-**Offline**, with local Postgres and Valkey containers: `make up-local`.
+**With Aiven** instead of local Postgres and Valkey (optional; first follow [docs/aiven-setup.md](docs/aiven-setup.md)): `make up-aiven`.
 
 **With Claude locally:** run `make up-claude`. It uses `ANTHROPIC_API_KEY` from
 your environment, then the Linux keyring entry `service anthropic`, or asks for
@@ -121,7 +120,19 @@ make dev-web      # terminal 3: UI on :5173, proxies /api to :8000
 
 Docker needs the daemon running and your user in the `docker` group (`sudo systemctl start docker`, `sudo usermod -aG docker $USER`, then log in again).
 
-### Deploy on Aiven Runtime
+### The static demo
+
+The public demo is a static build that replays real runs ([D-059](docs/decisions.md)), so it needs no backend and costs nothing to host:
+
+```bash
+make up                 # then upload a few drawings and wait until they are Ready
+make demo-snapshot      # records them and the example questions' answers into frontend/demo/
+make demo-build         # static site in frontend/dist-demo/; or `cd frontend && npm run dev:demo`
+```
+
+Commit `frontend/demo/` and the `Demo` workflow publishes it to GitHub Pages. Only commit drawings you may publish. Asking the questions runs the real agent, so `make demo-snapshot` needs a stack started with a Claude key (`make up-claude`) and no `APP_PASSWORD`.
+
+### Deploy on Aiven Runtime (hackathon setup)
 
 The whole app runs as one Runtime app (D-034): nginx on port 8080 serves the UI and
 proxies `/api` to the API in the same container, and the ingest worker runs beside it.
