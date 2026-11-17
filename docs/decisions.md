@@ -1031,3 +1031,56 @@ The one false door left, at (117,64)–(129,64), sits on a scalloped line beside
 - Stored door gaps lie on the wall's centre line, as the route tool and #34 want them.
 - Fixtures drawn as small circles inside a cabinet (burners, sinks) still pass as doors on high_quality pages; they need the fixture work.
 - The leaf rule costs doors drawn open flat against a wall that runs on (t4, one on colorful-13685); the alternative, keeping of two readings of one arc the one whose leaf is less on a wall, keeps them but lets the stools back on colorful-34 (P about 79 %).
+
+## D-058: Fixture rings are read from the ink's small closed shapes and taken out of the walls and the door scan (#146)
+
+**Date:** 2026-11-17 · **Status:** Accepted · **Refines:** D-053 (what is not a wall), D-055 (the carve, the symbol layer), D-057 (door candidates)
+
+**Context:** About 1,360 px of colorful-34's false wall were furniture and sanitary symbols (a table and its chairs, a cupboard, basins, a cabinet): nested 1 px outlines 2–3 px apart that the band tracing's 5 px closing turns into bands. D-055 cut fixtures from #141 because the band mask's rings are split at junctions and left open (it has only 4 holes on the page), so a ring touching a wall loses its hole; size and shape statistics alone did not separate fixture pieces from short wall pieces. Before #144 false doors carved some of the rings out by accident; without them walls precision fell to 0.819 (D-057). On high_quality-11384 burner and sink circles still read as doors.
+
+**Decision** (`app/ingest/fixtures.py`, pure; wired in `page_symbols.trace_with_symbols`). The holes are read on the ink itself: `closed = close(ink, 3×3)`, holes `fill_holes(closed) & ~closed`, 4-connected. A hole (box w × h, area A; L the page's longest side) is a fixture's inside when:
+1. **size:** max(w, h) ≤ 0.045 L (22 px on colorful-34, about 0.5 m) and A ≤ (0.045 L)²; min(w, h) ≥ 4 and A ≥ 16 (letter loops, hatch cells);
+2. **not a strip:** not (min ≤ 6 px and max ≥ 2.5 min): a double-line wall's gap, a window pane, a threshold;
+3. **thin rim:** at most 60 % of the rim (`dilate(hole) & ~hole & ink`) is thick ink (`open(ink, 3×3)`): a chimney's hollow is thick all round;
+4. **closed into a band:** at least 50 % of the rim in the first trace's band mask: that is what made it false wall; a ring of thin lines the trace never took as wall is left alone;
+5. **one neighbour:** within 5 px of the hole, at most one region (another hole of `closed`, or the page's outside) at least 2 × A. A fixture sits in one room; a closet with double-line walls borders the rooms on its sides. The 2 × keeps a chair beside the table, a burner beside its twins;
+6. **not text:** at most 50 % of the hole inside OCR word boxes that read as text;
+7. **fill:** at least 0.6 of its box once strokes inside are closed over (5 × 5);
+8. **not a found door's swing:** after `find_doors`, a hole at least 50 % inside a door's quarter disc (radius + 2 px) is the swing.
+
+The **carve** is, per kept hole, the ink inside it and the thin ink within 3 px of it (`dilate(hole, 7×7) & ink & ~thick & ~lines`, `lines` the first trace's thin-line walls): the nested outer outline goes, thick ink and thin-line walls never do, so a wall stub or a band edge touching a fixture stays. It joins the door and window carve before the second trace. One fixture per patch of carved ink (`close(carve, 7×7)`, external contours, `approxPolyDP(1.0)`).
+
+A fixture whose rim lies at most 25 % on the first trace's walls is **self-closed** (a burner, a basin in a counter; not a chair against a wall, not a door's swing closed by its wall); its ink is left out of the door scan's symbol layer, so its ring is neither arc nor leaf.
+
+Fixtures are stored as `kind="fixture"`, `source="derived"`, confidence 0.5, `properties={"polygon_px", "drawn": "ring"}`, no label, `footprint_mm` when the scale is known; a vision fixture within reach of one gives way, as doors and windows do. `fixture` stays a shared kind: a vocabulary code makes a labelled fixture with no polygon, and the Redrawn view, `redraw_confidence.drawn_shape` and the benchmark sheet branch on `polygon_px` (outline) against a label. The view draws the outline, 0.75 px, unfilled; the confidence has a `fixtures` part (format unchanged: an older stored entry lacks the part and the badge leaves it out); the benchmark draws fixtures 1 px for "ink redrawn" and "on ink", never as wall.
+
+**Measured.** colorful-34 (`python -m eval.redraw_bench`, recorded OCR, vision off):
+
+| | before (main) | after |
+| --- | --- | --- |
+| walls recall / precision | 96.67 % / 81.93 % | 96.76 % / 84.93 % |
+| walls drawn | 148 | 131 |
+| fixtures drawn | 0 | 10 |
+| openings found (drawn), swings | 24 / 34 (27), 11 / 12 | unchanged |
+| ink redrawn / on ink | 81.03 % / 99.72 % | 81.46 % / 99.73 % |
+| confidence (D-056) | 86.9 % | 87.1 % |
+| rooms, texts | unchanged | unchanged |
+
+Without the fixture outlines drawn, ink redrawn would fall to about 78.8 %: their ink is no longer wall, so the benchmark's drawn mask had to learn them first (the eval commit lands before the wiring). Every kept hole on colorful-34 carves 0 px of truth wall; a size of 0.08 L carved 55 px of the Pukuh closet and put recall at 96.5 %.
+
+**Floors** (`eval/redraw_bench_test.py`), all raised: walls precision 0.819 → 0.849, walls recall 0.966 → 0.967, ink redrawn 0.81 → 0.814. Openings and on ink unchanged (0.99729 ≥ 0.997). The issue's bar, walls precision ≥ 0.835, is met.
+
+**Multi-page check** (10 CubiCasa pages, colour layers, local OCR; fixtures found, doors without → with self-closed rings off the door scan): colorful-11960 0, 6 → 6; colorful-6327 3, 6 → 6; colorful-2194 3, 0 → 0; colorful-13685 11, 9 → 9; high_quality-11384 7, 9 → 7; high_quality-1097 5, 8 → 8; high_quality-5682 10, 3 → 3; high_quality_architectural-5742 12, 6 → 6; high_quality_architectural-1772 13, 4 → 4; high_quality_architectural-12617 0, 0 → 0. No real door is lost; high_quality-11384 drops the two left burners' doors. The first trace and fixture finding take 0.01–0.19 s on these pages and 0.35 s on the 2,480 px one. By eye, high_quality-11384 outlines the burners, sink, basin and WC, and also the "EK" of PARVEKE and "dg" of the logo: letters whose gaps close, in words OCR did not read as text (rule 7 does not catch them).
+
+**Not done:**
+- On colorful-34: the stove frame (30 px, four neighbours), the WC bowl in its tiny "wc" room (three neighbours), the "wc" and other handwriting, the kuisti threshold (a strip), the counter right of the stove (a thin-line rim).
+- Doors drawn open against a wall (t4, one on colorful-13685), left as D-057 has them: the tie-break alternative lets the chairs back (P ≈ 79 %), and the chairs are not self-closed (rims 51–73 % on walls); carving every ring from the door layer would need the swing exclusion (rule 8) before the doors are found. A follow-up with the stored arc centre.
+- 4 of high_quality-11384's 6 false doors stay: the right burners', the sink's and the dishwasher's arcs read on lines that touch the counter, which the first trace takes as wall.
+- Letters with closed gaps in words OCR missed; if it matters, require the rim to lie at most 40 % inside any OCR box.
+
+Supersedes nothing; D-053, D-055 and D-057 stand.
+
+**Consequences:**
+- Fixtures exist as elements for the route tool and #34 (not passable); the IFC export maps `fixture` to `IfcFurnishingElement` and gets their outline when the scale is known.
+- The size cut is in page px: a plan drawn small on a big sheet (high_quality_architectural-12617) finds none. The scale, when known, could set it in mm (0.5 m).
+- On a grey scan, a door the scan misses whose swing is closed into a band can be outlined as a fixture: on ink, but mislabelled (the #146 study saw two on colorful-13685). Rejecting holes whose rim is a quarter arc is a cut candidate for a later issue.
