@@ -8,7 +8,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-002 | 2026-11-14 | Track work in GitHub issues with one board            | Accepted |
 | D-003 | 2026-11-14 | Stack: FastAPI + RQ worker, React/Vite, Docker Compose | Accepted |
 | D-004 | 2026-11-14 | A canonical building model with provenance; IFC is an export | Accepted |
-| D-005 | 2026-11-14 | Aiven for PostgreSQL and Aiven for Valkey; no Kafka/OpenSearch yet | Accepted |
+| D-005 | 2026-11-14 | Aiven for PostgreSQL and Aiven for Valkey; no Kafka/OpenSearch yet | Superseded in part by D-059 |
 | D-006 | 2026-11-14 | Q&A agent answers only from tools, with server-checked citations | Accepted |
 | D-007 | 2026-11-14 | UI follows DESIGN.md; highlights by dimming, not colour | Superseded in part by D-012 |
 | D-008 | 2026-11-14 | CI enforces RULES.md; local git hooks come later | Accepted |
@@ -41,7 +41,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-031 | 2026-11-14 | Claude omits unused tool filters to stay within strict-schema limits (#111) | Accepted |
 | D-032 | 2026-11-14 | `make up-*` start in the background and smoke-check the stack (#107) | Accepted |
 | D-033 | 2026-11-14 | The UI's nginx finds the backend per request, at an address from `BACKEND_URL` (#107, #64) | Accepted |
-| D-034 | 2026-11-14 | The demo runs on Aiven Runtime as one container: UI, API and worker (#116) | Accepted |
+| D-034 | 2026-11-14 | The demo runs on Aiven Runtime as one container: UI, API and worker (#116) | Superseded in part by D-059 |
 | D-035 | 2026-11-14 | One Export menu holds Download IFC, Download SVG and Print (#109) | Accepted |
 | D-036 | 2026-11-14 | Every question reports what it used; the eval turns that into cost | Accepted |
 | D-037 | 2026-11-14 | IFC base quantities are stored in SI units and totalled by the server | Accepted |
@@ -60,6 +60,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-051 | 2026-11-16 | Raster pages are split by colour before thresholding: line work, fills, red annotations (#89) | Accepted |
 | D-052 | 2026-11-16 | OCR words that are line work are dropped before they become elements (#90) | Accepted |
 | D-053 | 2026-11-16 | Raster walls are traced from the ink as polygons: bands and thin lines; model walls only add (#137) | Accepted |
+| D-059 | 2026-11-17 | Local Docker is the default stack; the public demo is a static replay of recorded real runs (#149) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -103,7 +104,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 
 ## D-005: Aiven for PostgreSQL and Aiven for Valkey; no Kafka/OpenSearch yet
 
-**Date:** 2026-11-14 · **Status:** Accepted
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-059 (local containers are the default)
 
 **Context:** We want managed services wherever they help, and the free Aiven plans cover what we need.
 
@@ -577,7 +578,7 @@ Small pages are enlarged, not sent as is: on colorful-34 (482 × 507 px) the nat
 
 ## D-034: The demo runs on Aiven Runtime as one container: UI, API and worker
 
-**Date:** 2026-11-14 · **Status:** Accepted · **Issue:** #116
+**Date:** 2026-11-14 · **Status:** Superseded in part by D-059 (the public demo is static) · **Issue:** #116
 
 **Context:** We want the app hosted for the Junction demo on Aiven Runtime, next to our Aiven Postgres and Valkey. Runtime apps cannot share a disk and "an Aiven Runtime application cannot be integrated with another Runtime application"; ports are public HTTPS only. Our API and worker share `/data` for uploads, page images, IFC and meshes (`backend/app/storage.py`), so separate apps would need that storage moved first (into Postgres or an object store), which is more than the event leaves time for.
 
@@ -1084,3 +1085,21 @@ Supersedes nothing; D-053, D-055 and D-057 stand.
 - Fixtures exist as elements for the route tool and #34 (not passable); the IFC export maps `fixture` to `IfcFurnishingElement` and gets their outline when the scale is known.
 - The size cut is in page px: a plan drawn small on a big sheet (high_quality_architectural-12617) finds none. The scale, when known, could set it in mm (0.5 m).
 - On a grey scan, a door the scan misses whose swing is closed into a band can be outlined as a fixture: on ink, but mislabelled (the #146 study saw two on colorful-13685). Rejecting holes whose rim is a quarter arc is a cut candidate for a later issue.
+
+## D-059: Local Docker is the default stack; the public demo is a static replay of recorded real runs (#149)
+
+**Date:** 2026-11-17 · **Status:** Accepted · **Supersedes in part:** D-005 (Aiven as the main data services), D-034 (Aiven Runtime as the demo)
+
+**Context:** Running on Aiven Runtime (D-034) has no shared disk, so uploaded files are lost on every redeploy while their rows stay, and the vision service cannot run beside the app. That leaves two stacks to keep working: Aiven and `up-local`, with the local one treated as the fallback. The shared Aiven database is also unsafe for eval runs. After the hackathon the project's audience is a portfolio. A live hosted demo there would need paid hosting, spend Claude credit on every visitor and fail without anyone noticing.
+
+**Decision:**
+- **`make up` runs the local stack** (`up-local`: Postgres, Valkey, API, worker, vision and UI in Compose). This is the stack we develop, evaluate and record on. `make up-aiven` stays as an option and `docs/aiven-setup.md` still applies to it, but nothing depends on Aiven.
+- **The public demo is static.** `scripts/demo_snapshot.py` (standard library only) records a running local stack into `frontend/demo/`: `snapshot.json` (health, document details, recorded answers) and per-document page images, elements, recorded upscale results, the mesh (stored unzipped) and the IFC. It asks each question in `frontend/src/lib/examples.json` about each ready document; the Ask panel offers the same questions as its examples, so they replay. `vite build --mode demo` (`npm run build:demo`) serves `frontend/demo/` as the public folder with a relative base, and `api/client.ts` swaps `liveApi` for `createDemoApi` (`src/demo/`), which has the same shape:
+  - reads come from the snapshot; `/api/events` is not opened;
+  - `ask` replays the recorded events in order, 350 ms apart, matched by `findRecording`: case, spacing and closing punctuation are ignored; the same document set wins, then the document on screen, then the first recording of the question. An unrecorded question gets a `demo_not_recorded` error listing the recorded ones;
+  - writes (upload, delete, reingest, login, an unrecorded upscale) fail with `demo_read_only`, which says the demo is recorded and how to run it live;
+  - the nav bar shows "Recorded demo · run it live" (a link to the repo) where Upload sits.
+- **Honesty:** every answer in the demo was produced by the real pipeline and agent. Nothing is written by hand, and the label says it is a recording.
+- `.github/workflows/pages.yml` builds the demo and publishes it to GitHub Pages on pushes to `main` that touch `frontend/`, and only once a snapshot exists.
+
+**Consequences:** The demo needs no backend, costs nothing to host and keeps working. It answers only the recorded questions, and selecting elements does not change an answer. The snapshot's images and meshes are committed, so we record a few documents only, chosen for licences that allow publishing them. Aiven Runtime, the root `Dockerfile` and its CI check stay as they are until a later issue removes them. Hosting it live again later means running the same Compose file on one small VM.
