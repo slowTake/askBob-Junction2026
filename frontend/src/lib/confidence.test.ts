@@ -17,6 +17,7 @@ const SCORED: RedrawConfidence = {
   parts: {
     walls: part(158, 0.998, 0.669),
     openings: part(0, 1, 0),
+    fixtures: part(10, 0.994, 0.031),
     rooms: part(3, 0.9, 0.005),
     dimensions: part(8, 1, 0.024),
     heights: part(13, 1, 0.044),
@@ -50,6 +51,7 @@ describe("confidenceRows", () => {
     expect(rows.map((r) => r.label)).toEqual([
       "Walls",
       "Doors and windows",
+      "Fixtures",
       "Room names",
       "Dimensions",
       "Heights",

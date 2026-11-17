@@ -101,7 +101,7 @@ describe("buildCleanSheet", () => {
       el({ id: "d1", kind: "door" }),
       el({ id: "t1", kind: "text", label: "NOTE" }),
     ]);
-    expect(sheet).toEqual({ walls: [], rooms: [], openings: [], labels: [] });
+    expect(sheet).toEqual({ walls: [], rooms: [], openings: [], fixtures: [], labels: [] });
   });
 
   it("gives a room its outline, its code in bold and its area underneath", () => {
@@ -288,6 +288,26 @@ describe("buildCleanSheet", () => {
     ]);
   });
 
+  it("draws a fixture traced from the ink as its outline, and a coded one as its label", () => {
+    const sheet = sheetOf([
+      el({
+        id: "f1",
+        kind: "fixture",
+        source: "derived",
+        bbox: [100, 100, 300, 260],
+        properties: { polygon_px: square, drawn: "ring" },
+      }),
+      el({ id: "f2", kind: "fixture", label: "WC", bbox: [0, 0, 20, 10] }),
+    ]);
+    expect(sheet.fixtures).toEqual([
+      { id: "f1", points: "100,100 300,100 300,260 100,260", added: false },
+    ]);
+    // A vocabulary code has no outline: its label at the box centre (10, 5), size 10.
+    expect(sheet.labels).toEqual([
+      { id: "f2", kind: "fixture", text: "WC", x: 10, y: 5, size: 10 },
+    ]);
+  });
+
   it("leaves out unclassified OCR text that is unsure or has no letter or digit", () => {
     const sheet = sheetOf([
       el({ id: "t1", kind: "text", label: "“Lae", confidence: 0.37, bbox: [0, 0, 50, 112] }),
@@ -307,7 +327,7 @@ describe("buildCleanSheet", () => {
       el({ id: "x4", kind: "text", label: "A", bbox: [0, 10, 10, 10] }), // zero height
       el({ id: "x5", kind: "door", bbox: [0, 0, 0, 10] }), // zero width
     ]);
-    expect(sheet).toEqual({ walls: [], rooms: [], openings: [], labels: [] });
+    expect(sheet).toEqual({ walls: [], rooms: [], openings: [], fixtures: [], labels: [] });
   });
 });
 

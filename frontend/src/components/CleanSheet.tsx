@@ -33,6 +33,9 @@ export const CleanSheet = memo(function CleanSheet({ sheet, width, height, bar }
       {sheet.walls.map((w) => (
         <polygon key={w.id} points={w.points} className={`clean-wall${added(w.added)}`} />
       ))}
+      {sheet.fixtures.map((f) => (
+        <polygon key={f.id} points={f.points} className={`clean-fixture${added(f.added)}`} />
+      ))}
       {sheet.openings.map((o) => {
         const cls = `clean-${o.kind}${added(o.added)}`;
         if (o.leaf && o.arc) {

@@ -11,6 +11,13 @@ describe("exportCss", () => {
     expect(css).toContain("#161616"); // walls and symbols
   });
 
+  it("draws fixtures as their outline, unfilled, at half a line (#146)", () => {
+    // Half of 4 px (0.2 % of 2000 px).
+    expect(exportCss(PAGE)).toContain(
+      ".clean-fixture { fill: none; stroke: #161616; stroke-width: 2px; }",
+    );
+  });
+
   it("sizes lines to the page, as the server render does", () => {
     // 0.2 % of the longer side, 2000 px: 4 px; door arcs and window lines half that.
     expect(exportCss(PAGE)).toContain("stroke-width: 4px");

@@ -26,6 +26,7 @@ export function exportCss(page: Size): string {
     ".clean-window { fill: #f6f8fb; }",
     ".clean-leaf, .clean-gap { fill: none; stroke: #161616; stroke-width: " + px(line) + "; }",
     ".clean-arc { fill: none; stroke: #161616; stroke-width: " + px(line / 2) + "; }",
+    ".clean-fixture { fill: none; stroke: #161616; stroke-width: " + px(line / 2) + "; }",
     ".clean-sheet .is-added { stroke: #8a3ffc; }",
     ".clean-wall.is-added { fill: none; }",
     ".sketch-leaf { fill: none; stroke: #161616; stroke-width: " + px(line) + "; }",
