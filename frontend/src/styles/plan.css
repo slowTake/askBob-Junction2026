@@ -169,6 +169,12 @@
 .clean-window {
   fill: var(--redraw-room);
 }
+/* A fixture traced from the ink (#146): its outline, thinner than a door's leaf. */
+.clean-fixture {
+  fill: none;
+  stroke: var(--redraw-line);
+  stroke-width: calc(0.75px * var(--u));
+}
 /* A door drawn from its stored swing, and a gap with no symbol (D-055). */
 .clean-leaf,
 .clean-arc,

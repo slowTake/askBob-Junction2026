@@ -10,6 +10,7 @@ import type { ConfidenceMark, RedrawConfidence } from "../api/types";
 export const PART_LABELS: { key: string; label: string }[] = [
   { key: "walls", label: "Walls" },
   { key: "openings", label: "Doors and windows" },
+  { key: "fixtures", label: "Fixtures" },
   { key: "rooms", label: "Room names" },
   { key: "dimensions", label: "Dimensions" },
   { key: "heights", label: "Heights" },

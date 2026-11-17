@@ -65,6 +65,14 @@ export interface OpeningShape {
   frame: string | null;
 }
 
+/** A fixture traced from the ink (#146): a table, a basin, a WC bowl, drawn as its outline. */
+export interface FixtureShape {
+  id: string;
+  /** SVG `points` of the outline. */
+  points: string;
+  added: boolean;
+}
+
 export interface LabelShape {
   id: string;
   kind: string;
@@ -78,6 +86,7 @@ export interface CleanSheet {
   walls: WallShape[];
   rooms: RoomShape[];
   openings: OpeningShape[];
+  fixtures: FixtureShape[];
   labels: LabelShape[];
 }
 
@@ -121,7 +130,7 @@ export function formatArea(m2: number): string {
 export function buildCleanSheet(elements: RedrawElement[], page: Size): CleanSheet {
   const textSize = page.width * TEXT_SHARE;
   const roomSize = ROOM_SIZE * textSize;
-  const sheet: CleanSheet = { walls: [], rooms: [], openings: [], labels: [] };
+  const sheet: CleanSheet = { walls: [], rooms: [], openings: [], fixtures: [], labels: [] };
   const printedAreas = elements
     .filter((e) => e.kind === "area" && hasArea(e.bbox))
     .map((e) => center(e.bbox as BBox));
@@ -147,6 +156,12 @@ export function buildCleanSheet(elements: RedrawElement[], page: Size): CleanShe
         added,
         ...storedOpening(e.kind, e.properties),
       });
+      continue;
+    }
+    // A fixture traced from the ink has an outline; a vocabulary code's is a label.
+    const outline = e.kind === "fixture" ? polygonPoints(e.properties.polygon_px) : null;
+    if (outline) {
+      sheet.fixtures.push({ id: e.id, points: outline, added });
       continue;
     }
     const text = (e.label ?? e.text ?? "").trim();
