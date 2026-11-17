@@ -4,13 +4,17 @@ import pytest
 
 from app.domain.polygons import point_in_polygon
 from app.ingest.doors import Door
+from app.ingest.fixtures import find_fixtures
 from app.ingest.page_symbols import (
     PageSymbols,
     beyond_symbols,
+    door_layer,
     symbol_elements,
     trace_with_symbols,
+    wall_raster,
 )
 from app.ingest.types import ExtractedElement
+from app.ingest.wall_trace import trace_walls
 
 H, W = 120, 200
 RUN = 20
@@ -107,3 +111,22 @@ def test_the_models_fixtures_give_way_to_the_drawn_ones() -> None:
     near = ExtractedElement(kind="fixture", source="vision", bbox=(82, 52, 100, 72))  # 2.8 px
     door = ExtractedElement(kind="door", source="vision", bbox=(80, 50, 100, 70))
     assert beyond_symbols([near, door], drawn, reach_px=4) == [door]
+
+
+def test_a_burner_s_ring_is_left_out_of_the_door_scan_and_a_chair_s_is_not() -> None:
+    page = np.zeros((400, 400), np.uint8)
+    page[100:106, 50:351] = 1  # a band 6 px thick, rows 100..105
+    cv2.rectangle(page, (100, 106), (113, 119), 1, 1)  # a chair on it: its outline
+    cv2.rectangle(page, (102, 108), (111, 117), 1, 1)  # and its inner square 2 px in
+    cv2.rectangle(page, (170, 185), (229, 214), 1, 1)  # a counter, its sides thin lines
+    cv2.circle(page, (200, 200), 8, 1, 1)  # a burner in it: two rings 2 px apart,
+    cv2.circle(page, (200, 200), 10, 1, 1)  # on no traced wall (circles are not straight)
+    ink = page.astype(bool)
+    first = trace_walls(ink, 12)
+    lines = wall_raster([w for w in first if w.drawn == "line"], ink.shape)
+    fixtures = find_fixtures(ink, wall_raster(first, ink.shape), lines, 12)
+    assert len(fixtures.fixtures) == 2
+    layer = door_layer(ink, fixtures)
+    assert not layer[200, 192] and not layer[200, 208]  # the burner's inner ring, row 200
+    assert layer[112, 100] and layer[112, 102]  # the chair rests on the wall: still there
+    assert layer[185, 200] and layer[102, 200]  # the counter and the band
