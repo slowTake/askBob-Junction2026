@@ -1,19 +1,21 @@
-"""A raster page's walls with its doors and windows carved out of them (D-055).
+"""A raster page's walls with its doors, windows and fixtures carved out of them (D-055).
 
 The walls are traced once to know where they are; the symbols that lie along them are
 found; then the walls are traced again with the symbols' own ink taken off, so a window
-frame or a door's arc is drawn as what it is and not as wall. The gap a door or window
-fills is never cut out of its wall. Pure: masks in, elements out.
+frame, a door's arc or a fixture's outline (#146) is drawn as what it is and not as
+wall. The gap a door or window fills is never cut out of its wall. Pure: masks in,
+elements out.
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
 
 from app.domain.geometry import BBox, Point, footprint_mm
 from app.ingest.doors import Door, door_carve, find_doors
+from app.ingest.fixtures import Fixture, find_fixtures, without_swings
 from app.ingest.rooms import Mask
 from app.ingest.symbols import Window, find_windows, window_carve
 from app.ingest.types import ExtractedElement
@@ -33,6 +35,7 @@ class PageSymbols:
     walls: list[TracedWall]
     windows: list[Window]
     doors: list[Door]
+    fixtures: list[Fixture] = field(default_factory=list)
 
 
 def trace_with_symbols(
@@ -43,22 +46,29 @@ def trace_with_symbols(
     text_boxes: Sequence[BBox] = (),
     dimension_boxes: Sequence[BBox] = (),
 ) -> PageSymbols:
-    """The page's walls, traced without the ink of the doors and windows found on them."""
+    """The page's walls, traced without the ink of the doors, windows and fixtures found
+    on them. `text_boxes` are words that read as text."""
     first = trace_walls(ink, min_run_px, text_boxes, dimension_boxes)
     walls = wall_raster(first, ink.shape)
-    longest = max(ink.shape)
-    min_window = max(MIN_WINDOW_PX, round(WINDOW_SHARE * longest))
-    windows = find_windows(symbols, fills, walls, min_window)
-    smallest, largest = (max(MIN_DOOR_PX, round(s * longest)) for s in DOOR_SHARES)
-    doors = find_doors(symbols, ink, walls, smallest, largest)
-    if not windows and not doors:
-        return PageSymbols(first, [], [])
     # A thin wall line the first trace found stays: a door's leaf or arc that runs along
     # one is drawn on the wall, and the wall is what the truth and the route tool need.
     lines = wall_raster([w for w in first if w.drawn == "line"], ink.shape)
-    carve = window_carve(windows, ink.shape) | (door_carve(doors, symbols, ink) & ~lines)
+    longest = max(ink.shape)
+    min_window = max(MIN_WINDOW_PX, round(WINDOW_SHARE * longest))
+    windows = find_windows(symbols, fills, walls, min_window)
+    fixtures = find_fixtures(ink, walls, lines, min_run_px, text_boxes)
+    smallest, largest = (max(MIN_DOOR_PX, round(s * longest)) for s in DOOR_SHARES)
+    doors = find_doors(symbols, ink, walls, smallest, largest)
+    fixtures = without_swings(fixtures, doors)
+    if not windows and not doors and not fixtures.fixtures:
+        return PageSymbols(first, [], [])
+    carve = (
+        window_carve(windows, ink.shape)
+        | (door_carve(doors, symbols, ink) & ~lines)
+        | fixtures.carve
+    )
     traced = trace_walls(ink, min_run_px, text_boxes, dimension_boxes, carve)
-    return PageSymbols(traced, windows, doors)
+    return PageSymbols(traced, windows, doors, fixtures.fixtures)
 
 
 def wall_raster(walls: Sequence[TracedWall], shape: tuple[int, ...]) -> Mask:
@@ -71,28 +81,40 @@ def wall_raster(walls: Sequence[TracedWall], shape: tuple[int, ...]) -> Mask:
 def symbol_elements(
     found: PageSymbols, scale_mm: float | None, page_height: float
 ) -> list[ExtractedElement]:
-    """Doors and windows as stored elements: `properties.opening` holds the gap on its
-    wall; a door also its hinge end, a point in its swing and its leaf's length."""
-    return [_window(w, scale_mm, page_height) for w in found.windows] + [
-        _door(d, scale_mm, page_height) for d in found.doors
-    ]
+    """Doors, windows and fixtures as stored elements: `properties.opening` holds a door's
+    or window's gap on its wall; a door also its hinge end, a point in its swing and its
+    leaf's length. A fixture is its outline, with no label (#146)."""
+    return (
+        [_window(w, scale_mm, page_height) for w in found.windows]
+        + [_door(d, scale_mm, page_height) for d in found.doors]
+        + [_fixture(f, scale_mm, page_height) for f in found.fixtures]
+    )
 
 
 def beyond_symbols(
     model: Sequence[ExtractedElement], drawn: Sequence[ExtractedElement], reach_px: float
 ) -> list[ExtractedElement]:
-    """The floor-plan model's objects, less its doors and windows that lie within
-    `reach_px` of one read from the drawing's own symbols: there, the ink's shape wins."""
-    centres = [
-        _centre(e.bbox) for e in drawn if e.kind in ("door", "window") and e.bbox is not None
-    ]
+    """The floor-plan model's objects, less its doors, windows and fixtures that lie
+    within `reach_px` of one of the same group read from the drawing's own symbols:
+    there, the ink's shape wins."""
+    centres = [(_group(e.kind), _centre(e.bbox)) for e in drawn if e.bbox is not None]
     return [
         e
         for e in model
-        if e.kind not in ("door", "window")
+        if _group(e.kind) is None
         or e.bbox is None
-        or all(float(np.hypot(*np.subtract(_centre(e.bbox), c))) > reach_px for c in centres)
+        or all(
+            float(np.hypot(*np.subtract(_centre(e.bbox), c))) > reach_px
+            for g, c in centres
+            if g == _group(e.kind)
+        )
     ]
+
+
+def _group(kind: str) -> str | None:
+    if kind in ("door", "window"):
+        return "opening"
+    return "fixture" if kind == "fixture" else None
 
 
 def _centre(b: BBox) -> Point:
@@ -119,6 +141,20 @@ def _door(d: Door, scale_mm: float | None, page_height: float) -> ExtractedEleme
     corner = (d.b[0] + d.leaf[0] - d.a[0], d.b[1] + d.leaf[1] - d.a[1])
     xs, ys = (d.a[0], d.b[0], d.leaf[0], corner[0]), (d.a[1], d.b[1], d.leaf[1], corner[1])
     el.bbox = (min(xs), min(ys), max(xs), max(ys))
+    return el
+
+
+def _fixture(f: Fixture, scale_mm: float | None, page_height: float) -> ExtractedElement:
+    polygon = [[round(v, 2) for v in p] for p in f.polygon]
+    el = ExtractedElement(
+        kind="fixture",
+        source="derived",
+        bbox=f.box,
+        confidence=SYMBOL_CONFIDENCE,
+        properties={"polygon_px": polygon, "drawn": "ring"},
+    )
+    if scale_mm:
+        el.footprint_mm = footprint_mm(f.polygon, scale_mm, page_height)
     return el
 
 
