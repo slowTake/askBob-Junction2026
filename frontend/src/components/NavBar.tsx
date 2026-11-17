@@ -1,3 +1,4 @@
+import { isDemo } from "../api/client";
 import type { Theme } from "../lib/theme";
 import { UploadButton } from "./UploadButton";
 
@@ -40,7 +41,18 @@ export function NavBar(props: Props) {
         >
           {theme === "dark" ? "☀" : "☾"}
         </button>
-        <UploadButton onFiles={onFiles} />
+        {isDemo ? (
+          // The demo build replays real runs and takes no uploads (D-059).
+          <a
+            className="btn btn-bar"
+            href="https://github.com/slowTake/bobBuilder"
+            title="Answers are replayed from real runs. Clone the repo to run it live."
+          >
+            Recorded demo · run it live
+          </a>
+        ) : (
+          <UploadButton onFiles={onFiles} />
+        )}
       </div>
     </header>
   );

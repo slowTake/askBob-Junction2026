@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, api } from "../api/client";
+import { ApiError, api, isDemo } from "../api/client";
 import type { DocumentEvent, DocumentInfo } from "../api/types";
 import { isBusy, type IngestProgress } from "../lib/ingest";
 
@@ -41,6 +41,12 @@ export function useDocuments() {
   useEffect(() => {
     mounted.current = true;
     void refresh();
+    if (isDemo) {
+      // A recording has nothing in progress, so there are no events to follow.
+      return () => {
+        mounted.current = false;
+      };
+    }
     const source = new EventSource("/api/events");
     // Fires on the first connection and after every reconnect: catch up on missed events.
     source.addEventListener("open", () => void refresh());
