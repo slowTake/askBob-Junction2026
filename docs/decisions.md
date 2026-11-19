@@ -61,6 +61,7 @@ Product, data and engineering decisions, numbered `D-NNN`. Add the next number, 
 | D-052 | 2026-11-16 | OCR words that are line work are dropped before they become elements (#90) | Accepted |
 | D-053 | 2026-11-16 | Raster walls are traced from the ink as polygons: bands and thin lines; model walls only add (#137) | Accepted |
 | D-059 | 2026-11-17 | Local Docker is the default stack; the public demo is a static replay of recorded real runs (#149) | Accepted |
+| D-060 | 2026-11-19 | The project's own code is MIT licensed (#151) | Accepted |
 
 ## D-001: Adopt the Lease Loop engineering rules, stack-neutral
 
@@ -1103,3 +1104,13 @@ Supersedes nothing; D-053, D-055 and D-057 stand.
 - `.github/workflows/pages.yml` builds the demo and publishes it to GitHub Pages on pushes to `main` that touch `frontend/`, and only once a snapshot exists.
 
 **Consequences:** The demo needs no backend, costs nothing to host and keeps working. It answers only the recorded questions, and selecting elements does not change an answer. The snapshot's images and meshes are committed, so we record a few documents only, chosen for licences that allow publishing them. Aiven Runtime, the root `Dockerfile` and its CI check stay as they are until a later issue removes them. Hosting it live again later means running the same Compose file on one small VM.
+
+## D-060: The project's own code is MIT licensed (#151)
+
+**Date:** 2026-11-19 · **Status:** Accepted
+
+**Context:** The repository had no licence, so by default nobody but the authors may use, copy or change it. After the hackathon it is meant as a portfolio piece that others can read and run.
+
+**Decision:** Add `LICENSE` (MIT, "Copyright (c) 2026 bobBuilder contributors") and say so in the README. The licence covers the code in this repository only.
+
+**Consequences:** Third-party parts keep their own terms. In particular the floor-plan model's code and weights used by `vision` are CC BY-NC 4.0 (non-commercial), and recorded demo documents keep the licences they were published under (D-059). Neither is relicensed by this change.
