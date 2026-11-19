@@ -196,3 +196,7 @@ frontend/src/
 ## Checks
 
 `make check` runs what CI runs: ruff format and lint, mypy and pytest for the backend; prettier, eslint, tsc, vitest and a build for the frontend; and the 600-line file limit. Team rules are in [RULES.md](RULES.md).
+
+## Licence
+
+The code in this repository is released under the [MIT licence](LICENSE). Third-party parts keep their own terms: the floor-plan model used by `vision` is CC BY-NC 4.0 (see the current limits above), and the recorded demo documents keep the licences they were published under.
