@@ -7,7 +7,7 @@ You are helping a hackathon team build **bobBuilder**. The engineering rules in 
 - **Files stay under 600 lines.** Split by responsibility.
 - **No secrets** in any committed file: no tokens, passwords or connection strings. Never paste them into chat or tool calls either. Aiven access is described in `docs/aiven-setup.md` and the secondary Verda LLM in `docs/verda-setup.md`; the Aiven MCP server in `.mcp.json` is read-only.
 - **Commits** use conventional messages: `type(scope): subject`. Never use `git commit --no-verify` or `git push --no-verify`. If a hook fails, fix the cause.
-- Before saying a change is done, run the project's checks (format, lint, type check, tests). Once CI exists, run what CI runs.
+- Before saying a change is done, run `make check` (format, lint, type check, tests, build, file size).
 
 ## Issues and branches
 
