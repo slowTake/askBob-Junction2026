@@ -1,6 +1,6 @@
 # Engineering rules
 
-Our rules for bobBuilder, adapted from the ones we used on Lease Loop. They are stack-neutral for now: once we pick the stack, hooks and CI will enforce them, and this file will name the exact commands.
+Our rules for bobBuilder, adapted from the ones we used on Lease Loop. `make check` runs the format, lint, type, test, build and file-size checks; CI ([ci.yml](.github/workflows/ci.yml)) enforces them.
 
 ## 1. Conventional commits
 
@@ -16,7 +16,7 @@ Types: `feat`, `fix`, `test`, `refactor`, `docs`, `style`, `chore`, `ci`, `perf`
 
 ## 2. Hooks stay on
 
-Once the hooks exist (secret scan, format and lint on commit; message check; type check and tests before push), **never use `--no-verify`**. If a hook fails, fix the cause.
+The repository ships no Git hooks; CI is what enforces the checks. If you have hooks of your own, such as a secret scan, **never use `--no-verify`**. If a hook fails, fix the cause.
 
 ## 3. Business logic is pure and tested
 
@@ -42,4 +42,4 @@ Every product, data or engineering decision goes in [docs/decisions.md](docs/dec
 
 ## 8. CI is green
 
-Once CI is set up it runs on every push and pull request: format, lint, type check, file size, tests, build and commit messages. Run the same checks locally before saying a change is done. A green check on the last commit before the deadline matters.
+CI runs on every pull request and every push to `main`: format, lint, type check, file size, tests, build and container checks, plus commit messages on pull requests. Run `make check` locally before saying a change is done. A green check on the last commit before the deadline matters.
