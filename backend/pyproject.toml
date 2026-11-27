@@ -1,5 +1,5 @@
 [project]
-name = "bobbuilder-backend"
+name = "askbob-backend"
 version = "0.1.0"
 description = "Ask construction drawings questions and get verifiable answers"
 requires-python = ">=3.12"

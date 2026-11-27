@@ -1114,3 +1114,13 @@ Supersedes nothing; D-053, D-055 and D-057 stand.
 **Decision:** Add `LICENSE` (MIT, "Copyright (c) 2026 bobBuilder contributors") and say so in the README. The licence covers the code in this repository only.
 
 **Consequences:** Third-party parts keep their own terms. In particular the floor-plan model's code and weights used by `vision` are CC BY-NC 4.0 (non-commercial), and recorded demo documents keep the licences they were published under (D-059). Neither is relicensed by this change.
+
+## D-061: The project is named askBob (#155)
+
+**Date:** 2026-11-27 · **Status:** Accepted · **Supersedes in part:** D-060 (the copyright line)
+
+**Context:** The code and docs said bobBuilder, the deployed app and the UI's page title said askBob, and the repository had been renamed twice. A reader could not tell what the project is called.
+
+**Decision:** The project is askBob and the repository is `slowTake/askBob-Junction2026`. Docs, API titles, repository links, package names and the licence line ("Copyright (c) 2026 askBob contributors") use the new name. Identifiers tied to existing data or resources keep the old one: the Compose project `bobbuilder` (its volumes hold local data), the Aiven service `valkey-bobbuilder`, the `Bob_Provenance` and `Bob_Element` names in IFC files, and the `bob` database, cookie and browser storage keys. Earlier entries in this log are not rewritten.
+
+**Consequences:** Local data and earlier IFC exports keep working. Old repository URLs redirect. Local clones may keep their old folder name.

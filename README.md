@@ -1,4 +1,4 @@
-# bobBuilder
+# askBob
 
 Ask construction drawings questions in plain language and get answers you can check: every answer cites the exact spot on the drawing (or the exact IFC element) it came from. Built for Stoa's "Make Blueprints Talk" challenge at Junction. The brief is in [docs/challenge.md](docs/challenge.md).
 
@@ -140,7 +140,7 @@ In the Aiven Console, project `junction-stoa-winners` → **Runtime** → the ap
 
 | Setting | Value |
 |---|---|
-| Repository, branch | `slowTake/bobBuilder`, `main` |
+| Repository, branch | `slowTake/askBob-Junction2026`, `main` |
 | Manifest | `Dockerfile` (the root one; not `docker-compose.yml`, which would create extra Postgres and Valkey services) |
 | Build context directory | `/` (the repo root) |
 | Containerfile path | `/Dockerfile` |

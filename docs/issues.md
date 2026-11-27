@@ -1,6 +1,6 @@
 # Issues and the board
 
-How we split and track work. Issues live in `slowTake/bobBuilder`; the board is a GitHub Project owned by slowTake.
+How we split and track work. Issues live in `slowTake/askBob-Junction2026`; the board is a GitHub Project owned by slowTake.
 
 ## Flow
 
@@ -21,15 +21,15 @@ Aim for 10–20 chunky issues, a few hours each, each with a "Done when" list. U
 
 **Board** (slowTake, once, in the GitHub UI):
 
-1. Profile → **Projects → New project → Board**, named `bobBuilder`.
+1. Profile → **Projects → New project → Board**, named `askBob`.
 2. Edit the **Status** field to: Todo, In Progress, In Review, Done.
 3. Project **⋯ → Workflows**, turn on:
-   - *Auto-add to project*: repository `bobBuilder`, filter `is:issue,pr is:open`.
+   - *Auto-add to project*: repository `askBob-Junction2026`, filter `is:issue,pr is:open`.
    - *Item added to project* → Todo.
    - *Item closed* and *Pull request merged* → Done.
    - *Item reopened* → In Progress.
 4. Project **⋯ → Settings → Manage access**: add the rest of the team with **Write**.
-5. Link it from the repo: **bobBuilder → Projects → Link a project**.
+5. Link it from the repo: **askBob-Junction2026 → Projects → Link a project**.
 
 Moving a card to In Progress or In Review is manual; no built-in workflow fires on assignment.
 

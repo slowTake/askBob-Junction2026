@@ -1,5 +1,5 @@
 [project]
-name = "bobbuilder-demo-video"
+name = "askbob-demo-video"
 version = "0.1.0"
 description = "Reproducible pipeline for the 2-minute Junction demo video"
 requires-python = ">=3.12"
