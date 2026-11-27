@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Creates or updates the issue labels. Safe to run again.
 set -euo pipefail
-repo="slowTake/bobBuilder"
+repo="slowTake/askBob-Junction2026"
 
 label() { gh label create "$1" --repo "$repo" --color "$2" --description "$3" --force; }
 

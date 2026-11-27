@@ -1,6 +1,6 @@
 # Instructions for AI coding agents
 
-You are helping a hackathon team build **bobBuilder**. The engineering rules in `RULES.md` must be followed. The short version:
+You are helping a hackathon team build **askBob**. The engineering rules in `RULES.md` must be followed. The short version:
 
 - **Business logic is pure:** no I/O, no database, no `fetch`, no reading the clock (`Date.now()`, `new Date()`) or randomness inside logic. Pass dates (ISO `YYYY-MM-DD`) and data in as arguments. Every function gets tests next to it, including edge cases.
 - **API errors never leak:** one response shape for every endpoint; never return raw error messages or stack traces.
@@ -11,7 +11,7 @@ You are helping a hackathon team build **bobBuilder**. The engineering rules in 
 
 ## Issues and branches
 
-Work is tracked in GitHub issues on `slowTake/bobBuilder`; see `docs/issues.md`.
+Work is tracked in GitHub issues on `slowTake/askBob-Junction2026`; see `docs/issues.md`.
 
 - One issue per branch. Before starting, check the issue is assigned to the person you work for (`gh issue view <n>`). Don't pick up unassigned issues on your own.
 - Create the branch from the issue: `gh issue develop <n> --checkout`.

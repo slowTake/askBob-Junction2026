@@ -1,5 +1,5 @@
 [project]
-name = "bobbuilder-vision"
+name = "askbob-vision"
 version = "0.1.0"
 description = "Floor-plan model (CubiCasa5k) as an internal HTTP service; see docs/decisions.md D-022"
 requires-python = ">=3.12,<3.13"

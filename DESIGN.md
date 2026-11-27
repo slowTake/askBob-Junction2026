@@ -1,7 +1,7 @@
 ---
 version: alpha
-name: bobBuilder-drafting-table
-description: The bobBuilder workspace reads as engineering software. Light theme is a drafting table (white panels on a light grey desk, hairline rules, square corners, one blue). Dark theme borrows quiet night-shift panels with a lighter blue. Drawings stay white paper in both themes. Mono type marks data.
+name: askBob-drafting-table
+description: The askBob workspace reads as engineering software. Light theme is a drafting table (white panels on a light grey desk, hairline rules, square corners, one blue). Dark theme borrows quiet night-shift panels with a lighter blue. Drawings stay white paper in both themes. Mono type marks data.
 
 colors:
   light:
@@ -62,7 +62,7 @@ spacing: [4px, 8px, 12px, 16px, 24px, 32px, 48px]
 
 ## Overview
 
-bobBuilder answers questions about construction drawings and points to the exact spot each answer came from. Its users are engineers, architects and property people who already live in CAD and BIM tools, so the interface borrows that world: a dark app bar, white panels, hairline rules, square corners and one blue for whatever is active. Nothing is decorative. The drawing is the hero; the chrome around it stays quiet.
+askBob answers questions about construction drawings and points to the exact spot each answer came from. Its users are engineers, architects and property people who already live in CAD and BIM tools, so the interface borrows that world: a dark app bar, white panels, hairline rules, square corners and one blue for whatever is active. Nothing is decorative. The drawing is the hero; the chrome around it stays quiet.
 
 Tokens live in `frontend/src/styles/tokens.css`. Change values here first, then there. Components use tokens only, never literal colours.
 

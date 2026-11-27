@@ -45,7 +45,7 @@ export function NavBar(props: Props) {
           // The demo build replays real runs and takes no uploads (D-059).
           <a
             className="btn btn-bar"
-            href="https://github.com/slowTake/bobBuilder"
+            href="https://github.com/slowTake/askBob-Junction2026"
             title="Answers are replayed from real runs. Clone the repo to run it live."
           >
             Recorded demo · run it live

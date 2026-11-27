@@ -1,4 +1,4 @@
-# bobBuilder: UI (nginx) -> API (FastAPI) -> worker (RQ), with
+# askBob: UI (nginx) -> API (FastAPI) -> worker (RQ), with
 # Aiven for PostgreSQL and Aiven for Valkey as the data services.
 #
 #   Aiven (default):  source scripts/aiven-env.sh && docker compose up --build

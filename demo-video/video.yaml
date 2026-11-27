@@ -23,7 +23,7 @@ segments:
     target_s: 8
     on_screen: A real question typed; the answer and its highlight appear. Team name overlay.
     voiceover: >-
-      Where's fire door PO-12, and what's its rating? bobBuilder answers in seconds, with
+      Where's fire door PO-12, and what's its rating? askBob answers in seconds, with
       proof.
 
   - id: problem
@@ -72,5 +72,5 @@ segments:
     target_s: 15
     on_screen: Eval result, cost per question, latency; team name.
     voiceover: >-
-      On Stoa's example questions: X of Y correct, about X cents per question. bobBuilder:
+      On Stoa's example questions: X of Y correct, about X cents per question. askBob:
       answers you can check.

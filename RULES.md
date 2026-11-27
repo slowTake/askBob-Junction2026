@@ -1,6 +1,6 @@
 # Engineering rules
 
-Our rules for bobBuilder, adapted from the ones we used on Lease Loop. `make check` runs the format, lint, type, test, build and file-size checks; CI ([ci.yml](.github/workflows/ci.yml)) enforces them.
+Our rules for askBob, adapted from the ones we used on Lease Loop. `make check` runs the format, lint, type, test, build and file-size checks; CI ([ci.yml](.github/workflows/ci.yml)) enforces them.
 
 ## 1. Conventional commits
 

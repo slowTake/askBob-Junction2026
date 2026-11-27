@@ -61,7 +61,7 @@ def pick_device(setting: str, providers: list[str]) -> bool:
 
 def create_app(read: Reader) -> FastAPI:
     lock = threading.Lock()  # one page at a time: it already uses every core or the GPU
-    app = FastAPI(title="bobBuilder OCR")
+    app = FastAPI(title="askBob OCR")
 
     @app.get("/health")
     def health() -> dict[str, Any]:

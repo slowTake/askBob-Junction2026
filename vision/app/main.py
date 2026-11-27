@@ -63,7 +63,7 @@ def create_app(load: Callable[[], Analyser]) -> FastAPI:
         state["analyse"] = await run_in_threadpool(load)
         yield
 
-    app = FastAPI(title="bobBuilder vision", lifespan=lifespan)
+    app = FastAPI(title="askBob vision", lifespan=lifespan)
 
     @app.get("/health")
     def health() -> dict[str, Any]:

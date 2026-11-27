@@ -1,6 +1,6 @@
 # Instructions for AI agents in `demo-video/`
 
-This directory builds the **2-minute Junction demo video** for bobBuilder. It is **not part of the app**: nothing in `backend/` or `frontend/` imports it, and it ships nothing to users. Read this file before touching anything here; read [README.md](README.md) for the commands.
+This directory builds the **2-minute Junction demo video** for askBob. It is **not part of the app**: nothing in `backend/` or `frontend/` imports it, and it ships nothing to users. Read this file before touching anything here; read [README.md](README.md) for the commands.
 
 ## What's different from the rest of the repo
 

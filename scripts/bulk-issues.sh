@@ -3,7 +3,7 @@
 # Columns: title <TAB> label <TAB> "done when" text.
 # Usage: scripts/bulk-issues.sh docs/tasks.tsv
 set -euo pipefail
-repo="slowTake/bobBuilder"
+repo="slowTake/askBob-Junction2026"
 file="${1:?usage: $0 <tasks.tsv>}"
 
 # `|| [[ -n "$title" ]]`: read fails on a last line without a newline, but still fills the fields.

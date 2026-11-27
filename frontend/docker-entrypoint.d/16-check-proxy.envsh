@@ -8,13 +8,13 @@ BACKEND_URL="${BACKEND_URL%/}"
 case "$BACKEND_URL" in
   http://* | https://*) ;;
   *)
-    echo "bobBuilder: BACKEND_URL must be http(s)://host[:port], got '$BACKEND_URL'" >&2
+    echo "askBob: BACKEND_URL must be http(s)://host[:port], got '$BACKEND_URL'" >&2
     exit 1
     ;;
 esac
 case "${BACKEND_URL#*://}" in
   */*)
-    echo "bobBuilder: BACKEND_URL must be http(s)://host[:port] with no path, got '$BACKEND_URL'" >&2
+    echo "askBob: BACKEND_URL must be http(s)://host[:port] with no path, got '$BACKEND_URL'" >&2
     exit 1
     ;;
 esac
@@ -22,6 +22,6 @@ export BACKEND_URL
 
 # nginx resolves BACKEND_URL per request through these servers; without one it cannot start.
 if [ -z "${NGINX_LOCAL_RESOLVERS:-}" ]; then
-  echo "bobBuilder: no nameserver in /etc/resolv.conf, so nginx could not resolve BACKEND_URL" >&2
+  echo "askBob: no nameserver in /etc/resolv.conf, so nginx could not resolve BACKEND_URL" >&2
   exit 1
 fi
